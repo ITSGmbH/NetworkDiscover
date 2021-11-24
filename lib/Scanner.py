@@ -4,7 +4,6 @@ class Scanner(xml.sax.ContentHandler):
 	def __init__(self):
 		self.current = {}
 		self.hosts = []
-		self.it = 0
 		self.tmp = tempfile.TemporaryDirectory()
 
 	def __del__(self):
@@ -40,16 +39,3 @@ class Scanner(xml.sax.ContentHandler):
 			parser.setFeature(xml.sax.handler.feature_namespaces, False)
 			parser.setContentHandler(self)
 			parser.parse(out)
-
-	def getHosts(self):
-		return self.hosts
-
-	def next(self):
-		if self.it < len(self.hosts):
-			self.it += 1
-			return self.hosts[self.it - 1]
-		return None
-
-	def rewind(self):
-		self.it = 0
-

@@ -27,9 +27,12 @@ class Storage:
 		self.db.execute('''CREATE TABLE IF NOT EXISTS ports (
 			host INTEGER,
 			port INTEGER DEFAULT 0,
+			protocol NVARCHAR(5) DEFAULT "",
+			state NVARCHAR(10) DEFAULT "",
+			service NVARCHAR(100) DEFAULT "",
+			product NVARCHAR(100) DEFAULT "",
 			first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
 			last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-			service NVARCHAR(100) DEFAULT "",
 			comment TEXT DEFAULT ""
 			)''')
 		self.db.execute('''CREATE TABLE IF NOT EXISTS cves (
@@ -51,15 +54,41 @@ class Storage:
 		fields = ','.join(fields)
 		self.db.executemany('INSERT INTO %s (%s) VALUES(%s)' % (table, fields, placeholder) , [ tuple(data) ])
 
+	def update(self, table, values, select = []):
+		fields = []
+		where = ''
+		placeholder = []
+		data = tuple()
+
+		for val in values.items():
+			if val[1] == 'CURRENT_TIMESTAMP':
+				placeholder.append(val[0] + '=CURRENT_TIMESTAMP')
+			else:
+				placeholder.append(val[0] + '=?')
+				data += ( val[1], )
+
+		for exp in select:
+			if len(exp) <= 2:
+				exp += ('AND', )
+			if len(where) > 0:
+				where += ' ' + exp[2] + ' '
+			where += exp[0]
+			data += ( exp[1], )
+		cur = self.db.cursor()
+		cur.execute('UPDATE %s SET %s WHERE %s' % ( table, ','.join(placeholder), where ), data)
+		cur.close()
+
 	def get(self, table, fields=[ '*' ], select = []):
 		where = ''
 		data = tuple()
 
 		for exp in select:
-			if (len(where)):
+			if len(exp) <= 2:
+				exp += ('AND', )
+			if len(where) > 0:
 				where += ' ' + exp[2] + ' '
 			where += exp[0]
-			data += ( exp[1] , )
+			data += ( exp[1], )
 		cur = self.db.cursor()
 		cur.execute('SELECT %s FROM %s %s' % ( ','.join(fields), table, 'WHERE ' + ''.join(where) if len(where) else '' ), data)
 		return cur.fetchall()
