@@ -1,7 +1,8 @@
 import subprocess
 
 class TraceRoute:
-	def __init__(self, hops, device):
+	def __init__(self, logger, hops, device):
+		self.logger = logger
 		self.maxHops = hops
 		self.device = device
 		self.default_gw = None
@@ -10,9 +11,11 @@ class TraceRoute:
 		self.hosts = {}
 		self.neighbours = []
 
-	def trace(self, host):
+	def traceRoute(self, host):
 		if isinstance(host, dict) and host.get('address', None) != None:
 			current = host.get('address')
+			self.logger.log('TraceRoute', 'Tracing host: %s' % (current))
+
 			if self.hosts.get(current, None) == None:
 				self.hosts[current] = { 'trace': True, 'nodes': [] }
 
@@ -49,7 +52,7 @@ class TraceRoute:
 			pass
 		return path
 
-	def discover(self):
+	def discoverLocalNet(self):
 		self.discoverHost()
 		self.discoverDefaultGateway()
 		self.discoverNeighbourCache()
@@ -66,6 +69,8 @@ class TraceRoute:
 				self.ipv4 = line[1].split('/')[0]
 			elif line[0] == 'inet6':
 				self.ipv6 = line[1].split('/')[0]
+		self.logger.log('TraceRoute', 'Found local IPv4: %s' % (self.ipv4))
+		self.logger.log('TraceRoute', 'Found local IPv6: %s' % (self.ipv6))
 
 	def discoverDefaultGateway(self):
 		cmd = ['ip', 'route', 'show']
@@ -79,6 +84,7 @@ class TraceRoute:
 				self.default_gw = line[2]
 				self.hosts[self.default_gw] = { 'trace': True, 'nodes': [] }
 				break
+		self.logger.log('TraceRoute', 'Found default gateway: %s' % (self.default_gw))
 
 	def discoverNeighbourCache(self):
 		cmd = ['ip', 'neighbour', 'show']
@@ -95,12 +101,13 @@ class TraceRoute:
 			host = self.hosts.get(key)
 			left = storage.get('hosts', [ 'rowid' ], [ ('ip=?', key, 'AND') ])
 			if len(left) == 0:
-				storage.insert('hosts', { 'ip': key })
+				storage.insert('hosts', { 'ip': key, 'scan': storage.scan })
 
 		for key in self.hosts:
-			left = storage.get('hosts', [ 'rowid' ], [ ('ip=?', key, 'AND') ])
+			left = storage.get('hosts', [ 'rowid' ], [ ('ip=?', key, 'AND') ])[0][0]
+			storage.insert('hosts_history', { 'host_id': left, 'scan': storage.scan })
 			for node in self.hosts.get(key).get('nodes'):
-				right = storage.get('hosts', [ 'rowid' ], [ ('ip=?', node, 'AND') ])
-				check = storage.get('routing', [ 'left', 'right' ], [ ('left=?', left[0][0], 'AND'), ('right=?', right[0][0], 'AND') ])
+				right = storage.get('hosts', [ 'rowid' ], [ ('ip=?', node, 'AND') ])[0][0]
+				check = storage.get('routing', [ 'left', 'right' ], [ ('left=?', left, 'AND'), ('right=?', right, 'AND') ])
 				if len(check) == 0:
-					storage.insert('routing', { 'left': left[0][0], 'right': right[0][0] })
+					storage.insert('routing', { 'left': left, 'right': right })

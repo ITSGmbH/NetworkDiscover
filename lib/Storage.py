@@ -1,23 +1,42 @@
 import sqlite3
 
 class Storage:
-	def __init__(self, name):
-		self.db = sqlite3.connect('%s.sqlite' % name)
+	dbpath = 'db'
+
+	def __init__(self, name, scan):
+		self.name = name
+		self.scan = scan
+		self.db = sqlite3.connect('file:' + self.dbpath + '/%s.sqlite%s' % (name, '?mode=ro' if scan <= 0 else ''), uri=True)
 
 	def __del__(self):
 		self.db.commit()
 		self.db.close()
 
 	def prepare(self):
+		self.db.execute('''CREATE TABLE IF NOT EXISTS scans (
+			scan INTEGER DEFAULT 0,
+			start_time DATETIME DEFAULT CURRENT_TIMESTAMP,
+			end_time DATETIME DEFAULT CURRENT_TIMESTAMP
+			)''')
+		self.db.execute('''CREATE TABLE IF NOT EXISTS log (
+			log_time INTEGER DEFAULT CURRENT_TIMESTAMP,
+			scan INTEGER DEFAULT 0,
+			severity VNARCHAR(10) DEFAULT "info",
+			origin NVARCHAR(15),
+			log TEXT DEFAULT ""
+			)''')
 		self.db.execute('''CREATE TABLE IF NOT EXISTS hosts (
 			id INTEGER PRIMARY KEY,
 			ip NVARCHAR(40) DEFAULT "",
-			mac NVARCHAR(20) DEFAULT "",
-			vendor NVARCHAR(40) DEFAULT "",
-			os NVARCHAR(100) DEFAULT "",
-			first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-			last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+			scan INTEGER DEFAULT 0,
+			ignore INTEGER DEFAULT 0,
 			comment TEXT DEFAULT ""
+			)''')
+		self.db.execute('''CREATE TABLE IF NOT EXISTS hosts_history (
+			id INTEGER PRIMARY KEY,
+			host_id INTEGER NOT NULL,
+			os NVARCHAR(100) DEFAULT "?",
+			scan INTEGER DEFAULT 0
 			)''')
 		self.db.execute('''CREATE TABLE IF NOT EXISTS routing (
 			left INTEGER,
@@ -25,22 +44,22 @@ class Storage:
 			comment TEXT DEFAULT ""
 			)''')
 		self.db.execute('''CREATE TABLE IF NOT EXISTS ports (
-			host INTEGER,
+			host_history_id INTEGER,
 			port INTEGER DEFAULT 0,
 			protocol NVARCHAR(5) DEFAULT "",
 			state NVARCHAR(10) DEFAULT "",
 			service NVARCHAR(100) DEFAULT "",
 			product NVARCHAR(100) DEFAULT "",
-			first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-			last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
+			scan INTEGER DEFAULT 0,
 			comment TEXT DEFAULT ""
 			)''')
 		self.db.execute('''CREATE TABLE IF NOT EXISTS cves (
-			port INTEGER,
-			first_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-			last_seen DATETIME DEFAULT CURRENT_TIMESTAMP,
-			cve NVARCHAR(20) DEFAULT "",
-			link NVARCHAR(200) DEFAULT "",
+			port_id INTEGER,
+			type NVARCHAR(20) DEFAULT "",
+			type_id NVARCHAR(20) DEFAULT "",
+			cvss DECIMAL(8,2) DEFAULT 0,
+			is_exploit NVARCHAR(5) DEFAULT "false",
+			scan INTEGER DEFAULT 0,
 			comment TEXT DEFAULT ""
 			)''')
 
@@ -83,13 +102,23 @@ class Storage:
 		data = tuple()
 
 		for exp in select:
-			if len(exp) <= 2:
+			if len(exp) == 2:
 				exp += ('AND', )
 			if len(where) > 0:
 				where += ' ' + exp[2] + ' '
 			where += exp[0]
-			data += ( exp[1], )
+			if exp[1] != None:
+				data += ( exp[1], )
 		cur = self.db.cursor()
 		cur.execute('SELECT %s FROM %s %s' % ( ','.join(fields), table, 'WHERE ' + ''.join(where) if len(where) else '' ), data)
 		return cur.fetchall()
 
+	def startScan(self):
+		self.insert('scans', { 'scan': self.scan, 'end_time': '0' })
+
+	def endScan(self):
+		self.update('scans', { 'end_time': 'CURRENT_TIMESTAMP' }, [ ('scan=?', self.scan) ])
+
+	def getLastScanId(self):
+		result = self.get('scans', ['MAX(scan)'])
+		return result[0][0] if result is not None else 0

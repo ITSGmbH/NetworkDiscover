@@ -17,3 +17,5 @@ dist/
 *.gv
 *.sqlite
 *.sqlite-journal
+db/
+gv/
