@@ -30,8 +30,12 @@
 
 				<div class="navbar-end">
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
-						<span class="navbar-link">Select Scan</span>
-						<div class="navbar-dropdown" id="network-scans"></div>
+						<span class="navbar-link">Network</span>
+						<div class="navbar-dropdown" id="networks"></div>
+					</div>
+					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
+						<span class="navbar-link">Scan</span>
+						<div class="navbar-dropdown is-right" id="scans"></div>
 					</div>
 				</div>
 			</div>
@@ -88,7 +92,7 @@
 		var network = new vis.Network(container, data, options);
 
 		var load_network = ev => {
-			$.getJSON("/api/network?load=" + ev.data.network, data => {
+			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
 				var _nodes = [];
 				var _edges = [];
 				Object.entries(data.hosts).forEach(entry => {
@@ -104,30 +108,43 @@
 				edges.add(_edges);
 				$('#networkinfo').empty();
 				$('#networkarea').data('network', ev.data.network)
+				$('#networkarea').data('scan', ev.data.scan)
 
-				$('#btn-pdf').attr('href', '/export/pdf?load=' + ev.data.network);
-				$('#btn-csv').attr('href', '/export/csv?load=' + ev.data.network);
+				$('#btn-pdf').attr('href', '/export/' + ev.data.network + '?type=pdf&scan=' + ev.data.scan);
+				$('#btn-csv').attr('href', '/export/' + ev.data.network + '?type=csv&scan=' + ev.data.scan);
 			});
 		}
 
+		var load_scans = ev => {
+			$.getJSON("/api/scans?network=" + ev.data.network, scans => {
+				$('#scans').empty();
+				scans.scans.forEach((v, k) => {
+					$('#scans').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
+					$('#scan-' + k).on('click', { id: k, network: ev.data.network, scan: v.scan }, load_network);
+				});
+				$('#scan-' + (scans.scans.length - 1)).trigger('click');
+			});
+		};
+
 		$(document).ready(function() {
 			$.getJSON("/api/networks", data => {
-				data.scans.forEach((v, k) => {
-					$('#network-scans').append('<a class="navbar-item" id="scan-' + k + '">' + v + '</a>');
-					$('#scan-' + k).on('click', { id: k, network: v }, load_network)
-				})
-				$('#scan-0').trigger('click')
+				data.networks.forEach((v, k) => {
+					$('#networks').append('<a class="navbar-item" id="network-' + k + '">' + v + '</a>');
+					$('#network-' + k).on('click', { id: k, network: v }, load_scans);
+				});
+				$('#network-0').trigger('click');
 			}).fail(function() {
 				console.error("An error has occurred.");
 			});
 		});
 
 		network.on('selectNode', ev => {
-			$.getJSON("/api/info?load=" + $('#networkarea').data('network') + "&info=" + ev.nodes.join(';'), data => {
+			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + ev.nodes.join(';'), data => {
 				$('#networkinfo').empty();
+
 				Object.values(data.info).forEach(entry => {
 					var cont = $('<article class="message"><div class="message-header"><p>' + entry.ip + '</p></div><div class="message-body"></div></article>')
-					$('div.message-body', cont).append('<p><strong>Scan time:</strong> ' + (new Date(entry.scan_timestamp * 1000)).toLocaleDateString() + '</p>');
+					$('div.message-body', cont).append('<p><strong>Scan time:</strong> ' + (new Date(entry.scan_timestamp)).toUTCString() + '</p>');
 					$('div.message-body', cont).append('<p><strong>OS:</strong> ' + entry.os + '</p>');
 					var table = $('div.message-body', cont).append('<div class="mt-4 table-container"><table class="table is-striped is-fullwidth"><tbody class="mainbody"></tbody></table></div>');
 

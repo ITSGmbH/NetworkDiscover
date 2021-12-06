@@ -24,8 +24,13 @@ class Scanner(xml.sax.ContentHandler):
 		elif tag == 'address' and attrs.get('addrtype') == 'ipv4':
 			self.current['address'] = attrs.get('addr')
 
-	def scan(self, target):
+	def scan(self, target, local_net):
 		self.logger.log('Scanner', 'Start host discover')
+
+		if target == None or target == 'local':
+			local_net.discoverNetworks()
+			target = ','.join(local_net.networks)
+
 		out = self.tmp.name + '/targets.xml'
 		return_value = subprocess.call(['nmap', '-sn', '-oX', out] + target.split(','), stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 

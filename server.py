@@ -46,33 +46,38 @@ class HttpControler:
 		return StaticFile('http/img/%s' % (path_value), 'image/png; charset=utf-8')
 
 	@request_map('/api/*', method='GET')
-	def api_handler(self, path_value=PathValue(), load=Parameter("load", default=""), info=Parameter("info", default="")):
+	def api_handler(self, path_value=PathValue(), database=Parameter("network", default=""), scantime=Parameter("scan", default=""), info=Parameter("info", default="")):
 		if path_value == 'networks':
 			ext = [ os.path.splitext(f) for f in os.listdir(Storage.dbpath) ]
 			ext = [ f[0] for f in ext if len(f[1]) > 0 and f[1] == '.sqlite' ]
-			return { 'scans': ext }
+			return { 'networks': ext }
+
+		elif path_value == 'scans':
+			storage = Storage(database, 0)
+			return { 'scans': self.getScanFromNetwork(storage) }
 
 		elif path_value == 'network':
-			storage = Storage(load, 0)
-			scan = storage.getLastScanId()
+			storage = Storage(database, 0)
+			scan = storage.getLastScanId() if scantime == '' else int(scantime)
 			return { 'hosts': self.getHostsFromScan(storage, scan) }
 
 		elif path_value == 'info':
-			storage = Storage(load, 0)
-			scan = storage.getLastScanId()
+			storage = Storage(database, 0)
+			scan = storage.getLastScanId() if scantime == '' else int(scantime)
 			return { 'info': self.getScanInfoFromHosts(storage, scan, info.split(';')) }
 
 	@request_map('/export/*', method='GET')
-	def export_handler(self, path_value=PathValue(), load=Parameter("load", default=""), info=Parameter("info", default="")):
-		if path_value == 'csv':
-			storage = Storage(load, 0)
-			scan = storage.getLastScanId()
-			return 200, Headers({'Content-Type':'text/csv; encoding=utf-8'}), self.getCsvExport(storage, scan)
+	def export_handler(self, database=PathValue(), export_type=Parameter("type", default=""), scantime=Parameter("scan", default="")):
+		storage = Storage(database, 0)
+		scan = storage.getLastScanId() if scantime == '' else int(scantime)
 
-		elif path_value == 'pdf':
-			storage = Storage(load, 0)
-			scan = storage.getLastScanId()
+		if export_type == 'csv':
+			return 200, Headers({'Content-Type':'text/csv; encoding=utf-8'}), self.getCsvExport(storage, scan)
+		elif export_type == 'pdf':
 			return 200, Headers({'Content-Type':'application/pdf; encoding=utf-8'}), self.getPdfExport(storage, scan)
+
+	def getScanFromNetwork(self, storage):
+		return storage.getScans()
 
 	def getHostsFromScan(self, storage, scan):
 		graph = Graph()

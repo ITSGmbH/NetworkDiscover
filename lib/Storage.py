@@ -1,4 +1,5 @@
 import sqlite3
+from datetime import datetime
 
 class Storage:
 	dbpath = 'db'
@@ -102,6 +103,8 @@ class Storage:
 		data = tuple()
 
 		for exp in select:
+			if len(exp) == 1:
+				exp += (None, )
 			if len(exp) == 2:
 				exp += ('AND', )
 			if len(where) > 0:
@@ -122,3 +125,6 @@ class Storage:
 	def getLastScanId(self):
 		result = self.get('scans', ['MAX(scan)'])
 		return result[0][0] if result is not None else 0
+
+	def getScans(self):
+		return [ { 'scan': scan[0], 'start': scan[1], 'end': scan[2] } for scan in self.get('scans', ['scan', 'start_time', 'end_time'], []) ]

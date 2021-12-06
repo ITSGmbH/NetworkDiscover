@@ -3,20 +3,25 @@ import time
 import json
 
 from lib.Storage import Storage
+from lib.Syslog import Syslog
 from lib.Logger import Logger
 from lib.Scanner import Scanner
+from lib.LocalNet import LocalNet
 from lib.TraceRoute import TraceRoute
 from lib.HostDetail import HostDetail
 
 def discover_usage():
-	print('Usage: %s -t|--target A.B.C.D[/E][,SECOND,THIRD,...] [-s|--simple] [-n|--name NAME] [-d|--device DEVICE] [-h|--hops MAX_NUM_HOPS=10]' % (sys.argv[0]))
+	print('Usage: %s [-t|--target A.B.C.D[/E][,SECOND,THIRD,...]] [-s|--simple] [-n|--name NAME] [-d|--device DEVICE] [-h|--hops MAX_NUM_HOPS=10]' % (sys.argv[0]))
 	print('\nParameters:')
-	print('  -t|--target              List of hosts and networks to discover and scan')
-	print('                           You can give multiple targets/networks by concat them with a semicolone \';\'')
+	print('  -t|--target    [local]   List of hosts and/or networks to discover and scan')
+	print('                           You can give multiple targets/networks by concat them with a comma \',\'')
+	print('                           If this parameter is not given, all local networks on the given device are used')
 	print('  -s|--simple    [false]   Don\'t do full scan, no Port- and no CVE-Scan')
 	print('  -n|--name      [network] Give this scan an name; The database is named after this')
 	print('  -d|--device    []        Perform all scans on this device and not let the system choose it automatically')
 	print('  -h|--hops      [10]      Maximum number of hops for traceroute')
+	print('  -l|--syslog    []        Send log messages to this syslog server')
+	print('  -p|--port      [514]     Port where the syslog-server listens on')
 
 
 if __name__ == '__main__':
@@ -31,6 +36,8 @@ if __name__ == '__main__':
 	hops = 10
 	device = None
 	fullscan = True
+	syslog_host = None
+	syslog_port = 514
 	for opt, arg in opts:
 		if opt in ('-t', '--target'):
 			target = arg
@@ -42,24 +49,27 @@ if __name__ == '__main__':
 			name = arg
 		elif opt in ('-s', '--simple'):
 			fullscan = False
+		elif opt in ('-l', '--syslog'):
+			syslog_host = arg
+		elif opt in ('-p', '--port'):
+			syslog_port = int(arg)
 
-	if target == None:
-		discover_usage()
-		quit(1)
-
-	scanid = int(time.time())
+	scanid = int(time.time() * 1000)
 
 	storage = Storage(name, scanid)
 	storage.prepare()
 	storage.startScan()
 
-	log = Logger(storage, scanid)
+	syslog = Syslog(syslog_host, syslog_port) if syslog_host != None else None
+	log = Logger(storage, syslog, scanid)
+
+	local_net = LocalNet(log, device)
+	local_net.discover()
 
 	scan = Scanner(log)
-	targets = scan.scan(target)
+	targets = scan.scan(target, local_net)
 
-	trace = TraceRoute(log, hops, device)
-	trace.discoverLocalNet()
+	trace = TraceRoute(log, local_net, hops)
 	for host in targets:
 		trace.traceRoute(host)
 	trace.persist(storage)

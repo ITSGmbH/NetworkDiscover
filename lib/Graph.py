@@ -5,7 +5,7 @@ class Graph:
 		self.maxCount = 0
 
 	def prepare_graph(self, name):
-		self.graph = graphviz.Graph('Network: %s' % name, format='pdf', node_attr={'color': 'lightblue2', 'style': 'filled'})
+		self.graph = graphviz.Graph('Network: %s' % name, filename='%s.gv' % (name), format='pdf', node_attr={'color': 'lightblue2', 'style': 'filled'})
 		self.graph.attr(size='6,6')
 
 	def prepare(self, hosts):
@@ -30,6 +30,7 @@ class Graph:
 
 	def build(self, storage, scan):
 		hosts = self.buildHosts(storage, scan)
+		print(hosts)
 		self.prepare_graph(storage.name)
 		self.prepare(hosts)
 		return self.graph.unflatten(stagger=int(self.maxCount/5))
@@ -39,4 +40,5 @@ class Graph:
 		return graph.pipe(format='pdf')
 
 	def show(self, storage, scan):
-		self.build(storage, scan).view()
+		graph = self.build(storage, scan)
+		graph.view()

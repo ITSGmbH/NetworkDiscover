@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 
 from lib.Graph import Graph
 from lib.HostDetail import HostDetail
@@ -24,7 +24,7 @@ class CsvExport:
 			]) ]
 
 		for host in details:
-			date = datetime.datetime.utcfromtimestamp(host.get('scan_timestamp')).strftime('%Y-%m-%d')
+			date = datetime.utcfromtimestamp(host.get('scan_timestamp')/1000).strftime('%Y-%m-%d %H:%M:%S')
 			for port in host.get('ports'):
 				for cve in port.get('cves'):
 					self.lines.append(';'.join([
