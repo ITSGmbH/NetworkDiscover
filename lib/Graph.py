@@ -5,15 +5,31 @@ class Graph:
 		self.maxCount = 0
 
 	def prepare_graph(self, name):
-		self.graph = graphviz.Graph('Network: %s' % name, filename='%s.gv' % (name), format='pdf', node_attr={'color': 'lightblue2', 'style': 'filled'})
-		self.graph.attr(size='6,6')
+		self.graph = graphviz.Graph('Network: %s' % name, filename='%s.gv' % (name), format='pdf', node_attr={
+			'color': 'lightblue2',
+			'style': 'filled',
+			'fontsize': '11',
+			'labelfloat': 'true',
+			'labelloc': 'c'
+			})
+		#self.graph.attr(size='6,6')
 
 	def prepare(self, hosts):
 		for host, attrs in hosts.items():
 			nodes = set(attrs.get('nodes', []))
 			self.maxCount = max(self.maxCount, len(nodes))
+
+			label = ''
+			label_len = 0
+			for label_part in attrs.get('os', '').split():
+				if label_len > 15:
+					label += '\n'
+					label_len = 0
+				label += label_part + ' '
+				label_len += len(label_part) + 1
+			self.graph.node(host, '%s\n%s' % (host, label))
+
 			for node in nodes:
-				self.graph.node(node, '%s\n%s' % (node, attrs.get('os', '')))
 				self.graph.edge(host, node)
 
 	def buildHosts(self, storage, scan):
@@ -30,10 +46,9 @@ class Graph:
 
 	def build(self, storage, scan):
 		hosts = self.buildHosts(storage, scan)
-		print(hosts)
 		self.prepare_graph(storage.name)
 		self.prepare(hosts)
-		return self.graph.unflatten(stagger=int(self.maxCount/5))
+		return self.graph
 
 	def export(self, storage, scan):
 		graph = self.build(storage, scan)

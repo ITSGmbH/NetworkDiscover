@@ -77,17 +77,10 @@
 			edges: edges,
 		};
 		var options = {
-			layout: {
-				hierarchical: {
-					direction: "UD",
-					sortMethod: "hubsize",
-				},
-			},
-			interaction: { dragNodes: false },
-			physics: {
-				enabled: true,
-				hierarchicalRepulsion: { avoidOverlap: 0.7 }
-			},
+			layout: { hierarchical: { enabled: true, }, },
+			nodes: { shadow: true, widthConstraint: { maximum: 90, }, font: { size: 11, }, shape: 'dot', },
+			interaction: { dragNodes: true, },
+			physics: { enabled: false },
 		};
 		var network = new vis.Network(container, data, options);
 

@@ -41,6 +41,21 @@ class CsvExport:
 						str(cve.get('cvss')),
 						'1' if cve.get('exploit') else '0'
 						]))
+				else:
+					self.lines.append(';'.join([
+						date,
+						host.get('ip'),
+						'"' + host.get('os') + '"',
+						str(port.get('port')),
+						port.get('protocol'),
+						port.get('state'),
+						port.get('service'),
+						'"' + port.get('product') + '"',
+						'',
+						'',
+						'',
+						''
+						]))
 
 	def export(self, storage, scan):
 		graph = Graph()

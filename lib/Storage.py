@@ -1,10 +1,13 @@
 import sqlite3
+import os
 from datetime import datetime
 
 class Storage:
 	dbpath = 'db'
 
 	def __init__(self, name, scan):
+		if not os.path.isdir(self.dbpath):
+			os.mkdir(self.dbpath)
 		self.name = name
 		self.scan = scan
 		self.db = sqlite3.connect('file:' + self.dbpath + '/%s.sqlite%s' % (name, '?mode=ro' if scan <= 0 else ''), uri=True)

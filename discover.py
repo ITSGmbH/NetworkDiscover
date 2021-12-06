@@ -13,20 +13,21 @@ from lib.HostDetail import HostDetail
 def discover_usage():
 	print('Usage: %s [-t|--target A.B.C.D[/E][,SECOND,THIRD,...]] [-s|--simple] [-n|--name NAME] [-d|--device DEVICE] [-h|--hops MAX_NUM_HOPS=10]' % (sys.argv[0]))
 	print('\nParameters:')
+	print('  -h|--help                Show this help')
 	print('  -t|--target    [local]   List of hosts and/or networks to discover and scan')
 	print('                           You can give multiple targets/networks by concat them with a comma \',\'')
 	print('                           If this parameter is not given, all local networks on the given device are used')
 	print('  -s|--simple    [false]   Don\'t do full scan, no Port- and no CVE-Scan')
+	print('  -m|--max       [10]      Maximum number of hops for traceroute')
 	print('  -n|--name      [network] Give this scan an name; The database is named after this')
 	print('  -d|--device    []        Perform all scans on this device and not let the system choose it automatically')
-	print('  -h|--hops      [10]      Maximum number of hops for traceroute')
 	print('  -l|--syslog    []        Send log messages to this syslog server')
 	print('  -p|--port      [514]     Port where the syslog-server listens on')
 
 
 if __name__ == '__main__':
 	try:
-		opts, args = getopt.getopt(sys.argv[1:], 't:h:n:d:s', ['target', 'hops', 'name', 'device', 'simple'])
+		opts, args = getopt.getopt(sys.argv[1:], 't:hn:d:s', ['target', 'help', 'name', 'device', 'simple'])
 	except egtopt.GetoptError:
 		discover_usage()
 		quit(1)
@@ -38,10 +39,14 @@ if __name__ == '__main__':
 	fullscan = True
 	syslog_host = None
 	syslog_port = 514
+
 	for opt, arg in opts:
-		if opt in ('-t', '--target'):
+		if opt in ('-h', '--help'):
+			discover_usage()
+			quit(0)
+		elif opt in ('-t', '--target'):
 			target = arg
-		elif opt in ('-h', '--hops'):
+		elif opt in ('-m', '--max'):
 			hops = int(arg)
 		elif opt in ('-d', '--device'):
 			device = arg
