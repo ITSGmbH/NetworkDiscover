@@ -1,0 +1,17 @@
+[package]
+name = "network_discover"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Lukas (LukyLuke_ch) Zurschmiede <network-discover@ranta.ch>" ]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+local_net = { path = "./local_net" }
+
+confy = { version = "0.4" }
+serde = { version = "1.0", features = ["derive"] }
+
+log = { version = "0.4" }
+chrono = { version = "0.4" }
+env_logger = { version = "0.9" }
