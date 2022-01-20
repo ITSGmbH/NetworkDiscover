@@ -4,7 +4,8 @@ mod core;
 
 use crate::core::logger;
 
-use local::local_net;
+use local_net::discover;
+use network::scan;
 use network::hosts;
 
 fn main() -> Result<(), confy::ConfyError> {
@@ -17,7 +18,7 @@ fn main() -> Result<(), confy::ConfyError> {
 	self::config::save(&name, &conf);
 
 	let local = local_net::discover(&conf.device);
-	
+	scan::full(&local);
 	
 	logger::info!("Ended network_discover...!");
     Ok(())

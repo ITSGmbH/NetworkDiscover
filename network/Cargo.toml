@@ -4,7 +4,13 @@ version = "0.1.0"
 edition = "2021"
 authors = [ "Lukas (LukyLuke_ch) Zurschmiede <network-discover@ranta.ch>" ]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[lib]
+name = "network"
+path = "src/lib.rs"
 
 [dependencies]
+local_net = { path = "../local_net" }
+
 log = { version = "0.4" }
+roxmltree = { version = "0.14.1" }
+

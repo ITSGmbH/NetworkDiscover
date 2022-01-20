@@ -7,7 +7,7 @@ authors = [ "Lukas (LukyLuke_ch) Zurschmiede <network-discover@ranta.ch>" ]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-local = { path = "./local" }
+local_net = { path = "./local_net" }
 network = { path = "./network" }
 
 confy = { version = "0.4" }
