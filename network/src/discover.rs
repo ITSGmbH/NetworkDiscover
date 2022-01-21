@@ -4,6 +4,7 @@ use log::info;
 
 pub fn start(network: &LocalNet) {
 	let hosts = discover_impl::discover(network);
+	
 	info!("{:?}", hosts);
 }
 
@@ -16,7 +17,7 @@ mod discover_impl {
 	use std::process::Command;
 	use std::net::IpAddr;
 	use std::str::FromStr;
-	use roxmltree;
+	use xml::reader::{EventReader, XmlEvent};
 	
 	pub fn discover(network: &LocalNet) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
@@ -35,28 +36,27 @@ mod discover_impl {
 			let lines = String::from_utf8(output.unwrap().stderr).unwrap();
 			debug!("Output: {:?}", lines);
 			
-			let root: roxmltree::Document = match roxmltree::Document::parse(&lines) {
-				Ok(doc) => doc,
-				Err(err) => {
-					info!("Error {:?}", err);
-					roxmltree::Document::parse("<error/>").unwrap()
+			let parser = EventReader::from_str(&lines);
+			for ev in parser {
+				match ev {
+					Ok(XmlEvent::StartElement { name, attributes, .. }) => {
+						if name.local_name == "address" {
+							let mut host = Host::default();
+							host.ip = Some( IpAddr::from_str(
+								&attributes.iter()
+									.filter(|a| a.name.local_name == "addr")
+									.map(|a| String::from(&a.value))
+									.take(1)
+									.next()
+									.unwrap_or(String::from("127.0.0.1"))
+								).unwrap() );
+							result.push(host);
+						}
+					}
+					_ => {}
 				}
-			};
-			
-			// XML-Struct: nmaprun -> host -> address
-			result = root.descendants()
-				.filter(|node| node.is_element() && node.tag_name().name() == "nmaprun")
-				.flat_map(|node| node.children())
-				.filter(|node| node.is_element() && node.tag_name().name() == "host")
-				.flat_map(|node| node.children())
-				.filter(|node| node.is_element() && node.tag_name().name() == "address")
-				.map(|node| {
-					let mut host = Host::default();
-					host.ip = Some( IpAddr::from_str( node.attribute("addr").unwrap_or("127.0.0.1") ).unwrap() );
-					return host;
-				})
-				.collect();
-				info!("Found: {:?} hosts", result.len());
+			}
+			info!("Found: {:?} hosts", result.len());
 		}
 		info!("HostDiscovery: end");
 		return result;
