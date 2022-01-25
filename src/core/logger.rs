@@ -2,7 +2,7 @@
 use chrono::Local;
 use std::io::Write;
 use env_logger;
-use log::{LevelFilter};
+use log::LevelFilter;
 
 pub use log::{info, warn, debug};
 
@@ -17,6 +17,6 @@ pub fn init() {
 				record.args()
 			)
 		})
-		.filter(None, LevelFilter::Info)
+		.filter(None, LevelFilter::Debug)
 		.init();
 }

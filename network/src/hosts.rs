@@ -10,17 +10,17 @@ pub enum State { UNKNOWN, OPEN, FILTER, CLOSE }
 #[derive(Debug)]
 pub struct Host {
 	pub ip: Option<IpAddr>,
-	pub ports: Vec<Service>,
 	pub hops: Vec<IpAddr>,
 	pub services: Vec<Service>,
+	pub os: Option<String>,
 }
 impl Default for Host {
 	fn default() -> Self {
 		Host {
 			ip: None,
-			ports: vec![],
 			hops: vec![],
 			services: vec![],
+			os: None,
 		}
 	}
 }
@@ -30,7 +30,7 @@ pub struct Service {
 	pub port: u16,
 	pub protocol: Protocol,
 	pub state: State,
-	pub service: String,
+	pub name: String,
 	pub product: String,
 	pub version: String,
 	pub vulns: Vec<Vulnerability>,
@@ -41,7 +41,7 @@ impl Default for Service {
 			port: 0,
 			protocol: Protocol::UNKNOWN,
 			state: State::UNKNOWN,
-			service: String::from(""),
+			name: String::from(""),
 			product: String::from(""),
 			version: String::from(""),
 			vulns: vec![],

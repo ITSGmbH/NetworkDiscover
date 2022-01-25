@@ -1,5 +1,6 @@
 
 use std::net::IpAddr;
+use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct Route {
@@ -42,23 +43,49 @@ impl Default for LocalNet {
 	}
 }
 impl LocalNet {
-	pub fn network(&self) -> String {
-		let sep = "/";
+	pub fn host_str(&self) -> String {
+		let nwsep = "/";
 		if self.ipv4_addr.is_some() {
 			let mut ip: String = self.ipv4_addr.unwrap().to_string().to_owned();
 			let nw = self.ipv4_net.to_string();
-			ip.push_str(&sep);
+			ip.push_str(&nwsep);
 			ip.push_str(&nw);
 			return ip;
 		}
 		if self.ipv6_addr.is_some() {
 			let mut ip: String = self.ipv6_addr.unwrap().to_string().to_owned();
 			let nw = self.ipv6_net.to_string();
-			ip.push_str(&sep);
+			ip.push_str(&nwsep);
 			ip.push_str(&nw);
 			return ip;
 		} 
 		return String::from("127.0.0.1/31");
+	}
+	
+	pub fn host(&self) -> IpAddr {
+		return self.ipv4_addr
+			.or(self.ipv6_addr)
+			.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap());
+	}
+	
+	pub fn networks(&self, sep: &str) -> String {
+		let nwsep = "/";
+		return self.routes.iter()
+			.filter(|r| r.network.is_some())
+			.map(|r| {
+				let mut ip: String = r.network.unwrap().to_string().to_owned();
+				let nw = r.netmask.to_string();
+				ip.push_str(&nwsep);
+				ip.push_str(&nw);
+				ip
+			})
+			.reduce(|pref, curr| {
+				let mut nw: String = pref.to_owned();
+				nw.push_str(&sep);
+				nw.push_str(&curr);
+				nw
+			})
+			.unwrap_or(String::from("127.0.0.0/31"));
 	}
 }
 
