@@ -12,7 +12,7 @@ class Storage:
 		self.scan = scan
 		self.db = sqlite3.connect('file:' + self.dbpath + '/%s.sqlite%s' % (name, '?mode=ro' if scan <= 0 else ''), uri=True)
 
-	def __del__(self):
+	def close(self):
 		self.db.commit()
 		self.db.close()
 
