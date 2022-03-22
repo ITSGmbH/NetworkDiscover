@@ -1,0 +1,18 @@
+# This is /usr/lib/systemd/network_scannerui.service
+# or /etc/systemd/system/
+
+[Unit]
+Description=Extensys Network-Scanner WebUI
+Documentation=https://github.com/ITSGmbH/NetworkScanner/
+After=network.target syslog.target network_scanner.service
+
+[Service]
+Type=exec
+ExecStart=+/opt/network_scanner/systemd/network_scanner start webui
+ExecStop=+/opt/network_scanner/systemd/network_scanner stop webui
+RemainAfterExit=no
+Restart=always
+StandardOutput=journal
+
+[Install]
+WantedBy=network.target
