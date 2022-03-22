@@ -8,8 +8,8 @@ After=network.target syslog.target network_scanner.service
 
 [Service]
 Type=exec
-ExecStart=+/opt/network_scanner/systemd/network_scanner start webui
-ExecStop=+/opt/network_scanner/systemd/network_scanner stop webui
+ExecStart=+/opt/network_discover/systemd/network_scanner start webui
+ExecStop=+/opt/network_discover/systemd/network_scanner stop webui
 RemainAfterExit=no
 Restart=always
 StandardOutput=journal

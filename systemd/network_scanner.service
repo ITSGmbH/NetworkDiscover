@@ -8,8 +8,8 @@ After=network.target syslog.target
 
 [Service]
 Type=exec
-ExecStart=+/opt/network_scanner/systemd/network_scanner start scanner
-ExecStop=+/opt/network_scanner/systemd/network_scanner stop scanner
+ExecStart=+/opt/network_discover/systemd/network_scanner start scanner
+ExecStop=+/opt/network_discover/systemd/network_scanner stop scanner
 RemainAfterExit=no
 Restart=always
 StandardOutput=journal

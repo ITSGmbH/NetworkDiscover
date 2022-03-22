@@ -1,13 +1,15 @@
 # Systemd Services
 
-The script assumes the scanner to be installed under `/opt/network_scanner/`
+The script assumes the scanner to be installed under `/opt/network_discover/`
 
 ## Install
 
-Copy the two `.service` files to `/etc/systemd/system/` or to the global `/lib/systemd/system/`.
+1. Copy the two `.service` files to `/etc/systemd/system/` or to the global `/lib/systemd/system/`.
+2. Make the start script executable
 
 ```
-$ cp /opt/network_scanner/systemd/*.service /etc/systemd/system/
+$ cp /opt/network_discover/systemd/*.service /etc/systemd/system/
+$ chmod +x /opt/network_discover/systemd/network_scanner
 ```
 
 ## Enable and start
