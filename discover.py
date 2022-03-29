@@ -26,6 +26,25 @@ def discover_usage():
 	print('  -r|--repeated  [0]       Repeaded scan loop every given seconds; If 0, only one scan is performed.')
 
 
+def config_value(key, value, config):
+	if key in ('-t', '--target', 'target') and len(value) > 0:
+		config['target'] = value
+	elif key in ('-m', '--max', 'hops') and len(value) > 0:
+		config['hops'] = int(value)
+	elif key in ('-d', '--device', 'device') and len(value) > 0:
+		config['device'] = value
+	elif key in ('-n', '--name', 'name') and len(value) > 0:
+		config['name'] = value
+	elif key in ('-s', '--simple', 'simple') and len(value) > 0:
+		config['fullscan'] = False if value == 'True' else True
+	elif key in ('-l', '--syslog', 'syslog_host', 'syslog') and len(value) > 0:
+		config['syslog_host'] = value
+	elif key in ('-p', '--port', 'syslog_port', 'port') and len(value) > 0:
+		config['syslog_port'] = int(value)
+	elif key in ('-r', '--repeated', 'repeated') and len(value) > 0:
+		config['repeated'] = int(value)
+
+
 if __name__ == '__main__':
 	try:
 		opts, args = getopt.getopt(sys.argv[1:], 't:hm:n:d:sl:p:r:', ['target', 'help', 'max', 'name', 'device', 'simple', 'syslog', 'port', 'repeated'])
@@ -33,53 +52,55 @@ if __name__ == '__main__':
 		discover_usage()
 		quit(1)
 
-	name = 'network'
-	target = None
-	hops = 10
-	device = None
-	fullscan = True
-	syslog_host = None
-	syslog_port = 514
-	repeated = 0
+	# Default values
+	config = {
+		'name': 'network',
+		'target': None,
+		'hops': 10,
+		'device': None,
+		'fullscan': True,
+		'syslog_host': None,
+		'syslog_port': 514,
+		'repeated': 0,
+	}
 
+	# Configuration
+	with open("config.ini", 'r') as file:
+		fp = file.read()
+		for line in fp.split("\n"):
+			if len(line) < 1: continue
+			if line[0] == '#': continue
+			if line[0] == '[': continue
+			(key, val) = line.split("=")
+			key = key.strip()
+			val = val.strip()
+			config_value(key, val, config)
+
+	# Arguments override configuration
 	for opt, arg in opts:
 		if opt in ('-h', '--help'):
 			discover_usage()
 			quit(0)
-		elif opt in ('-t', '--target'):
-			target = arg
-		elif opt in ('-m', '--max'):
-			hops = int(arg)
-		elif opt in ('-d', '--device'):
-			device = arg
-		elif opt in ('-n', '--name'):
-			name = arg
-		elif opt in ('-s', '--simple'):
-			fullscan = False
-		elif opt in ('-l', '--syslog'):
-			syslog_host = arg
-		elif opt in ('-p', '--port'):
-			syslog_port = int(arg)
-		elif opt in ('-r', '--repeated'):
-			repeated = int(arg)
+		else:
+			config_value(opt, 'True' if opt in ('-s', '--simple') else arg, config)
 
 	while True:
 		scanid = int(time.time() * 1000)
 
-		storage = Storage(name, scanid)
+		storage = Storage(config.get('name', 'network'), scanid)
 		storage.prepare()
 		storage.startScan()
 
-		syslog = Syslog(syslog_host, syslog_port) if syslog_host != None else None
+		syslog = Syslog(config.get('syslog_host', None), config.get('syslog_port', None)) if config.get('syslog_host', None) != None else None
 		log = Logger(storage, syslog, scanid)
 
-		local_net = LocalNet(log, device)
+		local_net = LocalNet(log, config.get('device', None))
 		local_net.discover()
 
 		scan = Scanner(log)
-		targets = scan.scan(target, local_net)
+		targets = scan.scan(config.get('target', None), local_net)
 
-		trace = TraceRoute(log, local_net, hops)
+		trace = TraceRoute(log, local_net, config.get('hops', 10))
 		for host in targets:
 			trace.traceRoute(host)
 		trace.persist(storage)
