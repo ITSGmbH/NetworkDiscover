@@ -1,4 +1,5 @@
 import os
+import json
 
 from simple_http_server import controller
 from simple_http_server import request_map
@@ -19,6 +20,7 @@ from simple_http_server import PathValue
 
 import simple_http_server.server as server
 
+from lib.Config import Config
 from lib.Storage import Storage
 from lib.Graph import Graph
 from lib.HostDetail import HostDetail
@@ -28,6 +30,7 @@ from lib.CsvExport import CsvExport
 class HttpControler:
 	def __init__(self) -> None:
 		self._name = "controller object"
+		self.config = Config().load()
 
 	@request_map('/', method='GET')
 	def index_handler(self):
@@ -52,6 +55,16 @@ class HttpControler:
 			ext = [ f[0] for f in ext if len(f[1]) > 0 and f[1] == '.sqlite' ]
 			return { 'networks': ext }
 
+		elif path_value == 'scan_now':
+			return { 'triggered': self.config.trigger_run() }
+
+		elif path_value == 'status':
+			return {
+				'running': self.config.is_running(),
+				'paused': self.config.is_paused(),
+				'triggered': self.config.is_triggered(),
+			}
+
 		elif path_value == 'scans':
 			storage = Storage(database, 0)
 			return { 'scans': self.getScanFromNetwork(storage) }
@@ -65,6 +78,20 @@ class HttpControler:
 			storage = Storage(database, 0)
 			scan = storage.getLastScanId() if scantime == '' else int(scantime)
 			return { 'info': self.getScanInfoFromHosts(storage, scan, info.split(';')) }
+
+	@request_map('/config/load', method='GET')
+	def config_load_handler(self):
+		self.config.reload()
+		return { 'config': self.config.get_plain_config() }
+
+	@request_map('/config/save', method='POST')
+	def config_save_handler(self, data=JSONBody()):
+		self.config.reload()
+		for k, v in data.items():
+			self.config.set(k, v)
+		self.config.save()
+		return { 'config': self.config.get_plain_config() }
+
 
 	@request_map('/export/*', method='GET')
 	def export_handler(self, database=PathValue(), export_type=Parameter("type", default=""), scantime=Parameter("scan", default="")):
@@ -94,7 +121,7 @@ class HttpControler:
 	def getPdfExport(self, storage, scan):
 		graph = Graph()
 		return graph.export(storage, scan)
-
+	
 
 if __name__ == '__main__':
 	server.scan("", r".*controller.*")

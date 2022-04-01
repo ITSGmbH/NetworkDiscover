@@ -14,6 +14,9 @@
 			height: 85vh;
 			border: 1px solid lightgray;
 		}
+		#scan-now-modal .modal-card-body {
+			color: black;
+		}
 	</style>
 	</style>
 </head>
@@ -21,14 +24,20 @@
 	<section class="section pb-3">
 		<nav class="navbar is-info is-fixed-top" role="navigation" aria-label="dropdown navigation">
 			<div class="navbar-menu">
+				<div class="navbar-brand">
+					<span class="navbar-item"><img src="/img/its_logo.png" alt="IT-S" height="12" /></span>
+					<h1 class="navbar-item title is-4">NetworkDiscovery</h1>
+				</div>
+
 				<div class="navbar-start">
-					<div class="navbar-brand">
-						<span class="navbar-item"><img src="/img/its_logo.png" alt="IT-S" height="12" /></span>
-						<h1 class="navbar-item title is-4">NetworkDiscovery</h1>
-					</div>
+					<div class="navbar-item"><span class="tag is-warning" id="running-status">...</span></div>
 				</div>
 
 				<div class="navbar-end">
+					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
+						<span class="navbar-link">Config</span>
+						<fieldset class="navbar-dropdown" id="config"></fieldset>
+					</div>
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Network</span>
 						<div class="navbar-dropdown" id="networks"></div>
@@ -111,6 +120,17 @@
 		var load_scans = ev => {
 			$.getJSON("/api/scans?network=" + ev.data.network, scans => {
 				$('#scans').empty();
+				
+				$('#scans').append('<a class="navbar-item" id="scan-now">Scan now</a>');
+				$('#scan-now').on('click', { id: 'now'}, trigger_scan);
+
+				$('#scans').append('<div id="scan-now-modal" class="modal"><div class="modal-background"></div><div class="modal-card"></div></div>')
+				var header = $('<header class="modal-card-head"><p class="modal-card-title">Scan triggered</p><button class="delete" aria-label="close"></button></header>');
+				var content = $('<section class="modal-card-body">A new scan is triggered and will start shortly. Stay tuned...</section>');
+				$('#scan-now-modal .modal-card').append(header);
+				$('#scan-now-modal .modal-card').append(content);
+				$('#scan-now-modal button.delete').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
+
 				scans.scans.forEach((v, k) => {
 					$('#scans').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
 					$('#scan-' + k).on('click', { id: k, network: ev.data.network, scan: v.scan }, load_network);
@@ -118,6 +138,12 @@
 				$('#scan-' + (scans.scans.length - 1)).trigger('click');
 			});
 		};
+
+		var trigger_scan = ev => {
+			$.getJSON("/api/scan_now", data => {
+				$('#scan-now-modal').toggleClass('is-active');
+			});
+		}
 
 		$(document).ready(function() {
 			$.getJSON("/api/networks", data => {
@@ -127,8 +153,67 @@
 				});
 				$('#network-0').trigger('click');
 			}).fail(function() {
-				console.error("An error has occurred.");
+				console.error("Error while loading Networks.");
 			});
+
+			$.getJSON("/config/load", data => {
+				$('#config').empty();
+				$.each(data.config, function(key, val) {
+					val = val == 'None' ? null : val;
+					val = val == 'true' ? true : val;
+					val = val == 'false' ? false : val;
+					
+					field = '<input class="input" type="text" value="' + (val == null ? '' : val) + '" placeholder="' + key + '" name="' + key + '" style="width:220px;"/>';
+					if (typeof(val) == 'boolean') {
+						field = '<input type="checkbox" value="true" name="' + key + '" ' + (val ? 'checked' : '') + '/>';
+					} else if (typeof(val) == 'number') {
+						field = '<input class="input" type="number" value="' + (val == null ? '0' : val) + '" placeholder="' + key + '" name="' + key + '" style="width:220px;"/>';
+					}
+
+					$('#config').append('<div class="navbar-item"><div class="field"><label class="label">' + key + '</label><div class="control">' + field + '</div></div></div>');
+				});
+				$('#config').append('<div class="navbar-item"><div class="field"><div class="control"><button class="button is-primary">Save</button></div></div></div>');
+				$('#config button').on('click', function() {
+					$('#config').attr('disabled', 'disabled');
+					save_data = {};
+					$('#config input').each(function(_, field) {
+						field = $(field);
+						if (field.attr('type') == 'checkbox') field.val(field.prop('checked'));
+						save_data[field.attr('name')] = field.val();
+					});
+					$.ajax("/config/save", {
+						type: 'POST',
+						contentType: 'application/json',
+						data: JSON.stringify(save_data),
+						success: function(resp) {
+							setTimeout(function() {$('#config').removeAttr('disabled');}, 1500);
+						},
+					});
+				});
+			}).fail(function() {
+				console.error("Error while fetching configuration.");
+			});
+
+			window.setInterval(function() {
+				$.getJSON("/api/status", data => {
+					message = '...';
+					if (data.running) {
+						message = "running";
+					} else if (data.paused) {
+						message = "paused";
+					} else if (data.triggered) {
+						message = "triggered...";
+					}
+					$('#running-status').addClass('is-warning');
+					$('#running-status').removeClass('is-danger');
+					$('#running-status').html(message);
+				})
+				.fail(err => {
+					$('#running-status').addClass('is-danger');
+					$('#running-status').removeClass('is-warning');
+					$('#running-status').html('check failed...');
+				});
+			}, 5000);
 		});
 
 		network.on('selectNode', ev => {

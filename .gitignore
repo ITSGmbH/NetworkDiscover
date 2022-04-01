@@ -19,3 +19,6 @@ dist/
 *.sqlite-journal
 db/
 gv/
+
+config.ini
+trigger.run
