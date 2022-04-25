@@ -9,9 +9,7 @@ authors = [ "Lukas (LukyLuke_ch) Zurschmiede <network-discover@ranta.ch>" ]
 [dependencies]
 local_net = { path = "./local_net" }
 network = { path = "./network" }
-
-confy = { version = "0.4" }
-serde = { version = "1.0", features = ["derive"] }
+config = { path = "./config" }
 
 log = { version = "0.4" }
 chrono = { version = "0.4" }

@@ -31,6 +31,7 @@ pub struct LocalNet {
 	ipv6_net: u16,
 	routes: Vec<Route>,
 }
+
 impl Default for LocalNet {
 	fn default() -> Self {
 		LocalNet {
@@ -42,6 +43,7 @@ impl Default for LocalNet {
 		}
 	}
 }
+
 impl LocalNet {
 	pub fn host_str(&self) -> String {
 		let nwsep = "/";

@@ -2,10 +2,10 @@
 use local_net::LocalNet;
 use log::info;
 
-pub fn start(network: &LocalNet) {
-	let hosts = discover_impl::discover(network);
+pub fn start(network: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) {
+	let hosts = discover_impl::discover(network, targets, num_threads);
 	
-	info!("{:?}", hosts);
+	info!("Found hosts: {:?}", hosts);
 }
 
 mod discover_impl {
@@ -17,24 +17,97 @@ mod discover_impl {
 	use std::process::Command;
 	use std::net::IpAddr;
 	use std::str::FromStr;
+	use std::env::temp_dir;
+	use std::path::PathBuf;
+	use std::fs::File;
+	use std::thread;
+	use std::sync::{Mutex, Arc};
+	use std::io::prelude::*;
 	use xml::reader::{EventReader, XmlEvent};
-	
-	pub fn discover(network: &LocalNet) -> Vec<Host> {
+	use uuid::Uuid;
+
+	pub fn discover(local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
-		
+		let mut result_chunks: Vec<Vec<Host>> = vec![];
+		for _ in 0..*num_threads {
+			result_chunks.push(vec![]);
+		}
+
 		info!("HostDiscovery: start");
-		info!("Network: {}", network.networks(","));
-		
+		let mut count = 0;
+		for target in targets {
+			let pos = count % num_threads;
+			let chunk = result_chunks.get_mut(pos as usize);
+			count += 1;
+
+			let mut h: Vec<Host> = discover_network(local, &target);
+			chunk.unwrap().append(&mut h);
+		}
+
+		// Portscan in threads
+		let mut handles = vec![];
+		for chunk in result_chunks {
+			let safe_chunk = Arc::new(Mutex::new(chunk));
+			let handle = thread::spawn(move|| {
+				let mut res: Vec<Host> = vec![];
+				let mut hosts = safe_chunk.lock().unwrap();
+				let mut_host: &mut Vec<Host> = (*hosts).as_mut();
+				for mut host in mut_host {
+					portscan(&mut host, true);
+					res.push(host.clone());
+				}
+				res
+			});
+			handles.push(handle);
+		}
+
+		// Join and wait till every thread is finished
+		for handle in handles {
+			let mut res: Vec<Host> = handle.join().unwrap();
+			result.append(&mut res);
+		}
+
+		info!("HostDiscovery: ended");
+		return result;
+	}
+
+	fn get_tmp_file() -> PathBuf {
+		let mut tmp_dir = temp_dir();
+		let tmp_name = format!("{}.txt", Uuid::new_v4());
+		tmp_dir.push(tmp_name);
+		tmp_dir
+	}
+
+	fn get_file_content_and_cleanup(path: &PathBuf) -> String {
+		let file = File::open(path);
+		if file.is_ok() {
+			let mut f = file.unwrap();
+			let mut lines = String::new();
+			f.read_to_string(&mut lines).unwrap();
+			std::fs::remove_file(path).unwrap_or_default();
+			return lines;
+		}
+		String::new()
+	}
+
+	fn discover_network(local: &LocalNet, target: &config::DiscoverStruct) -> Vec<Host> {
+		let mut result: Vec<Host> = vec![];
+		let network = nmap_network_string(target, local.host_str());
+		info!("Network: {}", network);
+
+		let tmp_file = get_tmp_file();
 		let mut cmd = Command::new("nmap");
 		cmd.arg("-sn")
 			.arg("-oX")
-			.arg("/dev/stderr")
-			.arg(network.networks(","));
-		
+			.arg(&tmp_file)
+			.arg(network);
+		debug!("Command: {:?}", cmd);
+
 		let output = cmd.output();
 		if output.is_ok() {
-			let lines = String::from_utf8(output.unwrap().stderr).unwrap();
+			let lines = get_file_content_and_cleanup(&tmp_file);
 			let parser = EventReader::from_str(&lines);
+
 			for ev in parser {
 				match ev {
 					Ok(XmlEvent::StartElement { name, attributes, .. }) => {
@@ -44,20 +117,17 @@ mod discover_impl {
 								attributes.iter()
 									.filter(|a| a.name.local_name == "addr")
 									.map(|a| String::from(&a.value))
-									.inspect(|ip| debug!("  found: {:?}", ip))
+									.inspect(|ip| debug!("  found: {}", ip))
 									.map(|ip| IpAddr::from_str(&ip))
 									.take(1).next()
 									.unwrap_or(IpAddr::from_str("127.0.0.1"))
 									.unwrap()
 								);
-							
+
 							// Add the scanning host as a hop and trace the others
-							host.hops.push(network.host());
-							traceroute(&mut host);
-							
-							// Find open Ports
-							portscan(&mut host, true);
-							
+							host.hops.push(local.host());
+							traceroute(&mut host, &target.max_hops.unwrap_or(10));
+
 							result.push(host);
 						}
 					},
@@ -66,20 +136,32 @@ mod discover_impl {
 			}
 			info!("Found: {:?} hosts", result.len());
 		}
-		info!("HostDiscovery: end");
 		return result;
 	}
+
+	fn nmap_network_string(target: &config::DiscoverStruct, default_value: String) -> String {
+		if target.target.is_some() && target.target.as_ref().unwrap().ip.is_some() {
+			let connection = target.target.as_ref().unwrap();
+			let mut network: String = connection.ip.as_ref().unwrap().to_string().to_owned();
+			let mask = connection.mask.as_ref().unwrap_or(&31).to_string();
+			network.push_str("/");
+			network.push_str(&mask);
+			return network;
+		}
+		return default_value;
+	}
 	
-	pub fn traceroute(host: &mut Host) {
+	pub fn traceroute(host: &mut Host, hops: &u16) {
 		if host.ip.is_some() && !host.hops.iter().any(|hop| host.ip.unwrap().to_string() == hop.to_string()) {
 			let ip = host.ip.unwrap().to_string();
-			debug!("  trace: {:?}", ip);
+			debug!("  traceroute: {:?}", ip);
 			
 			let mut cmd = Command::new("traceroute");
 			cmd.arg("-n")   // no name lookup
 				.arg("-q 1")  // only one query
-				.arg("-m 30") // max hops
+				.arg("-m").arg(hops.to_string()) // max hops
 				.arg(ip);
+			debug!("Command: {:?}", cmd);
 			
 			let output = cmd.output();
 			if output.is_ok() {
@@ -100,9 +182,9 @@ mod discover_impl {
 			if !host.hops.contains(&host.ip.unwrap()) {
 				host.hops.push(host.ip.unwrap());
 			}
-			debug!("  trace-path: {:?}", host.hops);
+			debug!("  found route: {:?}", host.hops);
 		} else {
-			debug!("  no trace: {:?}", host.ip);
+			debug!("  no route to: {:?}", host.ip);
 		}
 	}
 	
@@ -111,6 +193,7 @@ mod discover_impl {
 			let ip = host.ip.unwrap().to_string();
 			debug!("  portscan: {:?}", ip);
 			
+			let tmp_file = get_tmp_file();
 			let mut cmd = Command::new("nmap");
 			cmd.arg("-O")
 				.arg("-sT")
@@ -119,17 +202,16 @@ mod discover_impl {
 				cmd.arg("--script=vulners.nse");
 			}
 			cmd.arg("-oX")
-				.arg("/dev/stderr")
+				.arg(&tmp_file)
 				.arg(ip);
+			debug!("Command: {:?}", cmd);
 			
 			let output = cmd.output();
 			if output.is_ok() {
 				let mut service: Service = Service::default();
 				let mut vulners: bool = false;
 				
-				let lines = String::from_utf8(output.unwrap().stderr).unwrap();
-				info!("{:?}", lines);
-				
+				let lines = get_file_content_and_cleanup(&tmp_file);
 				let parser = EventReader::from_str(&lines);
 				for ev in parser {
 					match ev {
@@ -199,14 +281,13 @@ mod discover_impl {
 								host.services.push(service);
 								service = Service::default();
 								
-							} else if (vulners && name.local_name == "script") {
+							} else if vulners && name.local_name == "script" {
 								vulners = false;
 							}
 						},
 						_ => {}
 					}
 				}
-				debug!("  ports: {:?}", host.services);
 			}
 		}
 	}

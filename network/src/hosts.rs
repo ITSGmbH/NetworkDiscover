@@ -1,13 +1,13 @@
 
 use std::net::IpAddr;
 
-#[derive(Debug)]	
+#[derive(Debug,Clone)]
 pub enum Protocol { UNKNOWN, TCP, UDP }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub enum State { UNKNOWN, OPEN, FILTER, CLOSE }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Host {
 	pub ip: Option<IpAddr>,
 	pub hops: Vec<IpAddr>,
@@ -25,7 +25,7 @@ impl Default for Host {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Service {
 	pub port: u16,
 	pub protocol: Protocol,
@@ -49,7 +49,7 @@ impl Default for Service {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug,Clone)]
 pub struct Vulnerability {
 	pub database: String,
 	pub id: String,
