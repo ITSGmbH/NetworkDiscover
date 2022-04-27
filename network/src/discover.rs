@@ -208,8 +208,11 @@ mod discover_impl {
 			
 			let output = cmd.output();
 			if output.is_ok() {
-				let mut service: Service = Service::default();
-				let mut vulners: bool = false;
+				let mut service = Service::default();
+				let mut vulners = Vulnerability::default();
+
+				let mut is_vulners = false;
+				let mut vulners_key = String::from("");
 				
 				let lines = get_file_content_and_cleanup(&tmp_file);
 				let parser = EventReader::from_str(&lines);
@@ -266,23 +269,39 @@ mod discover_impl {
 									.filter(|a| a.name.local_name == "id")
 									.map(|a| String::from(&a.value))
 									.take(1).next().unwrap_or(String::from("")) == "vulners" {
-									vulners = true;
+									is_vulners = true;
 									
-							} else if vulners && name.local_name == "elem" {
-								service.version = attributes.iter()
-									.filter(|a| a.name.local_name == "version")
+							} else if is_vulners && name.local_name == "elem" {
+								vulners_key = attributes.iter()
 									.map(|a| String::from(&a.value))
-									.take(1).next().unwrap_or(String::from(""));
+									.take(1).next()
+									.unwrap_or(String::from(""));
 							}
 						},
+
+						Ok(XmlEvent::Characters(value)) => {
+							if is_vulners && !vulners_key.is_empty() {
+								match vulners_key.as_str() {
+									"id" => vulners.id = value,
+									"type" => vulners.database = value,
+									"is_exploit" => vulners.exploit = value.parse::<bool>().unwrap_or(false),
+									"cvss" => vulners.cvss = value.parse::<f32>().unwrap_or(0f32),
+									_ => {}
+								};
+							}
+						},
+
 						Ok(XmlEvent::EndElement { name }) => {
 							if name.local_name == "port" {
-								debug!("  service: {:?}", service);
 								host.services.push(service);
 								service = Service::default();
-								
-							} else if vulners && name.local_name == "script" {
-								vulners = false;
+
+							} else if is_vulners && name.local_name == "table" && !vulners.id.is_empty() {
+								service.vulns.push(vulners.clone());
+								vulners = Vulnerability::default();
+
+							} else if is_vulners && name.local_name == "script" {
+								is_vulners = false;
 							}
 						},
 						_ => {}

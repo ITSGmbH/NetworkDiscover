@@ -1,10 +1,7 @@
 
 mod core;
-
 use crate::core::logger;
-
 use network::scan;
-use network::hosts;
 
 fn main() -> Result<(), ()> {
 	logger::init();
