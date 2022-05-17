@@ -11,6 +11,7 @@ pub struct AppConfig {
 	pub device: Option<String>,
 	pub listen: Option<ConnectionStruct>,
 	pub syslog: Option<ConnectionStruct>,
+	pub sqlite: Option<DbStruct>,
 	pub targets: Vec<DiscoverStruct>,
 }
 
@@ -23,7 +24,22 @@ impl Default for AppConfig {
 			device: None,
 			listen: Default::default(),
 			syslog: Default::default(),
+			sqlite: Default::default(),
 			targets: vec![],
+		}
+	}
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DbStruct {
+	pub file: String,
+	pub url: String,
+}
+impl Default for DbStruct {
+	fn default() -> Self {
+		DbStruct{
+			file: "".to_string(),
+			url: "".to_string(),
 		}
 	}
 }
