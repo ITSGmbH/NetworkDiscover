@@ -560,7 +560,7 @@ impl Port {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query("INSERT INTO scans (host_history_id,port,protocol,state,service,product,comment) VALUES(?,?,?,?,?,?,?)")
+			let query = query("INSERT INTO ports (host_history_id,port,protocol,state,service,product,comment) VALUES(?,?,?,?,?,?,?)")
 				.bind(self.host_history_id)
 				.bind(self.port)
 				.bind(&self.protocol)
@@ -583,7 +583,7 @@ impl Port {
 #[derive(FromRow, Debug)]
 pub struct Cve {
 	pub host_history_id: i64,
-	pub port: i64,
+	pub port: i32,
 	#[sqlx(rename = "type")]
 	pub type_name: String,
 	pub type_id: String,

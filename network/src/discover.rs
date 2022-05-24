@@ -63,6 +63,9 @@ mod discover_impl {
 		// Join and wait till every thread is finished
 		for handle in handles {
 			let mut res: Vec<Host> = handle.join().unwrap();
+			for host in &res {
+				host.save_services_to_db(db);
+			}
 			result.append(&mut res);
 		}
 
