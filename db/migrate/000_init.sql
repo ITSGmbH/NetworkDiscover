@@ -20,13 +20,12 @@ CREATE INDEX idx_log_scan ON log(scan);
 CREATE TABLE IF NOT EXISTS hosts (
 	id INTEGER PRIMARY KEY,
 	ip NVARCHAR(40) DEFAULT "",
-	scan INTEGER DEFAULT 0,
 	ignore INTEGER DEFAULT 0,
 	comment TEXT DEFAULT ""
 );
 
 CREATE INDEX idx_hosts_id ON hosts(id);
-CREATE INDEX idx_hosts_scan ON hosts(scan);
+CREATE INDEX idx_hosts_ip ON hosts(ip);
 
 CREATE TABLE IF NOT EXISTS hosts_history (
 	id INTEGER PRIMARY KEY,
@@ -40,11 +39,13 @@ CREATE INDEX idx_hosts_hist_host_id ON hosts_history(host_id);
 CREATE INDEX idx_hosts_hist_scan ON hosts_history(scan);
 
 CREATE TABLE IF NOT EXISTS routing (
+	scan INTEGER,
 	left INTEGER,
 	right INTEGER,
 	comment TEXT DEFAULT ""
 );
 
+CREATE INDEX idx_routing_scan ON routing(scan);
 CREATE INDEX idx_routing_left ON routing(left);
 CREATE INDEX idx_routing_right ON routing(right);
 
@@ -55,15 +56,14 @@ CREATE TABLE IF NOT EXISTS ports (
 	state NVARCHAR(10) DEFAULT "",
 	service NVARCHAR(100) DEFAULT "",
 	product NVARCHAR(100) DEFAULT "",
-	scan INTEGER DEFAULT 0,
 	comment TEXT DEFAULT ""
 );
 
 CREATE INDEX idx_ports_host_hist_id ON ports(host_history_id);
-CREATE INDEX idx_ports_scan ON ports(scan);
 
 CREATE TABLE IF NOT EXISTS cves (
-	port_id INTEGER,
+	host_history_id INTEGER,
+	port INTEGER,
 	type NVARCHAR(20) DEFAULT "",
 	type_id NVARCHAR(20) DEFAULT "",
 	cvss DECIMAL(8,2) DEFAULT 0,
@@ -72,5 +72,6 @@ CREATE TABLE IF NOT EXISTS cves (
 	comment TEXT DEFAULT ""
 );
 
-CREATE INDEX idx_cve_port_id ON cves(port_id);
+CREATE INDEX idx_cve_host_history_id ON cves(host_history_id);
+CREATE INDEX idx_cve_port ON cves(port);
 CREATE INDEX idx_cve_scan ON cves(scan);

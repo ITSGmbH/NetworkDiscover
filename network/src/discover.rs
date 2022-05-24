@@ -2,10 +2,9 @@
 use local_net::LocalNet;
 use log::info;
 
-pub fn start(network: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) {
-	let hosts = discover_impl::discover(network, targets, num_threads);
-	
-	info!("Found hosts: {:?}", hosts);
+pub fn start(db: &mut sqlite::Database, network: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) {
+	let hosts = discover_impl::discover(db, network, targets, num_threads);
+	info!("Found hosts: {:?}", hosts.len());
 }
 
 mod discover_impl {
@@ -26,7 +25,7 @@ mod discover_impl {
 	use xml::reader::{EventReader, XmlEvent};
 	use uuid::Uuid;
 
-	pub fn discover(local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) -> Vec<Host> {
+	pub fn discover(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
 		let mut result_chunks: Vec<Vec<Host>> = vec![];
 		for _ in 0..*num_threads {
@@ -40,7 +39,7 @@ mod discover_impl {
 			let chunk = result_chunks.get_mut(pos as usize);
 			count += 1;
 
-			let mut h: Vec<Host> = discover_network(local, &target);
+			let mut h: Vec<Host> = discover_network(db, local, &target);
 			chunk.unwrap().append(&mut h);
 		}
 
@@ -90,7 +89,7 @@ mod discover_impl {
 		String::new()
 	}
 
-	fn discover_network(local: &LocalNet, target: &config::DiscoverStruct) -> Vec<Host> {
+	fn discover_network(db: &mut sqlite::Database, local: &LocalNet, target: &config::DiscoverStruct) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
 		let network = nmap_network_string(target, local.host_str());
 		info!("Network: {}", network);
@@ -127,7 +126,7 @@ mod discover_impl {
 							// Add the scanning host as a hop and trace the others
 							host.hops.push(local.host());
 							traceroute(&mut host, &target.max_hops.unwrap_or(10));
-
+							host.save_to_db(db);
 							result.push(host);
 						}
 					},
