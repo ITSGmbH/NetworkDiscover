@@ -14,6 +14,17 @@ impl Display for Protocol {
 		}
 	}
 }
+impl FromStr for Protocol {
+	type Err = String;
+	fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+		match s {
+			"UNKNOWN" => Ok(Self::UNKNOWN),
+			"TCP" => Ok(Self::TCP),
+			"UDP" => Ok(Self::UDP),
+			_ => Err(format!("Unknown protocol: {}", s)),
+		}
+	}
+}
 
 #[derive(Debug,Clone)]
 pub enum State { UNKNOWN, OPEN, FILTER, CLOSE }
@@ -24,6 +35,18 @@ impl Display for State {
 			State::OPEN => write!(f, "OPEN"),
 			State::FILTER => write!(f, "FILTER"),
 			State::CLOSE => write!(f, "CLOSE"),
+		}
+	}
+}
+impl FromStr for State {
+	type Err = String;
+	fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+		match s {
+			"UNKNOWN" => Ok(Self::UNKNOWN),
+			"FILTER" => Ok(Self::FILTER),
+			"CLOSE" => Ok(Self::CLOSE),
+			"OPEN" => Ok(Self::OPEN),
+			_ => Err(format!("Unknown state: {}", s)),
 		}
 	}
 }
@@ -51,6 +74,15 @@ impl Default for Host {
 	}
 }
 impl Host {
+	/// Save this host-information to the database and stores some internal IDs.
+	///
+	/// Here only the host and routig information are stored. For additional data
+	/// like the ports and exploits, use the `save_service_to_db(...)` method.
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database instance to save to
+	///
 	pub(crate) fn save_to_db(&mut self, db: &mut sqlite::Database) {
 		let mut host = if self.db_id > 0 {
 			db::Host::load(db, self.db_id)
@@ -100,6 +132,14 @@ impl Host {
 		}
 	}
 
+	/// Saves all additional information like Ports and Exploits on them do the database.
+	///
+	/// The host has to be saved already manually by the `save_to_db(...)`
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database instance to save to
+	///
 	pub(crate) fn save_services_to_db(&self, db: &mut sqlite::Database) {
 		if self.db_hist_id > 0 {
 			for service in &self.services {
