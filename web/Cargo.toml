@@ -1,0 +1,23 @@
+[package]
+name = "web"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Lukas (LukyLuke_ch) Zurschmiede <network-discover@ranta.ch>" ]
+
+[lib]
+name = "web"
+path = "src/lib.rs"
+
+[dependencies]
+config = { path = "../config" }
+sqlite = { path = "../sqlite" }
+local_net = { path = "../local_net" }
+network = { path = "../network" }
+
+actix-web = { version = "4" }
+actix-files = { version = "0.6" }
+chrono = { version = "0.4" }
+futures = { version = "0.3" }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+log = { version = "0.4" }

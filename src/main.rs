@@ -1,20 +1,18 @@
+//use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 
 mod core;
 use crate::core::logger;
-use network::scan;
 
-fn main() -> Result<(), ()> {
+#[actix_web::main]
+async fn main() -> std::io::Result<()> {
 	logger::init();
 	
 	logger::info!("Starting network_discover...!");
 
-	let name: String = "network_discover".to_string();
-	let conf: config::AppConfig = config::get(&name);
-	config::save(&name, &conf);
+	let config: config::AppConfig = config::get("network_discover".to_string());
+	config::save(&config);
+	let _res = web::run(config).await;
 
-	let local = local_net::discover(&conf.device);
-	scan::full(&conf, &local);
-	
 	logger::info!("Ended network_discover...!");
 	Ok(())
 }

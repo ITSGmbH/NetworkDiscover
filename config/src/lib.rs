@@ -1,4 +1,3 @@
-
 use log::{info, warn};
 use confy;
 use serde::{Serialize, Deserialize};
@@ -86,7 +85,7 @@ impl Default for ConnectionStruct {
 	}
 }
 
-pub fn get(name: &String) -> AppConfig {
+pub fn get(name: String) -> AppConfig {
 	info!("Loading configuration {:?}", name);
 	let cfg: AppConfig = match confy::load(name.as_str()) {
 		Ok(v) => v,
@@ -98,9 +97,9 @@ pub fn get(name: &String) -> AppConfig {
 	return cfg;
 }
 
-pub fn save(name: &String, conf: &AppConfig) {
-	match confy::store(name.as_str(), conf) {
+pub fn save(conf: &AppConfig) {
+	match confy::store(conf.name.as_str(), conf) {
 		Ok(_) => {},
-		Err(e) => warn!("Could not save configuration {:?}: {:?}", name, e)
+		Err(e) => warn!("Could not save configuration {:?}: {:?}", conf.name, e)
 	}
 }
