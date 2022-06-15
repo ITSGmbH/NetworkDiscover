@@ -10,7 +10,7 @@ CREATE INDEX idx_scans_scan ON scans(scan);
 CREATE TABLE IF NOT EXISTS log (
 	log_time INTEGER DEFAULT CURRENT_TIMESTAMP,
 	scan INTEGER DEFAULT 0,
-	severity VNARCHAR(10) DEFAULT "info",
+	severity NVARCHAR(10) DEFAULT "info",
 	origin NVARCHAR(15),
 	log TEXT DEFAULT ""
 );

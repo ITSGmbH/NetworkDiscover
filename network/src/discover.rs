@@ -2,8 +2,8 @@
 use local_net::LocalNet;
 use log::info;
 
-pub fn start(db: &mut sqlite::Database, network: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) {
-	let hosts = discover_impl::discover(db, network, targets, num_threads);
+pub fn start(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) {
+	let hosts = discover_impl::discover(db, local, targets, num_threads);
 	info!("Found hosts: {:?}", hosts.len());
 }
 
@@ -102,7 +102,7 @@ mod discover_impl {
 		cmd.arg("-sn")
 			.arg("-oX")
 			.arg(&tmp_file)
-			.arg(network);
+			.arg(&network);
 		debug!("Command: {:?}", cmd);
 
 		let output = cmd.output();
@@ -114,23 +114,31 @@ mod discover_impl {
 				match ev {
 					Ok(XmlEvent::StartElement { name, attributes, .. }) => {
 						if name.local_name == "address" {
-							let mut host = Host::default();
-							host.ip = Some(
-								attributes.iter()
-									.filter(|a| a.name.local_name == "addr")
-									.map(|a| String::from(&a.value))
-									.inspect(|ip| debug!("  found: {}", ip))
-									.map(|ip| IpAddr::from_str(&ip))
-									.take(1).next()
-									.unwrap_or(IpAddr::from_str("127.0.0.1"))
-									.unwrap()
-								);
+							let is_ip_tag = attributes.iter()
+								.filter(|a| a.name.local_name == "addrtype" && (a.value == "ipv4" || a.value == "ipv6"))
+								.map(|_| true)
+								.take(1).next()
+								.unwrap_or(false);
+							if is_ip_tag {
+								let mut host = Host::default();
+								host.network = String::from(&network);
+								host.ip = Some(
+									attributes.iter()
+										.filter(|a| a.name.local_name == "addr")
+										.map(|a| String::from(&a.value))
+										.inspect(|ip| debug!("  found: {}", ip))
+										.map(|ip| IpAddr::from_str(&ip))
+										.take(1).next()
+										.unwrap_or(IpAddr::from_str("127.0.0.1"))
+										.unwrap()
+									);
 
-							// Add the scanning host as a hop and trace the others
-							host.hops.push(local.host());
-							traceroute(&mut host, &target.max_hops.unwrap_or(10));
-							host.save_to_db(db);
-							result.push(host);
+								// Add the scanning host as a hop and trace the others
+								host.hops.push(local.host());
+								traceroute(&mut host, &target.max_hops.unwrap_or(10));
+								host.save_to_db(db);
+								result.push(host);
+							}
 						}
 					},
 					_ => {},

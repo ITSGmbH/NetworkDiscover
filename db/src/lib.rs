@@ -67,6 +67,41 @@ impl Scan {
 		None
 	}
 
+	/// Loads all instances in between a given date range from a network
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `network` - The Network (IP/MASK) name to load the scans from
+	/// * `start` - Optional naive date which symbolizes the start
+	/// * `end` - Optional naive date which symbolizes the end
+	///
+	/// # Returns
+	///
+	/// A List with instances in the given range
+	pub fn list_from_network(db: &mut sqlite::Database, network: &String, start: Option<NaiveDateTime>, end: Option<NaiveDateTime>) -> Vec<Scan> {
+		let mut list = vec![];
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			// naive::MIN_DATETIME, naive::MAX_DATETIME does not work :(
+			let param_start = if start.is_none() { NaiveDate::from_ymd(1900, 1, 1).and_hms(0, 0, 0) } else { start.unwrap() };
+			let param_end = if end.is_none() { NaiveDate::from_ymd(9999, 12, 31).and_hms(23, 59, 59) } else { end.unwrap() };
+			let query = query_as::<_, Scan>("SELECT DISTINCT s.* FROM scans AS s,hosts AS h,hosts_history AS hist WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ?")
+				.bind(network)
+				.bind(&param_start)
+				.bind(&param_end)
+				.fetch_all(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				list.append(&mut result.ok().unwrap());
+			} else {
+				log::error!("DB: Load Scan from Network Error: {}", result.err().unwrap());
+			}
+		}
+		return list;
+	}
+
 	/// Loads all instances in between a given date range
 	///
 	/// # Arguments
@@ -186,15 +221,19 @@ impl Log {
 #[derive(FromRow, Debug)]
 pub struct Host {
 	pub id: i64,
+	pub network: String,
 	pub ip: String,
+	pub os: String,
 	pub ignore: bool,
 	pub comment: String,
 }
 impl Default for Host {
 	fn default() -> Self {
 		Host {
-			id:0,
+			id: 0,
+			network: "".to_string(),
 			ip: "".to_string(),
+			os: "".to_string(),
 			ignore: false,
 			comment: "".to_string(),
 		}
@@ -256,18 +295,20 @@ impl Host {
 	/// # Arguments
 	///
 	/// * `db` - Mutable reference to the database connection object
+	/// * `network` - Network to load the hosts from
 	/// * `scan` - ID of the scan to load the hosts from
 	///
 	/// # Returns
 	///
 	/// An Optional instance or None in case it could not be loaded.
-	pub fn list(db: &mut sqlite::Database, scan: i64) -> Vec<Host> {
+	pub fn list_from_network(db: &mut sqlite::Database, network: &str, scan: &i64) -> Vec<Host> {
 		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Host>("SELECT hosts.* FROM hosts,hosts_history WHERE hosts_history.scan = ? AND hosts_history.host_id=host.id")
+			let query = query_as::<_, Host>("SELECT h.*,hist.os AS os FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ?")
 				.bind(scan)
+				.bind(network)
 				.fetch_all(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_ok() {
@@ -291,14 +332,16 @@ impl Host {
 			let pool = con.unwrap();
 			let query = if self.id <= 0 {
 				self.id = next_id(pool, "id", "hosts");
-				query("INSERT INTO hosts (id,ip,ignore,comment) VALUES(?,?,?,?)")
+				query("INSERT INTO hosts (id,network,ip,ignore,comment) VALUES(?,?,?,?,?)")
 					.bind(self.id)
+					.bind(&self.network)
 					.bind(&self.ip)
 					.bind(self.ignore)
 					.bind(&self.comment)
 					.execute(pool)
 			} else {
-				query("UPDATE hosts SET ip = ?, ignore = ?, comment = ? WHERE id=?")
+				query("UPDATE hosts SET network = ?, ip = ?, ignore = ?, comment = ? WHERE id=?")
+					.bind(&self.network)
 					.bind(&self.ip)
 					.bind(self.ignore)
 					.bind(&self.comment)
@@ -433,12 +476,13 @@ impl Routing {
 	///
 	/// * `db` - Mutable reference to the database connection object
 	/// * `host` - ID of the dataset to load
+	/// * `scan` - ID of the scan to load the routing from
 	///
 	/// # Returns
 	///
 	/// An Optional instance or None in case it could not be loaded.
-	pub fn from_host(db: &mut sqlite::Database, host: i64) -> Vec<Routing> {
-		Routing::load(db, host, true)
+	pub fn from_host(db: &mut sqlite::Database, host: &i64, scan: &i64) -> Vec<Routing> {
+		Routing::load(db, host, scan, true)
 	}
 
 	/// Loads all instances where the host is the destination (right).
@@ -447,12 +491,13 @@ impl Routing {
 	///
 	/// * `db` - Mutable reference to the database connection object
 	/// * `host` - ID of the dataset to load
+	/// * `scan` - ID of the scan to load the routing from
 	///
 	/// # Returns
 	///
 	/// An Optional instance or None in case it could not be loaded.
-	pub fn to_host(db: &mut sqlite::Database, host: i64) -> Vec<Routing> {
-		Routing::load(db, host, false)
+	pub fn to_host(db: &mut sqlite::Database, host: &i64, scan: &i64) -> Vec<Routing> {
+		Routing::load(db, host, scan, false)
 	}
 
 	/// Loads an instance from the Database.
@@ -461,18 +506,20 @@ impl Routing {
 	///
 	/// * `db` - Mutable reference to the database connection object
 	/// * `host` - Host-ID to load, even in the left or right field
+	/// * `scan` - ID of the scan to load the routing from
 	/// * `left` - Host-ID is on the left: Load all follow up hosts (right hosts) or vice versa
 	///
 	/// # Returns
 	///
 	/// A list with instances
-	fn load(db: &mut sqlite::Database, host: i64, left: bool) -> Vec<Routing> {
+	fn load(db: &mut sqlite::Database, host: &i64, scan: &i64, left: bool) -> Vec<Routing> {
 		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = if left { query_as::<_, Routing>("SELECT * FROM routing WHERE left = ?") } else { query_as::<_, Routing>("SELECT * FROM routing WHERE right = ?") }
+			let query = if left { query_as::<_, Routing>("SELECT * FROM routing WHERE left = ? AND scan = ?") } else { query_as::<_, Routing>("SELECT * FROM routing WHERE right = ? AND scan = ?") }
 				.bind(host)
+				.bind(scan)
 				.fetch_all(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_ok() {

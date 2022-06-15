@@ -54,6 +54,7 @@ impl FromStr for State {
 
 #[derive(Debug,Clone)]
 pub struct Host {
+	pub network: String,
 	pub ip: Option<IpAddr>,
 	pub hops: Vec<IpAddr>,
 	pub services: Vec<Service>,
@@ -64,6 +65,7 @@ pub struct Host {
 impl Default for Host {
 	fn default() -> Self {
 		Host {
+			network: "".to_string(),
 			ip: None,
 			hops: vec![],
 			services: vec![],
@@ -96,6 +98,7 @@ impl Host {
 		// host object
 		if host.id <= 0 {
 			host.ip = self.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap()).to_string();
+			host.network = String::from(&self.network);
 			host.comment = format!("First seen on {}", chrono::Utc::now());
 			let _ = host.save(db);
 		}
@@ -114,17 +117,17 @@ impl Host {
 		// routing
 		for hop in &self.hops {
 			let _res = db::Host::load_by_ip(db, hop.to_string())
-				.or_else(|| {
-					let mut right = db::Host::default();
-					right.ip = hop.to_string();
-					right.comment = format!("Traceroute on {}", chrono::Utc::now());
-					let _ = right.save(db);
-					Some(right)
-				})
-				.map(|h| db::Routing {
+				.map_or_else(|| {
+					let mut right = Host::default();
+					right.ip = self.ip.clone();
+					right.network = String::from(&self.network);
+					let _ = right.save_to_db(db);
+					Some(right.db_id)
+				}, |h| Some(h.id))
+				.map(|id| db::Routing {
 					scan: db.current_scan_id,
 					left: host.id,
-					right: h.id,
+					right: id,
 					comment: "".to_string(),
 				})
 				.map(|mut h| h.save(db))

@@ -10,12 +10,14 @@ path = "src/lib.rs"
 
 [dependencies]
 config = { path = "../config" }
-sqlite = { path = "../sqlite" }
 local_net = { path = "../local_net" }
 network = { path = "../network" }
+sqlite = { path = "../sqlite" }
+db = { path = "../db" }
 
 actix-web = { version = "4" }
 actix-files = { version = "0.6" }
 serde = { version = "1.0", features = ["derive"] }
 uuid = { version = "1", features = ["serde", "v4"] }
 log = { version = "0.4" }
+chrono = { version = "0.4" }

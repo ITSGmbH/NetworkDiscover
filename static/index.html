@@ -25,7 +25,7 @@
 		<nav class="navbar is-info is-fixed-top" role="navigation" aria-label="dropdown navigation">
 			<div class="navbar-menu">
 				<div class="navbar-brand">
-					<span class="navbar-item"><img src="/img/its_logo.png" alt="IT-S" height="12" /></span>
+					<span class="navbar-item"><img src="/static/img/its_logo.png" alt="IT-S" height="12" /></span>
 					<h1 class="navbar-item title is-4">NetworkDiscovery</h1>
 				</div>
 
@@ -97,13 +97,15 @@
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
 				var _nodes = [];
 				var _edges = [];
-				Object.entries(data.hosts).forEach(entry => {
+				Object.entries(data).forEach(entry => {
 					const [k, v] = entry;
-					_nodes.push({ id: k, label: k + '\n' + v.os });
+					_nodes.push({ id: v.id, label: v.ip + '\n' + v.os });
 					v.nodes.forEach(val => {
-						_edges.push({ from: k, to: val });
+						_edges.push({ from: v.id, to: parseInt(val) });
 					})
 				});
+				console.debug(_edges);
+				console.debug(_nodes);
 				nodes.clear();
 				edges.clear()
 				nodes.add(_nodes);
@@ -131,11 +133,11 @@
 				$('#scan-now-modal .modal-card').append(content);
 				$('#scan-now-modal button.delete').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
 
-				scans.scans.forEach((v, k) => {
+				scans.forEach((v, k) => {
 					$('#scans').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
-					$('#scan-' + k).on('click', { id: k, network: ev.data.network, scan: v.scan }, load_network);
+					$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan }, load_network);
 				});
-				$('#scan-' + (scans.scans.length - 1)).trigger('click');
+				$('#scan-' + (scans.length - 1)).trigger('click');
 			});
 		};
 
@@ -147,9 +149,11 @@
 
 		$(document).ready(function() {
 			$.getJSON("/api/networks", data => {
-				data.networks.forEach((v, k) => {
-					$('#networks').append('<a class="navbar-item" id="network-' + k + '">' + v + '</a>');
-					$('#network-' + k).on('click', { id: k, network: v }, load_scans);
+				data.forEach((v, k) => {
+					var name = v.name + ( v.name != "" ? " (" : "" ) + v.network + ( v.name != "" ? ")" : "" );
+					$('#networks').append('<a class="navbar-item" id="network-' + k + '">' + name + '</a>');
+					$('#network-' + k).on('click', { id: k, network: v.network }, load_scans);
+					$('#network-' + k).data('network', v);
 				});
 				$('#network-0').trigger('click');
 			}).fail(function() {

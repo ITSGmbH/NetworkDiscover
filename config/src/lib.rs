@@ -69,6 +69,7 @@ pub enum NetworkProtocol {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ConnectionStruct {
+	pub name: Option<String>,
 	pub ip: Option<String>,
 	pub mask: Option<u8>,
 	pub port: Option<u16>,
@@ -77,6 +78,7 @@ pub struct ConnectionStruct {
 impl Default for ConnectionStruct {
 	fn default() -> Self {
 		ConnectionStruct {
+			name: None,
 			ip: None,
 			mask: None,
 			port: None,
