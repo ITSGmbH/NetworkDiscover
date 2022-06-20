@@ -18,5 +18,6 @@ pub fn init() {
 			)
 		})
 		.filter(None, LevelFilter::Debug)
+		.filter(Some("sqlx"), LevelFilter::Error)
 		.init();
 }

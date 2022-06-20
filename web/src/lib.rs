@@ -132,15 +132,15 @@ async fn get_network(config: web::Data<config::AppConfig>, args: web::Query<Netw
 
 	let hosts = db::Host::list_from_network(&mut db, &args.network, &args.scan);
 	let result = hosts.iter()
-		.map(|h| {
-			let route = db::Routing::from_host(&mut db, &h.id, &args.scan);
+		.map(|host| {
+			let route = db::Routing::from_host(&mut db, &host.hist_id, &args.scan);
 			NetworkResponse {
-				id: h.id,
+				id: host.hist_id,
 				network: args.network.clone(),
-				ip: h.ip.clone(),
-				os: h.os.clone(),
+				ip: host.ip.clone(),
+				os: host.os.clone(),
 				nodes: route.iter()
-					.map(|r| r.right.to_string() )
+					.map(|route| route.right.to_string() )
 					.collect(),
 			}
 		})
@@ -156,7 +156,7 @@ async fn show_status(_config: web::Data<config::AppConfig>, running: web::Data<M
 }
 
 #[get("/api/info")]
-async fn get_info(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
+async fn get_info(_config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 	Ok(web::Json(""))
 }
 

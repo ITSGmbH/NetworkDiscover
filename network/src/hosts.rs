@@ -87,12 +87,12 @@ impl Host {
 	///
 	pub(crate) fn save_to_db(&mut self, db: &mut sqlite::Database) {
 		let mut host = if self.db_id > 0 {
-			db::Host::load(db, self.db_id)
+			db::Host::load(db, &self.db_id)
 		} else {
 			None
 		}.unwrap_or({
 			let ip = self.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap());
-			db::Host::load_by_ip(db, ip.to_string()).unwrap_or(db::Host::default())
+			db::Host::load_by_ip(db, &ip.to_string()).unwrap_or(db::Host::default())
 		});
 
 		// host object
@@ -105,27 +105,46 @@ impl Host {
 		self.db_id = host.id;
 
 		// host history
-		let mut hist = db::HostHistory {
-			id: 0,
-			host_id: self.db_id,
-			os: if self.os.is_some() { String::from(self.os.as_ref().unwrap()) } else { "Unknown".to_string() },
-			scan: db.current_scan_id,
-		};
-		let _ = hist.save(db);
-		self.db_hist_id = hist.id;
+		let scan_id = db.current_scan_id;
+		let hist_id = db::HostHistory::load_from_scan_and_host(db, &scan_id, &host.ip)
+			.map_or_else(|| {
+				let mut hist = db::HostHistory {
+					id: 0,
+					host_id: self.db_id,
+					os: if self.os.is_some() { String::from(self.os.as_ref().unwrap()) } else { "Unknown".to_string() },
+					scan: scan_id,
+				};
+				let _ = hist.save(db);
+				hist.id
+			}, |hist| hist.id);
+		self.db_hist_id = hist_id;
 
-		// routing
+		// routing based on the host history
 		for hop in &self.hops {
-			let _res = db::Host::load_by_ip(db, hop.to_string())
+			if hop.to_string().eq(&host.ip) { continue; }
+			let _res = db::HostHistory::load_from_scan_and_host(db, &scan_id, &hop.to_string())
 				.map_or_else(|| {
-					let mut right = Host::default();
-					right.ip = self.ip.clone();
-					right.network = String::from(&self.network);
-					let _ = right.save_to_db(db);
-					Some(right.db_id)
+					// Create the host if it does not exist to create the missing HostHistory
+					let hop_host = db::Host::load_by_ip(db, &hop.to_string());
+					let host_id = hop_host
+						.map_or_else(|| {
+							let mut right = Host::default();
+							right.ip = Some(hop.clone());
+							right.network = String::from(&self.network);
+							let _ = right.save_to_db(db);
+							right.db_hist_id
+						}, |h| h.id);
+					let hist = db::HostHistory::load_from_scan_and_host(db, &scan_id, &hop.to_string())
+						.unwrap_or(db::HostHistory{
+							id: 0,
+							host_id,
+							os: "".to_string(),
+							scan: scan_id,
+						});
+					Some(hist.id)
 				}, |h| Some(h.id))
 				.map(|id| db::Routing {
-					scan: db.current_scan_id,
+					scan: scan_id,
 					left: host.id,
 					right: id,
 					comment: "".to_string(),

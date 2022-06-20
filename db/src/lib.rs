@@ -63,6 +63,7 @@ impl Scan {
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
+			log::error!("DB: Query-Error: {:?}", result);
 		}
 		None
 	}
@@ -221,6 +222,7 @@ impl Log {
 #[derive(FromRow, Debug)]
 pub struct Host {
 	pub id: i64,
+	pub hist_id: i64,
 	pub network: String,
 	pub ip: String,
 	pub os: String,
@@ -231,6 +233,7 @@ impl Default for Host {
 	fn default() -> Self {
 		Host {
 			id: 0,
+			hist_id: 0,
 			network: "".to_string(),
 			ip: "".to_string(),
 			os: "".to_string(),
@@ -250,17 +253,18 @@ impl Host {
 	/// # Returns
 	///
 	/// An Optional instance or None in case it could not be loaded.
-	pub fn load(db: &mut sqlite::Database, id: i64) -> Option<Host> {
+	pub fn load(db: &mut sqlite::Database, id: &i64) -> Option<Host> {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Host>("SELECT * FROM hosts WHERE id=?")
+			let query = query_as::<_, Host>("SELECT *, 0 AS hist_id,'' AS os FROM hosts WHERE id=?")
 				.bind(id)
 				.fetch_one(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
+			log::error!("DB: Query-Error: {:?}", result);
 		}
 		None
 	}
@@ -275,17 +279,18 @@ impl Host {
 	/// # Returns
 	///
 	/// An Optional instance or None in case it could not be loaded.
-	pub fn load_by_ip(db: &mut sqlite::Database, ip: String) -> Option<Host> {
+	pub fn load_by_ip(db: &mut sqlite::Database, ip: &str) -> Option<Host> {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Host>("SELECT * FROM hosts WHERE ip=?")
+			let query = query_as::<_, Host>("SELECT *, 0 AS hist_id,'' AS os FROM hosts WHERE ip=?")
 				.bind(ip)
 				.fetch_one(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
+			log::error!("DB: Query-Error: {:?}", result);
 		}
 		None
 	}
@@ -306,7 +311,7 @@ impl Host {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Host>("SELECT h.*,hist.os AS os FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ?")
+			let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ?")
 				.bind(scan)
 				.bind(network)
 				.fetch_all(pool);
@@ -388,6 +393,35 @@ impl HostHistory {
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
+			log::error!("DB: Query-Error: {:?}", result);
+		}
+		None
+	}
+
+	/// Loads an instance from the Database.
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `scan` - Scan-ID to load the host history from
+	/// * `ip` - IP-Address of the host to load the hostory from
+	///
+	/// # Returns
+	///
+	/// An Optional instance or None in case it could not be loaded.
+	pub fn load_from_scan_and_host(db: &mut sqlite::Database, scan: &i64, ip: &str) -> Option<HostHistory> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, HostHistory>("SELECT hist.* FROM hosts_history AS hist, hosts AS h WHERE hist.scan=? AND hist.host_id=h.id AND h.ip=?")
+				.bind(scan)
+				.bind(ip)
+				.fetch_one(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				return Some(result.ok().unwrap());
+			}
+			log::error!("DB: Query-Error: {:?}", result);
 		}
 		None
 	}
