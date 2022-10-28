@@ -8,6 +8,9 @@ use std::{format, str::FromStr};
 
 use config::AppConfig;
 
+use std::sync::atomic::{AtomicBool, Ordering};
+static DB_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 pub struct Database {
 	pub current_scan_id: i64,
 	pub(crate) db_file: String,
@@ -53,14 +56,18 @@ impl Database {
 					.connect_lazy_with(connect_options)
 			);
 
-			let start = Instant::now();
-			let mig = sqlx::migrate!("../db/migrate").run(self.pool.as_ref().unwrap());
-			let res = futures::executor::block_on(mig);
-			log::info!("DB-Update duration: {}", start.elapsed().as_secs_f32());
+			if !DB_INITIALIZED.load(Ordering::Relaxed) {
+				let start = Instant::now();
+				let mig = sqlx::migrate!("../db/migrate").run(self.pool.as_ref().unwrap());
+				let res = futures::executor::block_on(mig);
+				log::info!("DB-Update duration: {}", start.elapsed().as_secs_f32());
 
-			if res.is_err() {
-				let err = res.err().unwrap();
-				log::error!("DB-Update Error: {}", &err);
+				if res.is_err() {
+					let err = res.err().unwrap();
+					log::error!("DB-Update Error: {}", &err);
+				} else {
+					DB_INITIALIZED.store(true, Ordering::Relaxed);
+				}
 			}
 		}
 	}
