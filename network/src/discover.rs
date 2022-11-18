@@ -94,7 +94,15 @@ mod discover_impl {
 
 	fn discover_network(db: &mut sqlite::Database, local: &LocalNet, target: &config::DiscoverStruct) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
-		let network = nmap_network_string(target, local.host_str());
+		let default_network = local.default_network()
+			.unwrap()
+			.default_route()
+			.unwrap()
+			.to_string();
+		let network = &target.target.as_ref()
+			.unwrap()
+			.get_network_string()
+			.unwrap_or(default_network);
 		info!("Network: {}", network);
 
 		let tmp_file = get_tmp_file();
@@ -121,7 +129,7 @@ mod discover_impl {
 								.unwrap_or(false);
 							if is_ip_tag {
 								let mut host = Host::default();
-								host.network = String::from(&network);
+								host.network = String::from(network);
 								host.ip = Some(
 									attributes.iter()
 										.filter(|a| a.name.local_name == "addr")
@@ -134,7 +142,7 @@ mod discover_impl {
 									);
 
 								// Add the scanning host as a hop and trace the others
-								host.hops.push(local.host());
+								host.hops.push(local.get_ip_for_network(&network).unwrap_or(IpAddr::from_str("127.0.0.1").unwrap()));
 								traceroute(&mut host, &target.max_hops.unwrap_or(10));
 								host.save_to_db(db);
 								result.push(host);
@@ -149,18 +157,6 @@ mod discover_impl {
 		return result;
 	}
 
-	fn nmap_network_string(target: &config::DiscoverStruct, default_value: String) -> String {
-		if target.target.is_some() && target.target.as_ref().unwrap().ip.is_some() {
-			let connection = target.target.as_ref().unwrap();
-			let mut network: String = connection.ip.as_ref().unwrap().to_string().to_owned();
-			let mask = connection.mask.as_ref().unwrap_or(&31).to_string();
-			network.push_str("/");
-			network.push_str(&mask);
-			return network;
-		}
-		return default_value;
-	}
-	
 	pub fn traceroute(host: &mut Host, hops: &u16) {
 		if host.ip.is_some() && !host.hops.iter().any(|hop| host.ip.unwrap().to_string() == hop.to_string()) {
 			let ip = host.ip.unwrap().to_string();

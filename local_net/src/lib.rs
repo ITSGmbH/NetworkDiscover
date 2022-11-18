@@ -1,14 +1,15 @@
 
 use std::net::IpAddr;
-use std::str::FromStr;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Route {
 	network: Option<IpAddr>,
 	netmask: u16,
+	metric: u16,
 	device: String,
 	is_default: bool,
 	router: Option<IpAddr>,
+	link: Option<IpAddr>,
 }
 
 impl Default for Route {
@@ -16,78 +17,83 @@ impl Default for Route {
 		Route {
 			network: None,
 			netmask: 0,
+			metric: 0,
 			device: String::from(""),
 			is_default: false,
 			router: None,
+			link: None,
 		}
 	}
 }
 
-#[derive(Debug)]
-pub struct LocalNet {
-	ipv4_addr: Option<IpAddr>,
-	ipv4_net: u16,
-	ipv6_addr: Option<IpAddr>,
-	ipv6_net: u16,
+impl Route {
+	pub fn to_string(&self) -> String {
+		let mut ip = self.network.unwrap().to_string().to_owned();
+		ip.push_str("/");
+		ip.push_str(&self.netmask.to_string());
+		ip
+	}
+}
+
+
+#[derive(Debug, Clone)]
+pub struct LocalNetworkData {
+	ipaddr: Option<IpAddr>,
+	network: u16,
 	routes: Vec<Route>,
 }
 
-impl Default for LocalNet {
+impl Default for LocalNetworkData {
 	fn default() -> Self {
-		LocalNet {
-			ipv4_addr: None,
-			ipv4_net: 31,
-			ipv6_addr: None,
-			ipv6_net: 127,
+		LocalNetworkData {
+			ipaddr: None,
+			network: 0,
 			routes: vec![],
 		}
 	}
 }
 
+impl LocalNetworkData {
+	pub fn to_string(&self) -> String {
+		let mut ip = self.ipaddr.unwrap().to_string().to_owned();
+		ip.push_str("/");
+		ip.push_str(&self.network.to_string());
+		ip
+	}
+
+	pub fn default_route(&self) -> Result<&Route, &str> {
+		self.routes.iter()
+			.filter(|route| route.is_default)
+			.next()
+			.map_or(Err::<&Route, &str>("No default route"), |route| Ok(route))
+	}
+}
+
+
+#[derive(Debug)]
+pub struct LocalNet {
+	networks: Vec<LocalNetworkData>
+}
+
 impl LocalNet {
-	pub fn host_str(&self) -> String {
-		let nwsep = "/";
-		if self.ipv4_addr.is_some() {
-			let mut ip: String = self.ipv4_addr.unwrap().to_string().to_owned();
-			let nw = self.ipv4_net.to_string();
-			ip.push_str(&nwsep);
-			ip.push_str(&nw);
-			return ip;
+	pub fn default_network(&self) -> Result<&LocalNetworkData, &str> {
+		for nw in self.networks.iter() {
+			if nw.routes.iter().find(|route| route.is_default).is_some() {
+				return Ok(nw);
+			}
 		}
-		if self.ipv6_addr.is_some() {
-			let mut ip: String = self.ipv6_addr.unwrap().to_string().to_owned();
-			let nw = self.ipv6_net.to_string();
-			ip.push_str(&nwsep);
-			ip.push_str(&nw);
-			return ip;
-		} 
-		return String::from("127.0.0.1/31");
+		Err("No default route found")
 	}
 	
-	pub fn host(&self) -> IpAddr {
-		return self.ipv4_addr
-			.or(self.ipv6_addr)
-			.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap());
-	}
-	
-	pub fn networks(&self, sep: &str) -> String {
-		let nwsep = "/";
-		return self.routes.iter()
-			.filter(|r| r.network.is_some())
-			.map(|r| {
-				let mut ip: String = r.network.unwrap().to_string().to_owned();
-				let nw = r.netmask.to_string();
-				ip.push_str(&nwsep);
-				ip.push_str(&nw);
-				ip
-			})
-			.reduce(|pref, curr| {
-				let mut nw: String = pref.to_owned();
-				nw.push_str(&sep);
-				nw.push_str(&curr);
-				nw
-			})
-			.unwrap_or(String::from("127.0.0.0/31"));
+	pub fn get_ip_for_network(&self, network: &String) -> Result<IpAddr, ()> {
+		for local in self.networks.iter() {
+			for nw in local.routes.iter() {
+				if &nw.to_string() == network {
+					return Ok(local.ipaddr.unwrap().clone());
+				}
+			}
+		}
+		Err(())
 	}
 }
 
@@ -96,7 +102,7 @@ pub fn discover(device: &Option<String>) -> LocalNet {
 }
 
 mod discover_impl {
-	use super::{LocalNet, Route};
+	use super::{LocalNet, LocalNetworkData, Route};
 	
 	use log::{info, debug};
 	use std::process::Command;
@@ -105,22 +111,19 @@ mod discover_impl {
 	
 	pub fn discover(device: &Option<String>) -> LocalNet {
 		info!("LocalNet discovery: Starting");
-		let mut result: LocalNet = LocalNet::default();
-		
-		result = discover_host_information(result, device);
-		result = discover_routing_information(result, device);
-		log_result("IPv4", result.ipv4_addr, result.ipv4_net);
-		log_result("IPv6", result.ipv6_addr, result.ipv6_net);
-		log_routes("Routes", &result.routes);
+		let routings = get_routing_information(device);
+		let local_ips = get_local_ip_addresses(device, &routings);
+
+		log_addresses("IPs", &local_ips);
+		log_routes("Routes", &routings);
 		
 		info!("LocalNet discovery: End");
-		return result;
+		LocalNet { networks: local_ips }
 	}
 	
-	fn log_result(label: &str, ip: Option<IpAddr>, net: u16) {
-		match ip {
-			Some(ip_addr) => debug!("  {}: {:?}/{:?}", label, ip_addr, net),
-			None => debug!("  {}: none", label),
+	fn log_addresses(label: &str, ips: &Vec<LocalNetworkData>) {
+		for ip in ips {
+			debug!("  {}: {:?}/{:?}", label, ip.ipaddr, ip.network)
 		}
 	}
 
@@ -128,14 +131,15 @@ mod discover_impl {
 		debug!("  {}:", label);
 		for route in routes {
 			if route.is_default {
-				debug!("    default via {:?} dev {}", route.router.unwrap(), route.device);
+				debug!("    default via {:?} dev {} and ip {:?}", route.router.unwrap(), route.device, route.link);
 			} else {
-				debug!("    {:?}/{:?} via {:?} dev {}", route.network.unwrap(), route.netmask, route.router.unwrap(), route.device);
+				debug!("    {:?}/{:?} via {:?} dev {} and ip {:?}", route.network.unwrap(), route.netmask, route.router.unwrap(), route.device, route.link);
 			}
 		}
 	}
 
-	fn discover_host_information(mut result: LocalNet, device: &Option<String>) -> LocalNet {
+	fn get_local_ip_addresses(device: &Option<String>, routings: &Vec<Route>) -> Vec<LocalNetworkData> {
+		let mut result: Vec<LocalNetworkData> = vec![];
 		let mut cmd = Command::new("ip");
 		cmd.arg("address").arg("show");
 
@@ -153,22 +157,31 @@ mod discover_impl {
 			for line in lines.lines() {
 				let mut parts = line.trim().split_whitespace();
 				let first_part = parts.next().unwrap_or("");
-				if first_part == "inet" {
+				if first_part.starts_with("inet") {
 					let mut addr_parts = parts.next().unwrap_or("").split('/');
-					result.ipv4_addr = Some( IpAddr::from_str( addr_parts.next().unwrap_or("127.0.0.1") ).unwrap() );
-					result.ipv4_net = addr_parts.last().unwrap_or("32").parse::<u16>().unwrap();
+					let mut data = LocalNetworkData {
+						ipaddr: Some( IpAddr::from_str( addr_parts.next().unwrap_or("127.0.0.1") ).unwrap() ),
+						network: addr_parts.last().unwrap_or("32").parse::<u16>().unwrap(),
+						routes: vec![],
+					};
 
-				} else if first_part == "inet6" {
-					let mut addr_parts = parts.next().unwrap_or("").split('/');
-					result.ipv6_addr = Some( IpAddr::from_str( addr_parts.next().unwrap_or("::1") ).unwrap() );
-					result.ipv6_net = addr_parts.last().unwrap_or("32").parse::<u16>().unwrap();
+					// Filter routes and assign
+					routings.iter()
+						.filter(|route| route.link.unwrap() == data.ipaddr.unwrap() && route.netmask == data.network)
+						.for_each(|route| {
+							data.routes.push(route.clone());
+						});
+
+					result.push(data);
 				}
 			}
 		}
-		return result;
+
+		result
 	}
 	
-	fn discover_routing_information(mut result: LocalNet, device: &Option<String>) -> LocalNet {
+	fn get_routing_information(device: &Option<String>) -> Vec<Route> {
+		let mut result: Vec<Route> = vec![];
 		let mut cmd = Command::new("ip");
 		cmd.arg("route").arg("show");
 		
@@ -182,22 +195,53 @@ mod discover_impl {
 		if output.is_ok() {
 			let lines = String::from_utf8(output.unwrap().stdout).unwrap();
 			debug!("{:?}", lines);
+
+			let default_routes: Vec<Vec<&str>> = lines.lines().filter(|line| line.starts_with("default")).map(|line| line.trim().split_whitespace().collect()).collect();
+			let direct_routes = lines.lines().filter(|line| !line.starts_with("default"));
 			
-			for line in lines.lines() {
-				let parts: Vec<&str> = line.trim().split_whitespace().collect();
-				let network: Vec<&str> = parts[0].split("/").collect();
-				let is_default = network[0] == "default";
-				
-				result.routes.push(Route {
-					network: if is_default { None } else { Some(IpAddr::from_str(network[0]).unwrap()) },
-					netmask: if is_default { 31 } else { network[1].parse::<u16>().unwrap() },
-					device: String::from( if is_default { parts[4] } else { parts[2] } ),
-					is_default,
-					router: Some(IpAddr::from_str(if is_default { parts[2] } else { parts[8] } ).unwrap()),
-				});
+			for line in direct_routes {
+				let parts_vec = line.trim().split_whitespace().collect::<Vec<&str>>();
+				let mut parts = parts_vec.iter();
+				let mut next_parts = parts.next();
+				let nw_vec = next_parts.unwrap().split("/").collect::<Vec<&str>>();
+				let mut network = nw_vec.iter();
+
+				let mut route: Route = Default::default();
+				route.network = Some(IpAddr::from_str(network.next().unwrap()).unwrap());
+				route.netmask = network.next().unwrap().parse::<u16>().unwrap();
+
+				while let Some(part) = parts.next() {
+					next_parts = parts.next();
+					match part {
+						&"dev" => { route.device = String::from(*next_parts.unwrap()); }
+						&"via" => { route.router = Some(IpAddr::from_str(*parts.next().unwrap()).unwrap()); }
+						&"metric" => { route.metric = parts.next().unwrap().parse::<u16>().unwrap(); }
+						&"src" => {
+							let cur = *parts.next().unwrap();
+							route.link = Some(IpAddr::from_str(cur).unwrap());
+							route.is_default = false;
+
+							for r in &default_routes {
+								let mut via = "";
+								let mut defs = r.iter();
+								while let Some(def) = defs.next() {
+									if def == &"via" { via = *defs.next().unwrap(); }
+									else if def == &"src" && via != "" && defs.next().unwrap() == &cur {
+										route.router = Some(IpAddr::from_str(via).unwrap());
+										route.is_default = true;
+									}
+								}
+							}
+						}
+						_ => {}
+					}
+				}
+
+				result.push(route);
 			}
 		}
-		return result;
+
+		result
 	}
 	
 }

@@ -37,7 +37,7 @@ impl Default for Scan {
 		Scan {
 			scan: 0,
 			start_time: chrono::Utc::now().naive_utc(),
-			end_time: NaiveDate::from_ymd(9999, 12, 31).and_hms(23, 59, 59),
+			end_time: NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap(),
 		}
 	}
 }
@@ -86,8 +86,8 @@ impl Scan {
 		if con.is_some() {
 			let pool = con.unwrap();
 			// naive::MIN_DATETIME, naive::MAX_DATETIME does not work :(
-			let param_start = if start.is_none() { NaiveDate::from_ymd(1900, 1, 1).and_hms(0, 0, 0) } else { start.unwrap() };
-			let param_end = if end.is_none() { NaiveDate::from_ymd(9999, 12, 31).and_hms(23, 59, 59) } else { end.unwrap() };
+			let param_start = if start.is_none() { NaiveDate::from_ymd_opt(1900, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap() } else { start.unwrap() };
+			let param_end = if end.is_none() { NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap() } else { end.unwrap() };
 			let query = query_as::<_, Scan>("SELECT DISTINCT s.* FROM scans AS s,hosts AS h,hosts_history AS hist WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ?")
 				.bind(network)
 				.bind(&param_start)
@@ -120,8 +120,8 @@ impl Scan {
 		if con.is_some() {
 			let pool = con.unwrap();
 			// naive::MIN_DATETIME, naive::MAX_DATETIME does not work :(
-			let param_start = if start.is_none() { NaiveDate::from_ymd(1900, 1, 1).and_hms(0, 0, 0) } else { start.unwrap() };
-			let param_end = if end.is_none() { NaiveDate::from_ymd(9999, 12, 31).and_hms(23, 59, 59) } else { end.unwrap() };
+			let param_start = if start.is_none() { NaiveDate::from_ymd_opt(1900, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap() } else { start.unwrap() };
+			let param_end = if end.is_none() { NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap() } else { end.unwrap() };
 			let query = query_as::<_, Scan>("SELECT * FROM scans WHERE start_time >= ? AND end_time <= ?")
 				.bind(&param_start)
 				.bind(&param_end)

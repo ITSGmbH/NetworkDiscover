@@ -86,6 +86,20 @@ impl Default for ConnectionStruct {
 		}
 	}
 }
+impl ConnectionStruct {
+	pub fn get_network_string(&self) -> Option<String> {
+		if self.ip.is_some() {
+			// In case we have a ":" in the IP-Address we assume it's IPv6
+			let mut ip = self.ip.as_ref().unwrap().to_string().to_owned();
+			ip.push_str("/");
+			ip.push_str(&self.mask.unwrap_or( if ip.contains(":") { 127 } else { 32 } ).to_string());
+			Some(ip)
+		} else {
+			None
+		}
+	}
+}
+
 
 pub fn get(name: String) -> AppConfig {
 	info!("Loading configuration {:?}", name);
