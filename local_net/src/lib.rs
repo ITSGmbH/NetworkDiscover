@@ -103,7 +103,6 @@ pub fn discover(device: &Option<String>) -> LocalNet {
 
 mod discover_impl {
 	use super::{LocalNet, LocalNetworkData, Route};
-	
 	use log::{info, debug};
 	use std::process::Command;
 	use std::net::IpAddr;
@@ -122,19 +121,16 @@ mod discover_impl {
 	}
 	
 	fn log_addresses(label: &str, ips: &Vec<LocalNetworkData>) {
+		debug!("  {}:", label);
 		for ip in ips {
-			debug!("  {}: {:?}/{:?}", label, ip.ipaddr, ip.network)
+			debug!("    {:?}/{:?}", ip.ipaddr.unwrap(), ip.network);
 		}
 	}
 
 	fn log_routes(label: &str, routes: &Vec<Route>) {
 		debug!("  {}:", label);
 		for route in routes {
-			if route.is_default {
-				debug!("    default via {:?} dev {} and ip {:?}", route.router.unwrap(), route.device, route.link);
-			} else {
-				debug!("    {:?}/{:?} via {:?} dev {} and ip {:?}", route.network.unwrap(), route.netmask, route.router.unwrap(), route.device, route.link);
-			}
+			debug!("    {}{:?}/{:?} via {:?} dev {} and ip {:?}", if route.is_default { "default for " } else { "" } , route.network.unwrap(), route.netmask, route.router.unwrap(), route.device, route.link.unwrap());
 		}
 	}
 
@@ -152,8 +148,6 @@ mod discover_impl {
 		let output = cmd.output();
 		if output.is_ok() {
 			let lines = String::from_utf8(output.unwrap().stdout).unwrap();
-			debug!("{:?}", lines);
-			
 			for line in lines.lines() {
 				let mut parts = line.trim().split_whitespace();
 				let first_part = parts.next().unwrap_or("");
@@ -194,16 +188,14 @@ mod discover_impl {
 		let output = cmd.output();
 		if output.is_ok() {
 			let lines = String::from_utf8(output.unwrap().stdout).unwrap();
-			debug!("{:?}", lines);
-
 			let default_routes: Vec<Vec<&str>> = lines.lines().filter(|line| line.starts_with("default")).map(|line| line.trim().split_whitespace().collect()).collect();
 			let direct_routes = lines.lines().filter(|line| !line.starts_with("default"));
 			
 			for line in direct_routes {
-				let parts_vec = line.trim().split_whitespace().collect::<Vec<&str>>();
-				let mut parts = parts_vec.iter();
-				let mut next_parts = parts.next();
-				let nw_vec = next_parts.unwrap().split("/").collect::<Vec<&str>>();
+				let line_parts = line.trim().split_whitespace().collect::<Vec<&str>>();
+				let mut parts = line_parts.iter();
+				let mut next_part = parts.next();
+				let nw_vec = next_part.unwrap().split("/").collect::<Vec<&str>>();
 				let mut network = nw_vec.iter();
 
 				let mut route: Route = Default::default();
@@ -211,13 +203,13 @@ mod discover_impl {
 				route.netmask = network.next().unwrap().parse::<u16>().unwrap();
 
 				while let Some(part) = parts.next() {
-					next_parts = parts.next();
+					next_part = parts.next();
 					match part {
-						&"dev" => { route.device = String::from(*next_parts.unwrap()); }
-						&"via" => { route.router = Some(IpAddr::from_str(*parts.next().unwrap()).unwrap()); }
-						&"metric" => { route.metric = parts.next().unwrap().parse::<u16>().unwrap(); }
+						&"dev" => { route.device = String::from(*next_part.unwrap()); }
+						&"via" => { route.router = Some(IpAddr::from_str(*next_part.unwrap()).unwrap()); }
+						&"metric" => { route.metric = (*next_part.unwrap()).parse::<u16>().unwrap(); }
 						&"src" => {
-							let cur = *parts.next().unwrap();
+							let cur = *next_part.unwrap();
 							route.link = Some(IpAddr::from_str(cur).unwrap());
 							route.is_default = false;
 
@@ -231,6 +223,10 @@ mod discover_impl {
 										route.is_default = true;
 									}
 								}
+							}
+
+							if route.router.is_none() {
+								route.router = Some(IpAddr::from_str(cur).unwrap());
 							}
 						}
 						_ => {}

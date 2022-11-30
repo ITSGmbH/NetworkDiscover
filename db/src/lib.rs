@@ -63,7 +63,7 @@ impl Scan {
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
-			log::error!("DB: Query-Error: {:?}", result);
+			log::error!("[DB] Entity: 'Scan'; Load failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -97,7 +97,7 @@ impl Scan {
 			if result.is_ok() {
 				list.append(&mut result.ok().unwrap());
 			} else {
-				log::error!("DB: Load Scan from Network Error: {}", result.err().unwrap());
+				log::error!("[DB] Entity: 'Scan'; List from Network Failed: {}", result.err().unwrap());
 			}
 		}
 		return list;
@@ -130,7 +130,7 @@ impl Scan {
 			if result.is_ok() {
 				list.append(&mut result.ok().unwrap());
 			} else {
-				log::error!("DB: Load Scan Error: {}", result.err().unwrap());
+				log::error!("[DB] Entity: 'Scan'; List failed: {}", result.err().unwrap());
 			}
 		}
 		return list;
@@ -162,8 +162,7 @@ impl Scan {
 			};
 			let result = futures::executor::block_on(query);
 			if result.is_err() {
-				let err = result.err().unwrap();
-				return Err(format!("DB: Save Scan Error: {}", &err));
+				return Err(format!("[DB] Entity: 'Scan'; Save failed: {}", result.err().unwrap()));
 			}
 		}
 		Ok(())
@@ -210,8 +209,7 @@ impl Log {
 				.execute(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_err() {
-				let err = result.err().unwrap();
-				return Err(format!("DB: Save Log Error: {}", &err));
+				return Err(format!("[DB] Entity: 'Log'; Save failed: {}", result.err().unwrap()));
 			}
 		}
 		Ok(())
@@ -264,7 +262,7 @@ impl Host {
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
-			log::error!("DB: Query-Error: {:?}", result);
+			log::error!("[DB] Entity: 'Host'; Load failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -290,7 +288,7 @@ impl Host {
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
-			log::error!("DB: Query-Error: {:?}", result);
+			log::error!("[DB] Entity: 'Host'; Load by IP failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -319,7 +317,7 @@ impl Host {
 			if result.is_ok() {
 				list.append(&mut result.ok().unwrap());
 			} else {
-				log::error!("DB: Load Hosts Error: {}", result.err().unwrap());
+				log::error!("[DB] Entity: 'Host'; Load from network failed: {}", result.err().unwrap());
 			}
 		}
 		return list;
@@ -355,8 +353,7 @@ impl Host {
 			};
 			let result = futures::executor::block_on(query);
 			if result.is_err() {
-				let err = result.err().unwrap();
-				return Err(format!("DB: Save Host Error: {}", &err));
+				return Err(format!("[DB] Entity: 'Host'; Save failed: {}", result.err().unwrap()));
 			}
 		}
 		Ok(())
@@ -393,7 +390,7 @@ impl HostHistory {
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
-			log::error!("DB: Query-Error: {:?}", result);
+			log::error!("[DB] Entity: 'HostHistory'; Load failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -421,7 +418,7 @@ impl HostHistory {
 			if result.is_ok() {
 				return Some(result.ok().unwrap());
 			}
-			log::error!("DB: Query-Error: {:?}", result);
+			log::error!("[DB] Entity: 'HostHistory'; Load from Scan and Host failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -453,7 +450,7 @@ impl HostHistory {
 			if result.is_ok() {
 				list.append(&mut result.ok().unwrap());
 			} else {
-				log::error!("DB: Load HostHistories Error: {}", result.err().unwrap());
+				log::error!("[DB] Entity: 'HostHistory'; List failed: {}", result.err().unwrap());
 			}
 		}
 		return list;
@@ -487,8 +484,7 @@ impl HostHistory {
 			};
 			let result = futures::executor::block_on(query);
 			if result.is_err() {
-				let err = result.err().unwrap();
-				return Err(format!("DB: Save HostHistory Error: {}", &err));
+				return Err(format!("[DB] Entity: 'HostHistory'; Save failed: {}", result.err().unwrap()));
 			}
 		}
 		Ok(())
@@ -559,7 +555,7 @@ impl Routing {
 			if result.is_ok() {
 				list.append(&mut result.ok().unwrap());
 			} else {
-				log::error!("DB: Load Routing Error: {}", result.err().unwrap());
+				log::error!("[DB] Entity: 'Routing'; Load failed: {}", result.err().unwrap());
 			}
 		}
 		return list;
@@ -583,8 +579,7 @@ impl Routing {
 				.execute(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_err() {
-				let err = result.err().unwrap();
-				return Err(format!("DB: Save Routing Error: {}", &err));
+				return Err(format!("[DB] Entity: 'Routing'; Save failed: {}", result.err().unwrap()));
 			}
 		}
 		Ok(())
@@ -625,7 +620,7 @@ impl Port {
 			if result.is_ok() {
 				list.append(&mut result.ok().unwrap());
 			} else {
-				log::error!("DB: Load Ports Error: {}", result.err().unwrap());
+				log::error!("[DB] Entity: 'Port'; Load failed: {}", result.err().unwrap());
 			}
 		}
 		return list;
@@ -652,8 +647,7 @@ impl Port {
 				.execute(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_err() {
-				let err = result.err().unwrap();
-				return Err(format!("DB: Save Port Error: {}", &err));
+				return Err(format!("[DB] Entity: 'Port'; Save failed: {}", result.err().unwrap()));
 			}
 		}
 		Ok(())
@@ -698,7 +692,7 @@ impl Cve {
 			if result.is_ok() {
 				list.append(&mut result.ok().unwrap());
 			} else {
-				log::error!("DB: Load Cves Error: {}", result.err().unwrap());
+				log::error!("[DB] Entity: 'CVE'; Load failed: {}", result.err().unwrap());
 			}
 		}
 		return list;
@@ -726,7 +720,7 @@ impl Cve {
 			if result.is_ok() {
 				list.append(&mut result.ok().unwrap());
 			} else {
-				log::error!("DB: Load Cves Error: {}", result.err().unwrap());
+				log::error!("[DB] Entity: 'CVE'; Load from Scan failed: {}", result.err().unwrap());
 			}
 		}
 		return list;
@@ -754,8 +748,7 @@ impl Cve {
 				.execute(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_err() {
-				let err = result.err().unwrap();
-				return Err(format!("DB: Save Cve Error: {}", &err));
+				return Err(format!("[DB] Entity: 'CVE'; Save failed: {}", result.err().unwrap()));
 			}
 		}
 		Ok(())

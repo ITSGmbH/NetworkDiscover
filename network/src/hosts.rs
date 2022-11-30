@@ -124,7 +124,7 @@ impl Host {
 			if hop.to_string().eq(&host.ip) { continue; }
 			let _res = db::HostHistory::load_from_scan_and_host(db, &scan_id, &hop.to_string())
 				.map_or_else(|| {
-					// Create the host if it does not exist to create the missing HostHistory
+					// If no HostHistory is found, check if a Host already exist
 					let hop_host = db::Host::load_by_ip(db, &hop.to_string());
 					let host_id = hop_host
 						.map_or_else(|| {
@@ -132,20 +132,21 @@ impl Host {
 							right.ip = Some(hop.clone());
 							right.network = String::from(&self.network);
 							let _ = right.save_to_db(db);
-							right.db_hist_id
-						}, |h| h.id);
-					let hist = db::HostHistory::load_from_scan_and_host(db, &scan_id, &hop.to_string())
-						.unwrap_or(db::HostHistory{
-							id: 0,
-							host_id,
-							os: "".to_string(),
-							scan: scan_id,
-						});
+							right.db_id
+						}, |right| right.id);
+
+					let mut hist = db::HostHistory {
+						id: 0,
+						host_id,
+						os: if self.os.is_some() { String::from(self.os.as_ref().unwrap()) } else { "Unknown".to_string() },
+						scan: scan_id,
+					};
+					let _ = hist.save(db);
 					Some(hist.id)
-				}, |h| Some(h.id))
+				}, |hist| Some(hist.id))
 				.map(|id| db::Routing {
 					scan: scan_id,
-					left: host.id,
+					left: self.db_hist_id,
 					right: id,
 					comment: "".to_string(),
 				})
