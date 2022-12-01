@@ -58,10 +58,15 @@ struct NetworkResponse {
 pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	let running = web::Data::new(Mutex::new(ScanStatusResponse {
 		running: false,
-		paused: false,
+		paused: true,
 		triggered: false,
 	}));
-	let web_conf = web::Data::new(config);
+
+	let default_ip = "0.0.0.0".to_owned();
+	let default_port = 9090_u16;
+	let ip = &config.listen.as_ref().map(|listen| listen.ip.as_ref().unwrap_or(&default_ip) ).unwrap_or(&default_ip).to_owned();
+	let port = &config.listen.as_ref().map(|listen| listen.port.as_ref().unwrap_or(&default_port) ).unwrap_or(&default_port).to_owned();
+	let web_conf = web::Data::new(config.clone());
 
 	HttpServer::new(move || App::new()
 		.app_data(web_conf.clone())
@@ -75,7 +80,7 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 		.service(scan_start)
 	)
 	.workers(4)
-	.bind(( "0.0.0.0", 9090_u16 ))?
+	.bind(( ip.to_owned(), port.to_owned() ))?
 	.run()
 	.await
 }
@@ -167,9 +172,11 @@ async fn scan_start(config: web::Data<config::AppConfig>, running: web::Data<Mut
 		let conf = config.clone();
 		thread::spawn(move|| {
 			(*running.lock().unwrap()).running = true;
+			(*running.lock().unwrap()).paused = false;
 			let local = local_net::discover(&conf.device);
 			scan::full(&conf, &local);
 			(*running.lock().unwrap()).running = false;
+			(*running.lock().unwrap()).paused = true;
 		});
 		message = "started";
 	}
