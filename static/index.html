@@ -77,18 +77,20 @@
 	</footer>
 
 	<script type="text/javascript">
+		var container = document.getElementById("networkarea");
+
 		// VIS-Network documentation: https://visjs.github.io/vis-network/docs/network/
 		var nodes = new vis.DataSet();
 		var edges = new vis.DataSet();
-		var container = document.getElementById("networkarea");
 		var data = {
 			nodes: nodes,
 			edges: edges,
 		};
 		var options = {
-			layout: { hierarchical: { enabled: true, }, },
+			layout: { hierarchical: { enabled: true, sortMethod: 'directed', shakeTowards: 'roots', direction: 'DU', }, },
+			edges: { smooth: true, },
 			nodes: { shadow: true, widthConstraint: { maximum: 90, }, font: { size: 11, }, shape: 'dot', },
-			interaction: { dragNodes: true, },
+			interaction: { dragNodes: true, dragView: true, },
 			physics: { enabled: false },
 		};
 		var network = new vis.Network(container, data, options);
@@ -99,13 +101,11 @@
 				var _edges = [];
 				Object.entries(data).forEach(entry => {
 					const [k, v] = entry;
-					_nodes.push({ id: v.id, label: v.ip + '\n' + v.os });
+					_nodes.push({ id: v.id, label: v.ip + '\n' + v.os  }); //, level: v.nodes.length
 					v.nodes.forEach(val => {
 						_edges.push({ from: v.id, to: parseInt(val) });
 					})
 				});
-				console.debug(_edges);
-				console.debug(_nodes);
 				nodes.clear();
 				edges.clear()
 				nodes.add(_nodes);
