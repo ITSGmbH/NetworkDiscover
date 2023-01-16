@@ -52,7 +52,7 @@ impl Scan {
 	/// # Returns
 	///
 	/// An Optional instance or None in case it could not be loaded.
-	pub fn load(db: &mut sqlite::Database, id: i64) -> Option<Scan> {
+	pub fn load(db: &mut sqlite::Database, id: &i64) -> Option<Scan> {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
@@ -160,12 +160,13 @@ impl Scan {
 					.bind(self.scan)
 					.execute(pool)
 			};
-			let result = futures::executor::block_on(query);
-			if result.is_err() {
-				return Err(format!("[DB] Entity: 'Scan'; Save failed: {}", result.err().unwrap()));
-			}
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'Scan'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
 		}
-		Ok(())
+		Err(format!("[DB] Entity: 'Scan'; No Connection available."))
 	}
 
 	/// Updates the end_scan field and saves itself.
@@ -207,12 +208,13 @@ impl Log {
 				.bind(&self.origin)
 				.bind(&self.log)
 				.execute(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_err() {
-				return Err(format!("[DB] Entity: 'Log'; Save failed: {}", result.err().unwrap()));
-			}
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'Log'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
 		}
-		Ok(())
+		Err(format!("[DB] Entity: 'Log'; No Connection available."))
 	}
 }
 
@@ -351,12 +353,13 @@ impl Host {
 					.bind(self.id)
 					.execute(pool)
 			};
-			let result = futures::executor::block_on(query);
-			if result.is_err() {
-				return Err(format!("[DB] Entity: 'Host'; Save failed: {}", result.err().unwrap()));
-			}
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'Host'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
 		}
-		Ok(())
+		Err(format!("[DB] Entity: 'Host'; No Connection available."))
 	}
 }
 
@@ -379,7 +382,7 @@ impl HostHistory {
 	/// # Returns
 	///
 	/// An Optional instance or None in case it could not be loaded.
-	pub fn load(db: &mut sqlite::Database, id: i64) -> Option<HostHistory> {
+	pub fn load(db: &mut sqlite::Database, id: &i64) -> Option<HostHistory> {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
@@ -482,12 +485,13 @@ impl HostHistory {
 					.bind(self.id)
 					.execute(pool)
 			};
-			let result = futures::executor::block_on(query);
-			if result.is_err() {
-				return Err(format!("[DB] Entity: 'HostHistory'; Save failed: {}", result.err().unwrap()));
-			}
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'HostHistory'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
 		}
-		Ok(())
+		Err(format!("[DB] Entity: 'HostHistory'; No Connection available."))
 	}
 }
 
@@ -577,12 +581,13 @@ impl Routing {
 				.bind(self.right)
 				.bind(&self.comment)
 				.execute(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_err() {
-				return Err(format!("[DB] Entity: 'Routing'; Save failed: {}", result.err().unwrap()));
-			}
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'Routing'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
 		}
-		Ok(())
+		Err(format!("[DB] Entity: 'Routing'; No Connection available."))
 	}
 }
 
@@ -603,18 +608,18 @@ impl Port {
 	/// # Arguments
 	///
 	/// * `db` - Mutable reference to the database connection object
-	/// * `id` - Host-History-ID of the dataset to load
+	/// * `hist_id` - Host-History-ID of the dataset to load
 	///
 	/// # Returns
 	///
 	/// An Optional instance or None in case it could not be loaded.
-	pub fn load(db: &mut sqlite::Database, id: i64) -> Vec<Port> {
+	pub fn load(db: &mut sqlite::Database, hist_id: &i64) -> Vec<Port> {
 		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
 			let query = query_as::<_, Port>("SELECT * FROM ports WHERE host_history_id = ?")
-				.bind(id)
+				.bind(hist_id)
 				.fetch_all(pool);
 			let result = futures::executor::block_on(query);
 			if result.is_ok() {
@@ -645,12 +650,13 @@ impl Port {
 				.bind(&self.product)
 				.bind(&self.comment)
 				.execute(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_err() {
-				return Err(format!("[DB] Entity: 'Port'; Save failed: {}", result.err().unwrap()));
-			}
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'Port'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
 		}
-		Ok(())
+		Err(format!("[DB] Entity: 'Port'; No Connection available."))
 	}
 }
 
@@ -673,19 +679,19 @@ impl Cve {
 	/// # Arguments
 	///
 	/// * `db` - Mutable reference to the database connection object
-	/// * `id` - Host-History-ID of the dataset to load
+	/// * `hist_id` - Host-History-ID of the dataset to load
 	/// * `port` - Port to get the CVEs from
 	///
 	/// # Returns
 	///
 	/// A List with all CVEs
-	pub fn load(db: &mut sqlite::Database, id: i64, port: i64) -> Vec<Cve> {
+	pub fn load(db: &mut sqlite::Database, hist_id: &i64, port: &i32) -> Vec<Cve> {
 		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
 			let query = query_as::<_, Cve>("SELECT * FROM cves WHERE host_history_id = ? AND port = ?")
-				.bind(id)
+				.bind(hist_id)
 				.bind(port)
 				.fetch_all(pool);
 			let result = futures::executor::block_on(query);
@@ -708,7 +714,7 @@ impl Cve {
 	/// # Returns
 	///
 	/// A List with all CVEs
-	pub fn from_scan(db: &mut sqlite::Database, scan: i64) -> Vec<Cve> {
+	pub fn from_scan(db: &mut sqlite::Database, scan: &i64) -> Vec<Cve> {
 		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
@@ -746,12 +752,13 @@ impl Cve {
 				.bind(&self.is_exploit)
 				.bind(&self.comment)
 				.execute(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_err() {
-				return Err(format!("[DB] Entity: 'CVE'; Save failed: {}", result.err().unwrap()));
-			}
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'Cve'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
 		}
-		Ok(())
+		Err(format!("[DB] Entity: 'Cve'; No Connection available."))
 	}
 }
 

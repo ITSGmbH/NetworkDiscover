@@ -2,6 +2,15 @@
 
 Network Discover is a lightweight server application which uses `ip`, `nmap` with `vulners.nse` and `traceroute` to discover all hosts in a given network and checks for vulnerabilities.
 
+To be abe to run `nmap` with more privileges, `sudo` is used. Therefore the following file ahst to be created and the User which starts network Discovery must be in the _sudo_ group. Any other configuration is possible too.
+
+_/etc/sudoers.d/nmap_
+```
+Cmnd_Alias NMAP = /usr/bin/nmap
+%sudo ALL=(ALL) NOPASSWD: NMAP
+```
+
+
 ## Features
 
 * Discovers all running Hosts on one/multiple networks

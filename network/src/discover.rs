@@ -20,7 +20,6 @@ mod discover_impl {
 	use std::path::PathBuf;
 	use std::fs::File;
 	use std::thread;
-	use std::sync::{Mutex, Arc};
 	use std::io::prelude::*;
 	use xml::reader::{EventReader, XmlEvent};
 	use uuid::Uuid;
@@ -33,26 +32,25 @@ mod discover_impl {
 		}
 
 		info!("HostDiscovery: start");
+		debug!("Threads: {}", num_threads);
+
 		let mut count = 0;
 		for target in targets {
-			let pos = count % num_threads;
-			let chunk = result_chunks.get_mut(pos as usize);
-			count += 1;
-
-			let mut h: Vec<Host> = discover_network(db, local, &target);
-			chunk.unwrap().append(&mut h);
+			for host in discover_network(db, local, &target) {
+				let chunk = result_chunks.get_mut((count % num_threads) as usize);
+				chunk.unwrap().push(host);
+				count += 1;
+			}
 		}
 
 		// Portscan in threads
 		let mut handles = vec![];
 		for chunk in result_chunks {
-			let safe_chunk = Arc::new(Mutex::new(chunk));
-			let handle = thread::spawn(move|| {
+			let handle = thread::spawn(move || {
+				debug!("Thread {:?} started", thread::current().id());
 				let mut res: Vec<Host> = vec![];
-				let mut hosts = safe_chunk.lock().unwrap();
-				let mut_host: &mut Vec<Host> = (*hosts).as_mut();
-				for mut host in mut_host {
-					portscan(&mut host, true);
+				for mut host in chunk {
+					portscan(&mut host);
 					res.push(host.clone());
 				}
 				res
@@ -62,8 +60,12 @@ mod discover_impl {
 
 		// Join and wait till every thread is finished
 		for handle in handles {
+			let thread_id = &handle.thread().id();
 			let mut res: Vec<Host> = handle.join().unwrap();
+			debug!("Thread joined: {:?}", thread_id);
+
 			for host in &res {
+				host.update_host_information(db);
 				host.save_services_to_db(db);
 			}
 			result.append(&mut res);
@@ -75,7 +77,7 @@ mod discover_impl {
 
 	fn get_tmp_file() -> PathBuf {
 		let mut tmp_dir = temp_dir();
-		let tmp_name = format!("{}.txt", Uuid::new_v4());
+		let tmp_name = format!("{}.xml", Uuid::new_v4());
 		tmp_dir.push(tmp_name);
 		tmp_dir
 	}
@@ -106,8 +108,9 @@ mod discover_impl {
 		info!("Network: {}", network);
 
 		let tmp_file = get_tmp_file();
-		let mut cmd = Command::new("nmap");
-		cmd.arg("-sn")
+		let mut cmd = Command::new("sudo");
+		cmd.arg("nmap")
+			.arg("-sn")
 			.arg("-oX")
 			.arg(&tmp_file)
 			.arg(&network);
@@ -130,6 +133,7 @@ mod discover_impl {
 							if is_ip_tag {
 								let mut host = Host::default();
 								host.network = String::from(network);
+								host.extended_scan = target.extended.unwrap_or(true);
 								host.ip = Some(
 									attributes.iter()
 										.filter(|a| a.name.local_name == "addr")
@@ -194,23 +198,24 @@ mod discover_impl {
 		}
 	}
 	
-	pub fn portscan(host: &mut Host, fullscan: bool) {
+	pub fn portscan(host: &mut Host) {
 		if host.ip.is_some() {
 			let ip = host.ip.unwrap().to_string();
 			debug!("  portscan: {:?}", ip);
 			
 			let tmp_file = get_tmp_file();
-			let mut cmd = Command::new("nmap");
-			cmd.arg("-O")
+			let mut cmd = Command::new("sudo");
+			cmd.arg("nmap")
+				.arg("-O")
 				.arg("-sT")
 				.arg("-sV");
-			if fullscan {
+			if host.extended_scan {
 				cmd.arg("--script=vulners.nse");
 			}
 			cmd.arg("-oX")
 				.arg(&tmp_file)
 				.arg(ip);
-			debug!("Command: {:?}", cmd);
+			debug!("[{:?}] Command: {:?}", thread::current().id(), cmd);
 			
 			let output = cmd.output();
 			if output.is_ok() {
@@ -299,6 +304,7 @@ mod discover_impl {
 
 						Ok(XmlEvent::EndElement { name }) => {
 							if name.local_name == "port" {
+								debug!("[{:?}] Service: {:?}", thread::current().id(), &service);
 								host.services.push(service);
 								service = Service::default();
 
@@ -313,6 +319,7 @@ mod discover_impl {
 						_ => {}
 					}
 				}
+
 			}
 		}
 	}

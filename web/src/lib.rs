@@ -54,6 +54,37 @@ struct NetworkResponse {
 	nodes: Vec<String>,
 }
 
+#[derive(Deserialize)]
+struct InfoRequest {
+	scan: i64,
+	info: i64,
+}
+
+#[derive(Serialize)]
+struct HostInfoResponse {
+	id: i64,
+	ip: String,
+	os: String,
+	scan_timestamp: String,
+	ports: Vec<PortInfoResponse>,
+}
+
+#[derive(Serialize)]
+struct PortInfoResponse {
+	port: i32,
+	protocol: String,
+	service: String,
+	product: String,
+	cves: Vec<CveInfoResponse>,
+}
+
+#[derive(Serialize)]
+struct CveInfoResponse {
+	id: String,
+	database: String,
+	cvss: f32,
+	exploit: bool,
+}
 
 pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	let running = web::Data::new(Mutex::new(ScanStatusResponse {
@@ -76,6 +107,7 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 		.service(get_networks)
 		.service(get_scans)
 		.service(get_network)
+		.service(get_info)
 		.service(show_status)
 		.service(scan_start)
 	)
@@ -161,8 +193,47 @@ async fn show_status(_config: web::Data<config::AppConfig>, running: web::Data<M
 }
 
 #[get("/api/info")]
-async fn get_info(_config: web::Data<config::AppConfig>) -> Result<impl Responder> {
-	Ok(web::Json(""))
+async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoRequest>) -> Result<impl Responder> {
+	let conf = config.clone();
+	let mut db = sqlite::new(&conf);
+
+	let scan = db::Scan::load(&mut db, &args.scan).unwrap_or_default();
+	let host = db::HostHistory::load(&mut db, &args.info)
+		.map(|info| {
+			let mut host = db::Host::load(&mut db, &info.host_id).unwrap_or_default();
+			host.os = info.os;
+			host.hist_id = info.id;
+			host
+		});
+	let ports = db::Port::load(&mut db, &args.info);
+
+	let result = host.map_or(None, |host| Some(HostInfoResponse {
+		id: host.id,
+		ip: host.ip,
+		os: host.os,
+		scan_timestamp: scan.start_time.to_string(),
+		ports: ports.iter()
+			.map(|port| {
+				let cves = db::Cve::load(&mut db, &args.info, &port.port);
+				PortInfoResponse {
+					port: port.port.clone(),
+					protocol: port.protocol.clone(),
+					service: port.service.clone(),
+					product: port.product.clone(),
+					cves: cves.iter()
+						.map(|cve| CveInfoResponse {
+							id: cve.type_id.clone(),
+							database: cve.type_name.clone(),
+							cvss: cve.cvss.clone(),
+							exploit: cve.is_exploit == "true" || cve.is_exploit == "TRUE",
+						})
+						.collect(),
+				}
+			})
+			.collect(),
+	}));
+
+	Ok(web::Json(result))
 }
 
 #[get("/api/scan_now")]
@@ -187,5 +258,7 @@ async fn scan_start(config: web::Data<config::AppConfig>, running: web::Data<Mut
 	};
 	Ok(web::Json(response))
 }
+
+
 
 

@@ -128,10 +128,13 @@
 
 				$('#scans').append('<div id="scan-now-modal" class="modal"><div class="modal-background"></div><div class="modal-card"></div></div>')
 				var header = $('<header class="modal-card-head"><p class="modal-card-title">Scan triggered</p><button class="delete" aria-label="close"></button></header>');
-				var content = $('<section class="modal-card-body">A new scan is triggered and will start shortly. Stay tuned...</section>');
+				var content = $('<section class="modal-card-body">A new scan is triggered and will start shortly.</section>');
+				var footer = $('<footer class="modal-card-foot"><button class="button is-info">Close</button></footer>');
 				$('#scan-now-modal .modal-card').append(header);
 				$('#scan-now-modal .modal-card').append(content);
+				$('#scan-now-modal .modal-card').append(footer);
 				$('#scan-now-modal button.delete').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
+				$('#scan-now-modal button.is-info').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
 
 				scans.forEach((v, k) => {
 					$('#scans').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
@@ -224,46 +227,44 @@
 			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + ev.nodes.join(';'), data => {
 				$('#networkinfo').empty();
 
-				Object.values(data.info).forEach(entry => {
-					var cont = $('<article class="message"><div class="message-header"><p>' + entry.ip + '</p></div><div class="message-body"></div></article>')
-					$('div.message-body', cont).append('<p><strong>Scan time:</strong> ' + (new Date(entry.scan_timestamp)).toUTCString() + '</p>');
-					$('div.message-body', cont).append('<p><strong>OS:</strong> ' + entry.os + '</p>');
-					var table = $('div.message-body', cont).append('<div class="mt-4 table-container"><table class="table is-striped is-fullwidth"><tbody class="mainbody"></tbody></table></div>');
+				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>')
+				$('div.message-body', cont).append('<p><strong>Scan time:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</p>');
+				$('div.message-body', cont).append('<p><strong>OS:</strong> ' + data.os + '</p>');
+				var table = $('div.message-body', cont).append('<div class="mt-4 table-container"><table class="table is-striped is-fullwidth"><tbody class="mainbody"></tbody></table></div>');
 
-					entry.ports.forEach(port => {
-						var id = 'cve_' + entry.ip.replace(/\./gi, '_') + '-' + port.port + '_' + port.protocol;
-						$('tbody.mainbody', table).append('<tr><td>' + port.port + '/' + port.protocol + '<br/>' + port.service + '</td><td>' + port.product + '</td><td id="' + id + '"></td></tr>')
+				data.ports.forEach(port => {
+					var id = 'cve_' + data.ip.replace(/\./gi, '_') + '-' + port.port + '_' + port.protocol;
+					$('tbody.mainbody', table).append('<tr><td>' + port.port + '/' + port.protocol + '<br/>' + port.service + '</td><td>' + port.product + '</td><td id="' + id + '"></td></tr>')
 
-						if (port.cves.length > 0) {
-							$('#' + id, table).append('<button class="button is-small is-danger is-light">CVEs</button>');
-							var header = $('<header class="modal-card-head"><p class="modal-card-title">CVEs of ' + entry.ip + ', Port ' + port.port + '/' + port.protocol + '</p><button class="delete" aria-label="close"></button></header>');
-							var cves = $('<section class="modal-card-body"><table class="table is-fullwidth"><tbody class="cvebody"></tbody></table></section>');
+					if (port.cves.length > 0) {
+						$('#' + id, table).append('<button class="button is-small is-danger is-light">CVEs</button>');
+						var header = $('<header class="modal-card-head"><p class="modal-card-title">CVEs of ' + data.ip + ', Port ' + port.port + '/' + port.protocol + '</p><button class="delete" aria-label="close"></button></header>');
+						var cves = $('<section class="modal-card-body"><table class="table is-fullwidth"><tbody class="cvebody"></tbody></table></section>');
 
-							port.cves.sort((a, b) => a.cvss < b.cvss);
-							port.cves.sort((a, b) => a.database < b.database);
-							var last_db = '';
-							port.cves.forEach(cve => {
-								if (cve.database.length == 0 && cve.id.length == 0)
-									return;
-								var link = 'https://vulners.com/' + cve.database + '/' + cve.id;
-								if (last_db != cve.database) {
-									$('tbody.cvebody', cves).append('<tr><th colspan="3">' + cve.database + '</th></tr>');
-								}
-								$('tbody.cvebody', cves).append('<tr><td><a target="_blank" href="' + link + '">' + cve.id + '</a></td><td>' + (cve.exploit ? '<span class="tag is-danger">Exploit</span>' : '') + '</td><td>' + cve.cvss + '</td></tr>');
-								last_db = cve.database;
-							});
+						port.cves.sort((a, b) => a.cvss < b.cvss);
+						port.cves.sort((a, b) => a.database < b.database);
+						var last_db = '';
+						port.cves.forEach(cve => {
+							if (cve.database.length == 0 && cve.id.length == 0)
+								return;
+							var link = 'https://vulners.com/' + cve.database + '/' + cve.id;
+							if (last_db != cve.database) {
+								$('tbody.cvebody', cves).append('<tr><th colspan="3">' + cve.database + '</th></tr>');
+							}
+							$('tbody.cvebody', cves).append('<tr><td><a target="_blank" href="' + link + '">' + cve.id + '</a></td><td>' + (cve.exploit ? '<span class="tag is-danger">Exploit</span>' : '') + '</td><td>' + cve.cvss + '</td></tr>');
+							last_db = cve.database;
+						});
 
-							$('#' + id, table).append('<div id="' + id + '-modal" class="modal"><div class="modal-background"></div><div class="modal-card"></div></div>')
-							$('#' + id + ' .modal-card', table).append(header);
-							$('#' + id + ' .modal-card', table).append(cves);
+						$('#' + id, table).append('<div id="' + id + '-modal" class="modal"><div class="modal-background"></div><div class="modal-card"></div></div>')
+						$('#' + id + ' .modal-card', table).append(header);
+						$('#' + id + ' .modal-card', table).append(cves);
 
-							$('#' + id + ' button.button', table).on('click', { id: id }, _ev => { $('#' + _ev.data.id + '-modal').toggleClass('is-active'); });
-							$('#' + id + ' button.delete', table).on('click', { id: id }, _ev => { $('#' + _ev.data.id + '-modal').toggleClass('is-active'); });
-						}
-					});
-
-					$('#networkinfo').append(cont);
+						$('#' + id + ' button.button', table).on('click', { id: id }, _ev => { $('#' + _ev.data.id + '-modal').toggleClass('is-active'); });
+						$('#' + id + ' button.delete', table).on('click', { id: id }, _ev => { $('#' + _ev.data.id + '-modal').toggleClass('is-active'); });
+					}
 				});
+
+				$('#networkinfo').append(cont);
 			});
 		});
 	</script>

@@ -59,6 +59,7 @@ pub struct Host {
 	pub hops: Vec<IpAddr>,
 	pub services: Vec<Service>,
 	pub os: Option<String>,
+	pub extended_scan: bool,
 	db_id: i64,
 	db_hist_id: i64,
 }
@@ -70,6 +71,7 @@ impl Default for Host {
 			hops: vec![],
 			services: vec![],
 			os: None,
+			extended_scan: false,
 			db_id: 0,
 			db_hist_id: 0,
 		}
@@ -86,37 +88,28 @@ impl Host {
 	/// * `db` - Database instance to save to
 	///
 	pub(crate) fn save_to_db(&mut self, db: &mut sqlite::Database) {
-		let mut host = if self.db_id > 0 {
+		let host = if self.db_id > 0 {
 			db::Host::load(db, &self.db_id)
 		} else {
 			None
 		}.unwrap_or({
 			let ip = self.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap());
-			db::Host::load_by_ip(db, &ip.to_string()).unwrap_or(db::Host::default())
+			db::Host::load_by_ip(db, &ip.to_string())
+				.unwrap_or(db::Host::default())
 		});
 
-		// host object
-		if host.id <= 0 {
-			host.ip = self.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap()).to_string();
-			host.network = String::from(&self.network);
-			host.comment = format!("First seen on {}", chrono::Utc::now());
-			let _ = host.save(db);
-		}
-		self.db_id = host.id;
+		// create the host object if it does not exist
+		self.db_id = if host.id > 0 {
+			host.id
+		} else {
+			let ip = self.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap());
+			self.create_host(db, &ip.to_string())
+		};
 
 		// host history
 		let scan_id = db.current_scan_id;
 		let hist_id = db::HostHistory::load_from_scan_and_host(db, &scan_id, &host.ip)
-			.map_or_else(|| {
-				let mut hist = db::HostHistory {
-					id: 0,
-					host_id: self.db_id,
-					os: if self.os.is_some() { String::from(self.os.as_ref().unwrap()) } else { "Unknown".to_string() },
-					scan: scan_id,
-				};
-				let _ = hist.save(db);
-				hist.id
-			}, |hist| hist.id);
+			.map_or_else(|| self.create_host_hist(db, &self.db_id), |hist| hist.id);
 		self.db_hist_id = hist_id;
 
 		// routing based on the host history
@@ -126,24 +119,10 @@ impl Host {
 				.map_or_else(|| {
 					// If no HostHistory is found, check if a Host already exist
 					let hop_host = db::Host::load_by_ip(db, &hop.to_string());
-					let host_id = hop_host
-						.map_or_else(|| {
-							let mut right = Host::default();
-							right.ip = Some(hop.clone());
-							right.network = String::from(&self.network);
-							let _ = right.save_to_db(db);
-							right.db_id
-						}, |right| right.id);
-
-					let mut hist = db::HostHistory {
-						id: 0,
-						host_id,
-						os: if self.os.is_some() { String::from(self.os.as_ref().unwrap()) } else { "Unknown".to_string() },
-						scan: scan_id,
-					};
-					let _ = hist.save(db);
-					Some(hist.id)
+					let host_id = hop_host.map_or_else(|| self.create_host(db, &hop.to_string()), |host| host.id);
+					Some(self.create_host_hist(db, &host_id))
 				}, |hist| Some(hist.id))
+				.filter(|id| *id != self.db_hist_id)
 				.map(|id| db::Routing {
 					scan: scan_id,
 					left: self.db_hist_id,
@@ -152,6 +131,64 @@ impl Host {
 				})
 				.map(|mut h| h.save(db))
 				.unwrap_or(Err("Unknown Error".to_string()));
+		}
+	}
+
+	/// Create a new HostHostory in the database for the given host and scan
+	///
+	/// Returns the new id from the database
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database instance to save to
+	/// * `host_id` - ID of the host
+	///
+	fn create_host_hist(&self, db: &mut sqlite::Database, host_id: &i64) -> i64 {
+		let mut hist = db::HostHistory {
+			id: 0,
+			host_id: *host_id,
+			os: if self.os.is_some() { String::from(self.os.as_ref().unwrap()) } else { "Unknown".to_string() },
+			scan: db.current_scan_id,
+		};
+		let _ = hist.save(db);
+		hist.id
+	}
+
+	/// Create a new Host in the database with the given IP
+	///
+	/// Returns the new id from the database
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database instance to save to
+	/// * `ip` - IP-Address of the host
+	///
+	fn create_host(&self, db: &mut sqlite::Database, ip: &str) -> i64 {
+		let mut host = db::Host::default();
+		host.ip = ip.to_string();
+		host.network = String::from(&self.network);
+		host.comment = format!("First seen on {}", chrono::Utc::now());
+		let _ = host.save(db);
+		host.id
+	}
+
+	/// Updates all information from this host in the database.
+	///
+	/// The Host has to exist and be loaded correctly.
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database instance to save to
+	///
+	pub(crate) fn update_host_information(&self, db: &mut sqlite::Database) {
+		if self.db_hist_id > 0 {
+			match db::HostHistory::load(db, &self.db_hist_id) {
+				Some(mut hist) => {
+					hist.os = if self.os.is_some() { String::from(self.os.as_ref().unwrap()) } else { "Unknown".to_string() };
+					let _ = hist.save(db);
+				}
+				_ => {}
+			}
 		}
 	}
 

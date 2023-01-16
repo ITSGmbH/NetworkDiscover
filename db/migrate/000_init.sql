@@ -63,7 +63,7 @@ CREATE INDEX idx_ports_host_hist_id ON ports(host_history_id);
 
 CREATE TABLE IF NOT EXISTS cves (
 	host_history_id INTEGER,
-	port_id INTEGER,
+	port INTEGER,
 	type NVARCHAR(20) DEFAULT "",
 	type_id NVARCHAR(20) DEFAULT "",
 	cvss DECIMAL(8,2) DEFAULT 0,
@@ -73,5 +73,5 @@ CREATE TABLE IF NOT EXISTS cves (
 );
 
 CREATE INDEX idx_cve_host_history_id ON cves(host_history_id);
-CREATE INDEX idx_cve_port_id ON cves(port_id);
+CREATE INDEX idx_cve_port ON cves(port);
 CREATE INDEX idx_cve_scan ON cves(scan);
