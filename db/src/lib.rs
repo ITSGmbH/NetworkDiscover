@@ -295,6 +295,86 @@ impl Host {
 		None
 	}
 
+	/// Finds the first instance of a host/ip
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `ip` - IP-Address to find the first instance of
+	///
+	/// # Returns
+	///
+	/// An Optional instance of a HostHistory.
+	pub fn find_first_emerge(db: &mut sqlite::Database, ip: &str) -> Option<HostHistory> {
+		let con = db.connection();
+		con.map(|pool| {
+			let query = query_as::<_, HostHistory>("SELECT hist.* FROM hosts AS h,hosts_history AS hist WHERE h.ip = ? AND hist.host_id=h.id ORDER BY hist.scan ASC")
+				.bind(ip)
+				.fetch_one(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				return result.ok();
+			}
+			None
+		}).unwrap_or(None)
+	}
+
+	/// Finds the last instance of a host/ip
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `ip` - IP-Address to find the first instance of
+	///
+	/// # Returns
+	///
+	/// An Optional instance of a HostHistory.
+	pub fn find_last_emerge(db: &mut sqlite::Database, ip: &str) -> Option<HostHistory> {
+		let con = db.connection();
+		con.map(|pool| {
+			let query = query_as::<_, HostHistory>("SELECT hist.* FROM hosts AS h,hosts_history AS hist WHERE h.ip = ? AND hist.host_id=h.id ORDER BY hist.scan DESC")
+				.bind(ip)
+				.fetch_one(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				return result.ok();
+			}
+			None
+		}).unwrap_or(None)
+	}
+
+	/// Finds the latest host which changed before the given scan.
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `ip` - IP-Address to find the first instance of
+	/// * `scan` - ID of the latest scan
+	///
+	/// # Returns
+	///
+	/// An Optional instance of a HostHistory.
+	pub fn find_last_change(db: &mut sqlite::Database, ip: &str, scan: &i64) -> Option<HostHistory> {
+		let con = db.connection();
+		con.map(|pool| {
+			let query = query_as::<_, HostHistory>("SELECT hist.* FROM hosts AS h,hosts_history AS hist WHERE h.ip = ? AND hist.host_id=h.id AND hist.scan < ? ORDER BY hist.scan DESC")
+				.bind(ip)
+				.bind(scan)
+				.fetch_all(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				let mut last = "".to_string();
+				for cur in result.ok().unwrap() {
+					if !last.is_empty() && last != cur.os {
+						return Some(cur);
+					}
+					last = String::from(&cur.os);
+				}
+			}
+			None
+		}).unwrap_or(None)
+	}
+
 	/// Loads all instances found in a scan
 	///
 	/// # Arguments
@@ -305,13 +385,45 @@ impl Host {
 	///
 	/// # Returns
 	///
-	/// An Optional instance or None in case it could not be loaded.
+	/// A vector of Hosts.
 	pub fn list_from_network(db: &mut sqlite::Database, network: &str, scan: &i64) -> Vec<Host> {
 		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
 			let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ?")
+				.bind(scan)
+				.bind(network)
+				.fetch_all(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				list.append(&mut result.ok().unwrap());
+			} else {
+				log::error!("[DB] Entity: 'Host'; Load from network failed: {}", result.err().unwrap());
+			}
+		}
+		return list;
+	}
+
+	/// Loads all instances not found anymore in a scan since last time
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `network` - Network to load the hosts from
+	/// * `scan` - ID of the scan to load the hosts from
+	///
+	/// # Returns
+	///
+	/// A vector of Hosts.
+	pub fn list_removed_from_network(db: &mut sqlite::Database, network: &str, scan: &i64) -> Vec<Host> {
+		let mut list = vec![];
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, Host>("SELECT h.*, hist.os AS os, hist.id AS hist_id FROM hosts AS h, hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? AND h.id NOT IN ( SELECT h.id FROM hosts AS h, hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? )")
+				.bind(scan - 1)
+				.bind(network)
 				.bind(scan)
 				.bind(network)
 				.fetch_all(pool);
@@ -403,6 +515,34 @@ impl HostHistory {
 	/// # Arguments
 	///
 	/// * `db` - Mutable reference to the database connection object
+	/// * `id` - ID of the Host-History which is the base
+	///
+	/// # Returns
+	///
+	/// List with all scans in which the host appeared.
+	pub fn scan_history(db: &mut sqlite::Database, id: &i64) -> Vec<Scan> {
+		let mut list = vec![];
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, Scan>("SELECT s.* FROM scans AS s, hosts_history AS hist WHERE hist.scan=s.scan AND hist.host_id IN ( SELECT host_id FROM hosts_history WHERE id = ? )")
+				.bind(id)
+				.fetch_all(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				list.append(&mut result.ok().unwrap());
+			} else {
+				log::error!("[DB] Entity: 'HostHistory'; Load of Scan-History failed: {}", result.err().unwrap());
+			}
+		}
+		list
+	}
+
+	/// Loads an instance from the Database.
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
 	/// * `scan` - Scan-ID to load the host history from
 	/// * `ip` - IP-Address of the host to load the hostory from
 	///
@@ -456,7 +596,7 @@ impl HostHistory {
 				log::error!("[DB] Entity: 'HostHistory'; List failed: {}", result.err().unwrap());
 			}
 		}
-		return list;
+		list
 	}
 
 	/// Saves the instance

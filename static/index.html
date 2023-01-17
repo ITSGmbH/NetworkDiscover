@@ -17,6 +17,21 @@
 		#scan-now-modal .modal-card-body {
 			color: black;
 		}
+		#host-info-box {
+			margin-bottom: 0.75rem;
+		}
+		.mouse-pointer {
+			cursor: pointer;
+		}
+		.legend .columns {
+			margin-bottom: 0;
+		}
+		.legend .legend-entry {
+			border: 1px solid #2B7CE9;
+			border-radius: 50%;
+			width: 24px;
+			height: 24px;
+		}
 	</style>
 	</style>
 </head>
@@ -57,11 +72,21 @@
 				<div id="networkarea"></div>
 			</div>
 			<div class="column">
+				<div class="legend">
+					<div class="columns is-desktop">
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-normal"></div></div><div class="column legend-text">Normal</div>
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-first"></div></div><div class="column legend-text">First seen</div>
+					</div>
+					<div class="columns is-desktop">
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-changed"></div></div><div class="column legend-text">Changed</div>
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-removed"></div></div><div class="column legend-text">Removed</div>
+					</div>
+				</div>
+				<div class="host-info" id="host-info-box"></div>
 				<div class="buttons">
 					<a id="btn-pdf" class="button is-info is-light is-fullwidth is-small" download>Download PDF</a>
 					<a id="btn-csv" class="button is-info is-light is-fullwidth is-small" download>Download CSV</a>
 				</div>
-				<div class="" id="networkinfo"></div>
 			</div>
 		</div>
 	</section>
@@ -78,6 +103,18 @@
 
 	<script type="text/javascript">
 		var container = document.getElementById("networkarea");
+		var colors = {
+			normal: '#d2e5ff',
+			first: '#91d782',
+			changed: '#f5ce35',
+			removed: '#eaafa2'
+		};
+
+		// Legend
+		document.getElementById("legend-color-normal").style.backgroundColor = colors.normal;
+		document.getElementById("legend-color-first").style.backgroundColor = colors.first;
+		document.getElementById("legend-color-changed").style.backgroundColor = colors.changed;
+		document.getElementById("legend-color-removed").style.backgroundColor = colors.removed;
 
 		// VIS-Network documentation: https://visjs.github.io/vis-network/docs/network/
 		var nodes = new vis.DataSet();
@@ -101,16 +138,27 @@
 				var _edges = [];
 				Object.entries(data).forEach(entry => {
 					const [k, v] = entry;
-					_nodes.push({ id: v.id, label: v.ip + '\n' + v.os  }); //, level: v.nodes.length
+					var color = colors.normal;
+					if (v.first_scan > 1 && v.first_scan == ev.data.scan) { color = colors.first; }
+					if (v.changed_scan > 1 && v.changed_scan == ev.data.scan - 1) { color = colors.changed; }
+					if (v.is_removed) { color = colors.removed; }
+					_nodes.push({
+						id: v.id,
+						label: v.ip + '\n' + v.os,
+						color: { background: color, highlight: { background: color } }
+					});
 					v.nodes.forEach(val => {
-						_edges.push({ from: v.id, to: parseInt(val) });
+						_edges.push({
+							from: v.id,
+							to: parseInt(val)
+						});
 					})
 				});
 				nodes.clear();
 				edges.clear()
 				nodes.add(_nodes);
 				edges.add(_edges);
-				$('#networkinfo').empty();
+				$('#host-info-box').empty();
 				$('#networkarea').data('network', ev.data.network)
 				$('#networkarea').data('scan', ev.data.scan)
 
@@ -225,16 +273,27 @@
 
 		network.on('selectNode', ev => {
 			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + ev.nodes.join(';'), data => {
-				$('#networkinfo').empty();
+				$('#host-info-box').empty();
 
-				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>')
-				$('div.message-body', cont).append('<p><strong>Scan time:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</p>');
-				$('div.message-body', cont).append('<p><strong>OS:</strong> ' + data.os + '</p>');
+				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
+				$('div.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu"><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
+				$('div.message-body', cont).append('<div style="padding-top:0.2rem;"><strong>OS:</strong> ' + data.os + '</div>');
+
+				$('div.message-body', cont).append('<div class="modal"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Modal title</p><button class="delete" aria-label="close"></button></header><section class="modal-card-body"> Content </section><footer class="modal-card-foot"><button class="button">Cancel</button></footer></div></div>');
+				data.scan_history.forEach(hist => {
+					$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + (new Date(hist.start)).toUTCString() + '</div>');
+				});
+				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
+					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&info=" + ev.nodes.join(';'), hist_data => {
+						$('div.message-body .modal .modal-card-body', cont).append('xxx');
+						$('div.message-body .modal', cont).addClass('is-active');
+					});
+				});
+
 				var table = $('div.message-body', cont).append('<div class="mt-4 table-container"><table class="table is-striped is-fullwidth"><tbody class="mainbody"></tbody></table></div>');
-
 				data.ports.forEach(port => {
 					var id = 'cve_' + data.ip.replace(/\./gi, '_') + '-' + port.port + '_' + port.protocol;
-					$('tbody.mainbody', table).append('<tr><td>' + port.port + '/' + port.protocol + '<br/>' + port.service + '</td><td>' + port.product + '</td><td id="' + id + '"></td></tr>')
+					$('tbody.mainbody', table).append('<tr><td>' + port.port + '/' + port.protocol + '<br/>' + port.service + '</td><td>' + port.product + '</td><td id="' + id + '"></td></tr>');
 
 					if (port.cves.length > 0) {
 						$('#' + id, table).append('<button class="button is-small is-danger is-light">CVEs</button>');
@@ -264,7 +323,7 @@
 					}
 				});
 
-				$('#networkinfo').append(cont);
+				$('#host-info-box').append(cont);
 			});
 		});
 	</script>

@@ -52,10 +52,15 @@ struct NetworkResponse {
 	ip: String,
 	os: String,
 	nodes: Vec<String>,
+	first_scan: i64,
+	changed_scan: i64,
+	last_scan: i64,
+	is_removed: bool,
 }
 
 #[derive(Deserialize)]
 struct InfoRequest {
+	network: String,
 	scan: i64,
 	info: i64,
 }
@@ -66,6 +71,7 @@ struct HostInfoResponse {
 	ip: String,
 	os: String,
 	scan_timestamp: String,
+	scan_history: Vec<ScanResponse>,
 	ports: Vec<PortInfoResponse>,
 }
 
@@ -168,22 +174,37 @@ async fn get_network(config: web::Data<config::AppConfig>, args: web::Query<Netw
 	let mut db = sqlite::new(&conf);
 
 	let hosts = db::Host::list_from_network(&mut db, &args.network, &args.scan);
-	let result = hosts.iter()
-		.map(|host| {
-			let route = db::Routing::from_host(&mut db, &host.hist_id, &args.scan);
-			NetworkResponse {
-				id: host.hist_id,
-				network: args.network.clone(),
-				ip: host.ip.clone(),
-				os: host.os.clone(),
-				nodes: route.iter()
-					.map(|route| route.right.to_string() )
-					.collect(),
-			}
-		})
+	let removed = db::Host::list_removed_from_network(&mut db, &args.network, &args.scan);
+	let mut result = hosts.iter()
+		.map(|host| map_network_db_results(&mut db, &host, &args.scan, false))
 		.collect::<Vec<NetworkResponse>>();
+	result.extend(
+			removed.iter()
+				.map(|host| map_network_db_results(&mut db, &host, &(args.scan - 1), true))
+				.collect::<Vec<NetworkResponse>>()
+		);
 
 	Ok(web::Json(result))
+}
+
+fn map_network_db_results(db: &mut sqlite::Database, host: &db::Host, scan: &i64, removed: bool) -> NetworkResponse {
+	let last = db::Host::find_last_emerge(db, &host.ip);
+	let first = db::Host::find_first_emerge(db, &host.ip);
+	let change = db::Host::find_last_change(db, &host.ip, scan);
+	let route = db::Routing::from_host(db, &host.hist_id, scan);
+	NetworkResponse {
+		id: host.hist_id,
+		network: host.network.clone(),
+		ip: host.ip.clone(),
+		os: host.os.clone(),
+		nodes: route.iter()
+			.map(|route| route.right.to_string() )
+			.collect(),
+		first_scan: first.map_or(0, |hist| hist.scan),
+		changed_scan: change.map_or(0, |hist| hist.scan),
+		last_scan: last.map_or(0, |hist| hist.scan),
+		is_removed: removed,
+	}
 }
 
 #[get("/api/status")]
@@ -198,6 +219,7 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 	let mut db = sqlite::new(&conf);
 
 	let scan = db::Scan::load(&mut db, &args.scan).unwrap_or_default();
+	let scan_hist = db::HostHistory::scan_history(&mut db, &args.info);
 	let host = db::HostHistory::load(&mut db, &args.info)
 		.map(|info| {
 			let mut host = db::Host::load(&mut db, &info.host_id).unwrap_or_default();
@@ -212,6 +234,14 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 		ip: host.ip,
 		os: host.os,
 		scan_timestamp: scan.start_time.to_string(),
+		scan_history: scan_hist.iter().map(|scan| {
+			ScanResponse {
+				network: args.network.clone(),
+				scan: scan.scan.clone(),
+				start: scan.start_time.to_string(),
+				end: scan.end_time.to_string(),
+			}
+		}).collect(),
 		ports: ports.iter()
 			.map(|port| {
 				let cves = db::Cve::load(&mut db, &args.info, &port.port);
