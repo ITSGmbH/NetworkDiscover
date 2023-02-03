@@ -162,8 +162,8 @@
 				$('#networkarea').data('network', ev.data.network)
 				$('#networkarea').data('scan', ev.data.scan)
 
-				$('#btn-pdf').attr('href', '/export/' + ev.data.network + '?type=pdf&scan=' + ev.data.scan);
-				$('#btn-csv').attr('href', '/export/' + ev.data.network + '?type=csv&scan=' + ev.data.scan);
+				$('#btn-pdf').attr('href', '/export/pdf?network=' + ev.data.network + '&scan=' + ev.data.scan);
+				$('#btn-csv').attr('href', '/export/csv?network=' + ev.data.network + '&scan=' + ev.data.scan);
 			});
 		}
 

@@ -437,6 +437,32 @@ impl Host {
 		return list;
 	}
 
+	/// Loads the gateway the requested Host is connected to
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `host` - ID of the host to load the gateway from
+	/// * `scan` - ID of the scan to load the hosts from
+	///
+	/// # Returns
+	///
+	/// A vector of Hosts.
+	pub fn get_gateway(db: &mut sqlite::Database, host: &i64, scan: &i64) -> Option<Host> {
+		let con = db.connection();
+		con.map(|pool| {
+			let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND hist.id = ( SELECT hi.id FROM hosts_history AS hi, routing AS ro WHERE ro.left=? AND ro.right=hi.id )")
+				.bind(scan)
+				.bind(host)
+				.fetch_one(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				return result.ok();
+			}
+			None
+		}).unwrap_or(None)
+	}
+
 	/// Saves the instance
 	///
 	/// # Arguments

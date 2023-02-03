@@ -1,24 +1,20 @@
 [package]
-name = "web"
+name = "export"
 version = "0.1.0"
 edition = "2021"
 authors = [ "Lukas (LukyLuke_ch) Zurschmiede <network-discover@ranta.ch>" ]
 
 [lib]
-name = "web"
+name = "export"
 path = "src/lib.rs"
 
 [dependencies]
 config = { path = "../config" }
-local_net = { path = "../local_net" }
-network = { path = "../network" }
 sqlite = { path = "../sqlite" }
 db = { path = "../db" }
-export = { path = "../export" }
 
-actix-web = { version = "4" }
-actix-files = { version = "0.6" }
-serde = { version = "1.0", features = ["derive"] }
-uuid = { version = "1", features = ["serde", "v4"] }
 log = { version = "0.4" }
+uuid = { version = "1", features = ["serde", "v4"] }
+
 chrono = { version = "0.4" }
+printpdf = { version = "0.5", features = [ "embedded_images", "svg" ] }

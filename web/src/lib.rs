@@ -1,11 +1,10 @@
-
-use actix_web::{get, web, App, HttpServer, Result, Responder};
+use actix_web::{get, web, App, HttpServer, Result, Responder, HttpResponse};
 use actix_files::{Files, NamedFile};
-use std::{path::PathBuf, sync::Mutex};
 use serde::{Serialize, Deserialize};
+use std::{path::PathBuf, sync::Mutex, thread};
 
-use std::thread;
 use network::scan;
+use export::{pdf::Pdf, csv::Csv, unknown_export};
 
 #[derive(Serialize)]
 struct StateResponse {
@@ -116,6 +115,7 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 		.service(get_info)
 		.service(show_status)
 		.service(scan_start)
+		.service(export_scan)
 	)
 	.workers(4)
 	.bind(( ip.to_owned(), port.to_owned() ))?
@@ -289,6 +289,28 @@ async fn scan_start(config: web::Data<config::AppConfig>, running: web::Data<Mut
 	Ok(web::Json(response))
 }
 
+#[get("/export/{export}")]
+async fn export_scan(config: web::Data<config::AppConfig>, export: web::Path<String>, args: web::Query<NetworkRequest>) -> Result<impl Responder> {
+	let conf = config.clone();
+	let mut db = sqlite::new(&conf);
+	let export_type = export.into_inner().to_lowercase();
+	let content = match export_type.as_ref() {
+		"pdf" => {
+			Pdf::export(&mut db, String::from(&args.network), args.scan)
+		},
+		"csv" => {
+			Csv::export(&mut db, String::from(&args.network), args.scan)
+		},
+		_ => {
+			unknown_export()
+		},
+	};
+
+	let result = HttpResponse::Ok()
+		.content_type(if export_type == "pdf" { "application/pdf" } else if export_type == "csv" { "text/csv" } else { "text/plain" })
+		.body(content);
+	Ok(result)
+}
 
 
 
