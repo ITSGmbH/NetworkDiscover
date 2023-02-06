@@ -2,6 +2,21 @@
 pub struct Csv { }
 
 impl Csv {
+
+	/// Exports the given Scan and Network as a CSV
+	///
+	/// The Fields are separated by Semicolones (;),
+	/// Lines are separated by a linefeed (\n)
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable Reference to the Database connection
+	/// * `network` - Network Identification to export
+	/// * `scan` - Scan-ID to export
+	///
+	/// # Result
+	///
+	/// The CSV as a string
 	pub fn export(db: &mut sqlite::Database, network: std::string::String, scan: i64) -> std::string::String {
 		let header = "id;ip;network;parent;os;ports".to_string();
 		let hosts = db::Host::list_from_network(db, &network, &scan);

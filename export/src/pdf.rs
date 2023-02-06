@@ -2,7 +2,7 @@ use chrono::prelude::Local;
 use String;
 use printpdf::{
 	pdf_document::PdfDocumentReference, Mm,
-	PdfDocument, PdfPageIndex, PdfLayerIndex, IndirectFontRef,
+	PdfDocument, IndirectFontRef, PdfPageIndex, PdfLayerIndex, PdfLayerReference,
 	svg::Svg, svg::SvgTransform,
 	Rgb, Color, line::Line, point::Point,
 };
@@ -16,6 +16,18 @@ pub struct Pdf<'a> {
 }
 
 impl Pdf<'_> {
+
+	/// Exports the given Scan and Network as a PDF
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable Reference to the Database connection
+	/// * `network` - Network Identification to export
+	/// * `scan` - Scan-ID to export
+	///
+	/// # Result
+	///
+	/// The PDF as a binary string which can be saved to a file or presented as a stream to a browser
 	pub fn export(db: &mut sqlite::Database, network: String, scan: i64) -> String {
 		let (doc, page1, layer1) = PdfDocument::new("Network-Scan ".to_string() + &scan.to_string(), Mm(210.0), Mm(297.0), "Page 1");
 		let mut font_regular_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Regular.ttf").as_ref());
@@ -36,11 +48,18 @@ impl Pdf<'_> {
 		String::from_utf8_lossy(&bin_pdf).to_string()
 	}
 
-	fn create_title_page(&mut self, doc: &PdfDocumentReference, page: &PdfPageIndex, layer: &PdfLayerIndex) {
-		let title_layer = doc.get_page(*page).get_layer(*layer);
+	/// Build and add the Title-Page for the PDF
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document
+	/// * `page_index` - Page Index to add the title page onto
+	/// * `layer_index` - Layer index on the page to add the header onto
+	fn create_title_page(&mut self, doc: &PdfDocumentReference, page_index: &PdfPageIndex, layer_index: &PdfLayerIndex) {
+		let layer = doc.get_page(*page_index).get_layer(*layer_index);
 
 		let svg_logo = Svg::parse(include_str!("../assets/logo.svg").as_ref()).unwrap();
-		svg_logo.add_to_layer(&title_layer, SvgTransform {
+		svg_logo.add_to_layer(&layer, SvgTransform {
 			translate_x: Some(Mm(70.0).into()),
 			translate_y: Some(Mm(230.0).into()),
 			scale_x: Some(3.0),
@@ -48,16 +67,102 @@ impl Pdf<'_> {
 			.. Default::default()
 		});
 
-		title_layer.use_text("NetworkDiscover".to_string(), 48.0, Mm(40.0), Mm(180.0), &self.font_bold);
-		title_layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 24.0, Mm(30.0), Mm(110.0), &self.font_bold);
+		layer.use_text("NetworkDiscover".to_string(), 48.0, Mm(40.0), Mm(180.0), &self.font_bold);
+		layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 24.0, Mm(30.0), Mm(110.0), &self.font_bold);
 
 		let scan_date = match db::Scan::load(self.db, self.scan) {
 			Some(scan) => scan.start_time.and_local_timezone(Local::now().timezone()).unwrap().format("%Y-%m-%d %H:%M:%S %:z").to_string(),
 			None => "Unknown".to_string()
 		};
-		title_layer.use_text("Date: ".to_string() + &scan_date, 24.0, Mm(30.0), Mm(95.0), &self.font_regular);
+		layer.use_text("Date: ".to_string() + &scan_date, 24.0, Mm(30.0), Mm(95.0), &self.font_regular);
 	}
 
+	/// Add all hosts from the given Scan to the PDF
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document to add all hosts
+	fn add_hosts(&mut self, doc: &PdfDocumentReference) {
+		db::Host::list_from_network(self.db, self.network, self.scan)
+			.iter()
+			.for_each(|host| self.add_host_page(&doc, &host));
+	}
+
+	/// Adds one or more pages for a Host to the PDF
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document
+	/// * `host` - Reference to the Host
+	fn add_host_page(&mut self, doc: &PdfDocumentReference, host: &db::Host) {
+		let (page_index, layer_index) = doc.add_page(Mm(210.0), Mm(297.0), "Host ".to_string() + &host.ip);
+		self.add_header_and_footer(doc, &page_index, &layer_index);
+		let layer = doc.get_page(page_index).get_layer(layer_index);
+
+		layer.set_outline_color( Color::Rgb(Rgb::new(0.8, 0.8, 0.8, None)) );
+		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
+		layer.set_outline_thickness(0.2);
+
+		let font_size = 11.0;
+		let line_height = 6.0;
+		let mut start_top = 266.0;
+
+		start_top = self.add_hosts_header(&layer, host, &start_top, &line_height, &font_size);
+
+		start_top -= 20.0;
+		layer.use_text("Found Services:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
+		let under_line = Line {
+			points: vec![ (Point::new(Mm(15.0), Mm(start_top - 2.2)), false), (Point::new(Mm(200.0), Mm(start_top - 2.2)), false) ],
+			is_closed: false,
+			has_fill: false,
+			has_stroke: true,
+			is_clipping_path: false,
+		};
+		layer.add_shape(under_line);
+
+		let mut even_line = true;
+		start_top -= line_height / 2.0;
+		db::Port::load(self.db, &host.hist_id).iter()
+			.for_each(|port| {
+				start_top -= line_height;
+				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &layer);
+
+				layer.use_text(port.port.to_string() + "/" + &port.protocol, font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+				layer.use_text(String::from(&port.service), font_size, Mm(50.0), Mm(start_top), &self.font_regular);
+				layer.use_text(String::from(&port.product), font_size, Mm(85.0), Mm(start_top), &self.font_regular);
+			});
+
+		start_top -= 16.0;
+		layer.use_text("Found Vulnerabilities:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
+		let under_line = Line {
+			points: vec![ (Point::new(Mm(15.0), Mm(start_top - 2.2)), false), (Point::new(Mm(200.0), Mm(start_top - 2.2)), false) ],
+			is_closed: false,
+			has_fill: false,
+			has_stroke: true,
+			is_clipping_path: false,
+		};
+		layer.add_shape(under_line);
+
+		even_line = true;
+		start_top -= line_height / 2.0;
+		db::Cve::from_host_hist(self.db, &host.hist_id).iter()
+			.for_each(|cve| {
+				start_top -= line_height;
+				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &layer);
+
+				layer.use_text(String::from(&cve.type_name), font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+				layer.use_text(cve.cvss.to_string(), font_size, Mm(50.0), Mm(start_top), &self.font_regular);
+				layer.use_text(String::from(&cve.type_id), font_size, Mm(85.0), Mm(start_top), &self.font_regular);
+			});
+	}
+
+	/// Adds a header and footer to the PDF Page
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document
+	/// * `page_index` - Page Index to add a header and footer
+	/// * `layer_index` - Layer index on the page to add the header and footer onto
 	fn add_header_and_footer(&self, doc: &PdfDocumentReference, page_index: &PdfPageIndex, layer_index: &PdfLayerIndex) {
 		let layer = doc.get_page(*page_index).get_layer(*layer_index);
 		let svg_logo = Svg::parse(include_str!("../assets/logo.svg").as_ref()).unwrap();
@@ -93,78 +198,40 @@ impl Pdf<'_> {
 		layer.add_shape(footer_line);
 	}
 
-	fn add_hosts(&mut self, doc: &PdfDocumentReference) {
-		db::Host::list_from_network(self.db, self.network, self.scan)
-			.iter()
-			.for_each(|host| self.add_host_page(&doc, &host));
-	}
-
-	fn add_host_page(&mut self, doc: &PdfDocumentReference, host: &db::Host) {
-		let (page_index, layer_index) = doc.add_page(Mm(210.0), Mm(297.0), "Host ".to_string() + &host.ip);
-		self.add_header_and_footer(doc, &page_index, &layer_index);
-		let layer = doc.get_page(page_index).get_layer(layer_index);
-
-		layer.set_outline_color( Color::Rgb(Rgb::new(0.8, 0.8, 0.8, None)) );
-		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
-		layer.set_outline_thickness(0.2);
+	/// Prints a simple header on the given PDF-Layer with all needed information from the given host.
+	///
+	/// # Arguments
+	///
+	/// * `layer` - The PDFLayer to print the header on
+	/// * `host` - Host struct to get all information from
+	/// * `start_top` - Position from bottom where to start with the header
+	/// * `line_height` - Height of a text line
+	/// * `font_size` - Font size to use
+	///
+	/// # Returns
+	///
+	/// The new position form bottom where the next text has to be oriented at
+	fn add_hosts_header(&mut self, layer: &PdfLayerReference, host: &db::Host, start_top: &f64, line_height: &f64, font_size: &f64) -> f64 {
+		let mut start_top_fnc = *start_top;
 
 		let gw = db::Host::get_gateway(self.db, &host.hist_id, &self.scan).map_or_else(|| "0.0.0.0".to_string(), |host| host.ip);
-		let font_size = 11.0;
-		let line_height = 6.0;
-		let mut start_top = 266.0;
+		let first_emerge = db::Host::find_first_emerge(self.db, &host.ip).map_or(false, |h| h.id == host.hist_id);
+		let last_emerge = db::Host::find_last_emerge(self.db, &host.ip).map_or(false, |h| h.id == host.hist_id);
 
-		self.add_hosts_icon(doc, &page_index, &layer_index, &host.os);
-		layer.use_text("Operating System: ".to_string() + &host.os, font_size, Mm(50.0), Mm({ start_top -= line_height; start_top }), &self.font_regular);
-		layer.use_text("Host: ".to_string() + &host.ip, font_size, Mm(50.0), Mm({ start_top -= line_height; start_top }), &self.font_regular);
-		layer.use_text("Network: ".to_string() + &host.network, font_size, Mm(50.0), Mm({ start_top -= line_height; start_top }), &self.font_regular);
-		layer.use_text("Found via: ".to_string() + &gw, font_size, Mm(50.0), Mm({ start_top -= line_height; start_top }), &self.font_regular);
+		// Text
+		layer.use_text("Host: ".to_string() + &host.ip, *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+		layer.use_text("Operating System: ".to_string() + &host.os, *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+		layer.use_text("Found via: ".to_string() + &gw, *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+		layer.use_text("Network: ".to_string() + &host.network, *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+		if first_emerge {
+			layer.use_text("First seen in this scan".to_string(), *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+		}
+		if last_emerge {
+			layer.use_text("Last seen in this scan".to_string(), *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+		}
 
-		start_top = 220.0;
-		layer.use_text("Found Services:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
-		let under_line = Line {
-			points: vec![ (Point::new(Mm(15.0), Mm(start_top - 2.2)), false), (Point::new(Mm(200.0), Mm(start_top - 2.2)), false) ],
-			is_closed: false,
-			has_fill: false,
-			has_stroke: true,
-			is_clipping_path: false,
-		};
-		layer.add_shape(under_line);
-
-		let mut even_line = true;
-		let spacing_top = 1.8;
-		let spacing_bottom = 1.2;
-		start_top = 217.0;
-		db::Port::load(self.db, &host.hist_id).iter()
-			.for_each(|port| {
-				start_top -= line_height;
-				if { even_line = !even_line; even_line } {
-					let bg_line = Line {
-						points: vec![
-							(Point::new(Mm(20.0), Mm(start_top - spacing_bottom)), false),
-							(Point::new(Mm(20.0), Mm(start_top + line_height - spacing_top)), false),
-							(Point::new(Mm(200.0), Mm(start_top + line_height - spacing_top)), false),
-							(Point::new(Mm(200.0), Mm(start_top - spacing_bottom)), false),
-						],
-						is_closed: true,
-						has_fill: true,
-						has_stroke: true,
-						is_clipping_path: false,
-					};
-
-					layer.set_fill_color( Color::Rgb(Rgb::new(0.99, 0.99, 0.99, None)) );
-					layer.add_shape(bg_line);
-				}
-				layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
-				layer.use_text(port.port.to_string() + "/" + &port.protocol, font_size, Mm(25.0), Mm(start_top), &self.font_regular);
-				layer.use_text(String::from(&port.service), font_size, Mm(50.0), Mm(start_top), &self.font_regular);
-				layer.use_text(String::from(&port.product), font_size, Mm(85.0), Mm(start_top), &self.font_regular);
-			});
-	}
-
-	fn add_hosts_icon(&self, doc: &PdfDocumentReference, page_index: &PdfPageIndex, layer_index: &PdfLayerIndex, os: &str) {
-		let layer = doc.get_page(*page_index).get_layer(*layer_index);
-
-		let mut check_os = String::from(os);
+		// The Icon
+		let mut check_os = String::from(&host.os);
 		check_os.make_ascii_lowercase();
 		let os_icon = match 1 {
 			_ if { check_os.contains("linux") } => include_str!("../assets/device-linux.svg"),
@@ -174,7 +241,6 @@ impl Pdf<'_> {
 			_ if { check_os.contains("android") || check_os.contains("ios") } => include_str!("../assets/device-mobile.svg"),
 			_ => include_str!("../assets/device-network.svg")
 		};
-
 		let svg_logo = Svg::parse(os_icon.as_ref()).unwrap();
 		svg_logo.add_to_layer(&layer, SvgTransform {
 			translate_x: Some(Mm(18.0).into()),
@@ -183,5 +249,45 @@ impl Pdf<'_> {
 			scale_y: Some(15.0),
 			.. Default::default()
 		});
+
+		start_top_fnc
+	}
+
+	/// Adds a filled square as a higlight background
+	/// Is used to simulate a simple table with an even-odd color mechanism
+	///
+	/// # Arguments
+	///
+	/// * `even_line` - A boolean indicates if the current line is even or odd numbered.
+	/// * `start_top` - Starting point of where the text is placed from bottom
+	/// * `line_height` - height of a single line of text
+	/// * `layer` - PDF-Layer to draw the rectangle on
+	///
+	/// # Returns
+	///
+	/// A Boolean indicates if the next line is even or odd
+	fn draw_highlight_line(&self, even_line: bool, start_top: &f64, line_height: &f64, layer: &PdfLayerReference) -> bool {
+		let is_even_line = !even_line;
+		let spacing_top = 1.8;
+		let spacing_bottom = 1.2;
+		if is_even_line {
+			let bg_line = Line {
+				points: vec![
+					(Point::new(Mm(20.0), Mm(start_top - spacing_bottom)), false),
+					(Point::new(Mm(20.0), Mm(start_top + line_height - spacing_top)), false),
+					(Point::new(Mm(200.0), Mm(start_top + line_height - spacing_top)), false),
+					(Point::new(Mm(200.0), Mm(start_top - spacing_bottom)), false),
+				],
+				is_closed: true,
+				has_fill: true,
+				has_stroke: true,
+				is_clipping_path: false,
+			};
+			layer.set_fill_color( Color::Rgb(Rgb::new(0.99, 0.99, 0.99, None)) );
+			layer.add_shape(bg_line);
+		}
+		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
+
+		is_even_line
 	}
 }

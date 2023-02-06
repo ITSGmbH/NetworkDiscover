@@ -870,6 +870,34 @@ impl Cve {
 		return list;
 	}
 
+	/// Loads a list of all CVEs which are referenced to a host in a scan.
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `hist_id` - Host-History-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// A List with all CVEs
+	pub fn from_host_hist(db: &mut sqlite::Database, hist_id: &i64) -> Vec<Cve> {
+		let mut list = vec![];
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, Cve>("SELECT * FROM cves WHERE host_history_id = ? ORDER BY cvss DESC, port ASC")
+				.bind(hist_id)
+				.fetch_all(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				list.append(&mut result.ok().unwrap());
+			} else {
+				log::error!("[DB] Entity: 'CVE'; Load from HostHist failed: {}", result.err().unwrap());
+			}
+		}
+		return list;
+	}
+
 	/// Loads a list of all CVEs which are found in a given scan.
 	///
 	/// # Arguments
