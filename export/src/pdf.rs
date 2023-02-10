@@ -1,5 +1,6 @@
 use chrono::prelude::Local;
 use String;
+use std::collections::HashMap;
 use printpdf::{
 	pdf_document::PdfDocumentReference, Mm,
 	PdfDocument, IndirectFontRef, PdfPageIndex, PdfLayerIndex, PdfLayerReference,
@@ -145,15 +146,30 @@ impl Pdf<'_> {
 
 		even_line = true;
 		start_top -= line_height / 2.0;
-		db::Cve::from_host_hist(self.db, &host.hist_id).iter()
+		let mut grouped: HashMap<String, Vec<&db::Cve>> = HashMap::new();
+		let binding = db::Cve::from_host_hist(self.db, &host.hist_id);
+		binding.iter()
 			.for_each(|cve| {
+				let cves: &mut Vec<&db::Cve> = match grouped.get_mut(&cve.type_name) {
+					Some(val) => val,
+					None => {
+						grouped.insert(String::from(&cve.type_name), Vec::new());
+						grouped.get_mut(&cve.type_name).unwrap()
+					}
+				};
+				cves.push(cve);
+			});
+
+		grouped.iter().for_each(|(group, cves)| {
+			layer.use_text(String::from(group), font_size, Mm(25.0), Mm(start_top), &self.font_bold);
+			cves.iter().for_each(|cve| {
 				start_top -= line_height;
 				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &layer);
 
-				layer.use_text(String::from(&cve.type_name), font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+				layer.use_text(String::from(&cve.type_id), font_size, Mm(35.0), Mm(start_top), &self.font_regular);
 				layer.use_text(cve.cvss.to_string(), font_size, Mm(50.0), Mm(start_top), &self.font_regular);
-				layer.use_text(String::from(&cve.type_id), font_size, Mm(85.0), Mm(start_top), &self.font_regular);
-			});
+			})
+		});
 	}
 
 	/// Adds a header and footer to the PDF Page
