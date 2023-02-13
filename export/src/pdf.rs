@@ -31,15 +31,15 @@ impl Pdf<'_> {
 	/// The PDF as a binary string which can be saved to a file or presented as a stream to a browser
 	pub fn export(db: &mut sqlite::Database, network: String, scan: i64) -> String {
 		let (doc, page1, layer1) = PdfDocument::new("Network-Scan ".to_string() + &scan.to_string(), Mm(210.0), Mm(297.0), "Page 1");
-		let mut font_regular_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Regular.ttf").as_ref());
-		let mut font_bold_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Black.ttf").as_ref());
+		//let mut font_regular_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Light.ttf").as_ref());
+		//let mut font_bold_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Black.ttf").as_ref());
 
 		let mut pdf = Pdf {
 			db,
 			network: &network,
 			scan: &scan,
-			font_regular: doc.add_external_font(&mut font_regular_reader).unwrap(),
-			font_bold: doc.add_external_font(&mut font_bold_reader).unwrap(),
+			font_regular: doc.add_builtin_font(printpdf::BuiltinFont::Helvetica).unwrap(), // doc.add_external_font(&mut font_regular_reader).unwrap(),
+			font_bold: doc.add_builtin_font(printpdf::BuiltinFont::HelveticaBold).unwrap(), // doc.add_external_font(&mut font_bold_reader).unwrap(),
 		};
 
 		pdf.create_title_page(&doc, &page1, &layer1);
@@ -112,21 +112,14 @@ impl Pdf<'_> {
 
 		start_top -= 20.0;
 		layer.use_text("Found Services:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
-		let under_line = Line {
-			points: vec![ (Point::new(Mm(15.0), Mm(start_top - 2.2)), false), (Point::new(Mm(200.0), Mm(start_top - 2.2)), false) ],
-			is_closed: false,
-			has_fill: false,
-			has_stroke: true,
-			is_clipping_path: false,
-		};
-		layer.add_shape(under_line);
+		self.draw_line(&(start_top - 2.0), &15.0, &200.0, &layer);
 
 		let mut even_line = true;
 		start_top -= line_height / 2.0;
 		db::Port::load(self.db, &host.hist_id).iter()
 			.for_each(|port| {
 				start_top -= line_height;
-				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &layer);
+				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &20.0, &200.0, &layer);
 
 				layer.use_text(port.port.to_string() + "/" + &port.protocol, font_size, Mm(25.0), Mm(start_top), &self.font_regular);
 				layer.use_text(String::from(&port.service), font_size, Mm(50.0), Mm(start_top), &self.font_regular);
@@ -135,17 +128,10 @@ impl Pdf<'_> {
 
 		start_top -= 16.0;
 		layer.use_text("Found Vulnerabilities:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
-		let under_line = Line {
-			points: vec![ (Point::new(Mm(15.0), Mm(start_top - 2.2)), false), (Point::new(Mm(200.0), Mm(start_top - 2.2)), false) ],
-			is_closed: false,
-			has_fill: false,
-			has_stroke: true,
-			is_clipping_path: false,
-		};
-		layer.add_shape(under_line);
+		self.draw_line(&(start_top - 2.0), &15.0, &200.0, &layer);
 
 		even_line = true;
-		start_top -= line_height / 2.0;
+		start_top -= line_height * 1.8;
 		let mut grouped: HashMap<String, Vec<&db::Cve>> = HashMap::new();
 		let binding = db::Cve::from_host_hist(self.db, &host.hist_id);
 		binding.iter()
@@ -161,13 +147,16 @@ impl Pdf<'_> {
 			});
 
 		grouped.iter().for_each(|(group, cves)| {
-			layer.use_text(String::from(group), font_size, Mm(25.0), Mm(start_top), &self.font_bold);
+			layer.use_text(String::from(group), font_size + 2.0, Mm(25.0), Mm(start_top), &self.font_bold);
+			self.draw_line(&(start_top - 2.0), &23.0, &200.0, &layer);
+			start_top -= 2.2;
+
 			cves.iter().for_each(|cve| {
 				start_top -= line_height;
-				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &layer);
+				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &30.0, &200.0, &layer);
 
 				layer.use_text(String::from(&cve.type_id), font_size, Mm(35.0), Mm(start_top), &self.font_regular);
-				layer.use_text(cve.cvss.to_string(), font_size, Mm(50.0), Mm(start_top), &self.font_regular);
+				layer.use_text(cve.cvss.to_string(), font_size, Mm(180.0), Mm(start_top), &self.font_regular);
 			})
 		});
 	}
@@ -276,23 +265,25 @@ impl Pdf<'_> {
 	///
 	/// * `even_line` - A boolean indicates if the current line is even or odd numbered.
 	/// * `start_top` - Starting point of where the text is placed from bottom
-	/// * `line_height` - height of a single line of text
+	/// * `height` - height of the highlight rectangle
+	/// * `left` - Position where the line starts on the left side
+	/// * `right` - Position where the line ends on the right side
 	/// * `layer` - PDF-Layer to draw the rectangle on
 	///
 	/// # Returns
 	///
 	/// A Boolean indicates if the next line is even or odd
-	fn draw_highlight_line(&self, even_line: bool, start_top: &f64, line_height: &f64, layer: &PdfLayerReference) -> bool {
+	fn draw_highlight_line(&self, even_line: bool, start_top: &f64, height: &f64, left: &f64, right: &f64, layer: &PdfLayerReference) -> bool {
 		let is_even_line = !even_line;
 		let spacing_top = 1.8;
 		let spacing_bottom = 1.2;
 		if is_even_line {
 			let bg_line = Line {
 				points: vec![
-					(Point::new(Mm(20.0), Mm(start_top - spacing_bottom)), false),
-					(Point::new(Mm(20.0), Mm(start_top + line_height - spacing_top)), false),
-					(Point::new(Mm(200.0), Mm(start_top + line_height - spacing_top)), false),
-					(Point::new(Mm(200.0), Mm(start_top - spacing_bottom)), false),
+					(Point::new(Mm(*left), Mm(start_top - spacing_bottom)), false),
+					(Point::new(Mm(*left), Mm(start_top + height - spacing_top)), false),
+					(Point::new(Mm(*right), Mm(start_top + height - spacing_top)), false),
+					(Point::new(Mm(*right), Mm(start_top - spacing_bottom)), false),
 				],
 				is_closed: true,
 				has_fill: true,
@@ -305,5 +296,24 @@ impl Pdf<'_> {
 		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
 
 		is_even_line
+	}
+
+	/// Draws a line
+	///
+	/// # Arguments
+	///
+	/// * `start_top` - Starting point from bottom where the line should be shown
+	/// * `left` - Position where the line starts on the left side
+	/// * `right` - Position where the line ends on the right side
+	/// * `layer` - PDF-Layer to draw the line onto
+	fn draw_line(&self, start_top: &f64, left: &f64, right: &f64, layer: &PdfLayerReference) {
+		let line = Line {
+			points: vec![ (Point::new(Mm(*left), Mm(*start_top)), false), (Point::new(Mm(*right), Mm(*start_top)), false) ],
+			is_closed: false,
+			has_fill: false,
+			has_stroke: true,
+			is_clipping_path: false,
+		};
+		layer.add_shape(line);
 	}
 }
