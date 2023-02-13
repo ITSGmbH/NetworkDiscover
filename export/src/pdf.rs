@@ -167,8 +167,9 @@ impl Pdf<'_> {
 			});
 
 		grouped.iter().for_each(|(group, cves)| {
-			layer.use_text(String::from(group), font_size + 2.0, Mm(25.0), Mm(start_top), &self.font_bold);
-			self.draw_line(&(start_top - 2.0), &23.0, &200.0, &layer);
+			layer.use_text(String::from(group).to_uppercase(), font_size, Mm(23.0), Mm(start_top), &self.font_bold);
+			layer.use_text(String::from("CVSS"), font_size, Mm(178.0), Mm(start_top), &self.font_bold);
+			self.draw_line(&(start_top - 2.0), &20.0, &200.0, &layer);
 			start_top -= 2.2;
 
 			cves.iter().for_each(|cve| {
@@ -177,9 +178,9 @@ impl Pdf<'_> {
 					layer = self.add_page(doc, &title);
 					start_top = 266.0;
 				}
-				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &30.0, &200.0, &layer);
+				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &23.0, &200.0, &layer);
 
-				layer.use_text(String::from(&cve.type_id), font_size, Mm(35.0), Mm(start_top), &self.font_regular);
+				layer.use_text(String::from(&cve.type_id), font_size, Mm(25.0), Mm(start_top), &self.font_regular);
 				layer.use_text(cve.cvss.to_string(), font_size, Mm(180.0), Mm(start_top), &self.font_regular);
 			})
 		});
