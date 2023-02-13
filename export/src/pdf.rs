@@ -89,6 +89,27 @@ impl Pdf<'_> {
 			.for_each(|host| self.add_host_page(&doc, &host));
 	}
 
+	/// Adds a new page and returns the layer to print all the elements on.
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document to add all hosts
+	/// * `title` - Title/name of the page
+	///
+	/// # Result
+	///
+	/// The Layer to add new elements onto
+	fn add_page(&self, doc: &PdfDocumentReference, title: &str) -> PdfLayerReference {
+		let (page_index, layer_index) = doc.add_page(Mm(210.0), Mm(297.0), String::from(title));
+		self.add_header_and_footer(doc, &page_index, &layer_index);
+		let layer = doc.get_page(page_index).get_layer(layer_index);
+		layer.set_outline_color( Color::Rgb(Rgb::new(0.8, 0.8, 0.8, None)) );
+		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
+		layer.set_outline_thickness(0.2);
+
+		layer
+	}
+
 	/// Adds one or more pages for a Host to the PDF
 	///
 	/// # Arguments
@@ -96,13 +117,8 @@ impl Pdf<'_> {
 	/// * `doc` - Reference to the PDF Document
 	/// * `host` - Reference to the Host
 	fn add_host_page(&mut self, doc: &PdfDocumentReference, host: &db::Host) {
-		let (page_index, layer_index) = doc.add_page(Mm(210.0), Mm(297.0), "Host ".to_string() + &host.ip);
-		self.add_header_and_footer(doc, &page_index, &layer_index);
-		let layer = doc.get_page(page_index).get_layer(layer_index);
-
-		layer.set_outline_color( Color::Rgb(Rgb::new(0.8, 0.8, 0.8, None)) );
-		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
-		layer.set_outline_thickness(0.2);
+		let title = "Host ".to_string() + &host.ip;
+		let mut layer = self.add_page(doc, &title);
 
 		let font_size = 11.0;
 		let line_height = 6.0;
@@ -119,6 +135,10 @@ impl Pdf<'_> {
 		db::Port::load(self.db, &host.hist_id).iter()
 			.for_each(|port| {
 				start_top -= line_height;
+				if start_top < 20.0 {
+					layer = self.add_page(doc, &title);
+					start_top = 266.0;
+				}
 				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &20.0, &200.0, &layer);
 
 				layer.use_text(port.port.to_string() + "/" + &port.protocol, font_size, Mm(25.0), Mm(start_top), &self.font_regular);
@@ -153,6 +173,10 @@ impl Pdf<'_> {
 
 			cves.iter().for_each(|cve| {
 				start_top -= line_height;
+				if start_top < 20.0 {
+					layer = self.add_page(doc, &title);
+					start_top = 266.0;
+				}
 				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &30.0, &200.0, &layer);
 
 				layer.use_text(String::from(&cve.type_id), font_size, Mm(35.0), Mm(start_top), &self.font_regular);
