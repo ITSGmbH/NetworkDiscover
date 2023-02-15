@@ -14,6 +14,32 @@ pub struct Pdf<'a> {
 	scan: &'a i64,
 	font_regular: IndirectFontRef,
 	font_bold: IndirectFontRef,
+	max_bottom: f64,
+	min_bottom: f64,
+	max_left: f64,
+	min_left: f64,
+}
+
+#[derive(Debug)]
+struct Node {
+	id: i64,
+	label: String,
+	os: String,
+	parent: i64,
+	edges: Vec<i64>,
+	level: i64,
+	pos_x: f64,
+	pos_y: f64,
+}
+impl Default for Node {
+	fn default() -> Self {
+		Node {
+			id: 0, level: 0,
+			label: String::from(""), os: String::from(""),
+			parent: 0, edges: vec![],
+			pos_x: 0.0, pos_y: 0.0,
+		}
+	}
 }
 
 impl Pdf<'_> {
@@ -30,7 +56,7 @@ impl Pdf<'_> {
 	///
 	/// The PDF as a binary string which can be saved to a file or presented as a stream to a browser
 	pub fn export(db: &mut sqlite::Database, network: String, scan: i64) -> String {
-		let (doc, page1, layer1) = PdfDocument::new("Network-Scan ".to_string() + &scan.to_string(), Mm(210.0), Mm(297.0), "Page 1");
+		let (doc, page, layer) = PdfDocument::new("Network-Scan ".to_string() + &scan.to_string(), Mm(210.0), Mm(297.0), "Page 1");
 		//let mut font_regular_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Light.ttf").as_ref());
 		//let mut font_bold_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Black.ttf").as_ref());
 
@@ -40,9 +66,14 @@ impl Pdf<'_> {
 			scan: &scan,
 			font_regular: doc.add_builtin_font(printpdf::BuiltinFont::Helvetica).unwrap(), // doc.add_external_font(&mut font_regular_reader).unwrap(),
 			font_bold: doc.add_builtin_font(printpdf::BuiltinFont::HelveticaBold).unwrap(), // doc.add_external_font(&mut font_bold_reader).unwrap(),
+			max_bottom:  260.0,
+			min_bottom: 20.0,
+			max_left: 190.0,
+			min_left: 20.0,
 		};
 
-		pdf.create_title_page(&doc, &page1, &layer1);
+		pdf.create_title_page(&doc, &page, &layer);
+		pdf.add_network(&doc);
 		pdf.add_hosts(&doc);
 
 		let bin_pdf = doc.save_to_bytes().unwrap();
@@ -78,6 +109,153 @@ impl Pdf<'_> {
 		layer.use_text("Date: ".to_string() + &scan_date, 24.0, Mm(30.0), Mm(95.0), &self.font_regular);
 	}
 
+	/// Create a page with the whole network visualized
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document to add all hosts
+	fn add_network(&mut self, doc: &PdfDocumentReference) {
+		let mut nodes: HashMap<i64, Node> = HashMap::new();
+		db::Host::list_from_network(self.db, self.network, self.scan)
+			.iter()
+			.map(|host| Node {
+				id: host.hist_id,
+				label: String::from(&host.ip),
+				os: String::from(&host.os),
+				.. Default::default()
+			})
+			.for_each(|mut node| {
+				node.parent = db::Routing::from_host(self.db, &node.id, self.scan)
+					.iter()
+					.map(|route| route.right)
+					.reduce(|a, _| a)
+					.unwrap_or(0);
+				node.edges = db::Routing::to_host(self.db, &node.id, self.scan)
+					.iter()
+					.map(|route| route.left)
+					.collect();
+				nodes.insert(node.id, node);
+			});
+
+		// Starting node is the first one with no parent
+		// TODO: Multiple starting nodes cannot be handled at the moment
+		let mut start_node: i64 = 0;
+		for (key, node) in &nodes {
+			if node.parent == 0 {
+				start_node = i64::from(*key);
+				break;
+			}
+		}
+
+		// Calculate the distance from the starting node for each individual node
+		Self::build_node_distances(start_node, 0, &mut nodes);
+
+		// Calculate the nodes position
+		let grid_h = 13.0;
+		let grid_w = 30.0;
+		let center_h = self.min_bottom + (self.max_bottom - self.min_bottom) / 2.0;
+		let mut next_level_pos = Self::init_start_pos_per_level(&nodes, grid_h, center_h);
+		for (_, node) in &mut nodes {
+			node.pos_x = self.min_left + (grid_w * (node.level as f64));
+			node.pos_y = f64::from(*(next_level_pos.get(&node.level).unwrap_or(&0.0)));
+			next_level_pos.insert(node.level, node.pos_y + grid_h);
+		}
+
+		// Finally print the nodes and the connection lines
+		let offset_x_parent = 5.0;
+		let offset_x_node = 1.8;
+		let offset_y_parent = 2.2;
+		let offset_y_node = 2.2;
+		let layer = self.add_page(doc, "Network");
+		layer.set_outline_color( Color::Rgb(Rgb::new(0.8, 0.8, 0.8, None)) );
+		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
+		layer.set_outline_thickness(0.2);
+		for (_, node) in &nodes {
+			match nodes.get(&node.parent) {
+				Some(parent) => self.draw_line(&(parent.pos_x + offset_x_parent), &(parent.pos_y + offset_y_parent), &(node.pos_x - offset_x_node), &(node.pos_y + offset_y_node), &layer),
+				_ => {}
+			}
+
+			self.add_host_with_label(&layer, &node.pos_x, &node.pos_y, &node.label, &node.os);
+		}
+	}
+
+	/// Calculates the starting position from bottom in contrast to the given center
+	///
+	/// # Arguments
+	///
+	/// * `nodes` - All the nodes with already calculated levels
+	/// * `distance` - horizontal distance between the nodes
+	/// * `center` - the center around which the nodes should be placed equally
+	///
+	/// # Result
+	///
+	/// A HashMap with the key corresponds to the level and the value as the starting position
+	fn init_start_pos_per_level(nodes: &HashMap<i64, Node>, distance: f64, center: f64) -> HashMap<i64, f64> {
+		let mut start_pos: HashMap<i64, f64> = HashMap::new();
+		let nodes_per_level = Self::get_nodes_per_level(&nodes);
+		for (k, v) in nodes_per_level {
+			let pos = center - ((v as f64) * distance / 2.0);
+			start_pos.insert(k, pos);
+		}
+		start_pos
+	}
+
+	/// Returns the number of nodes per level.
+	///
+	/// # Arguments
+	///
+	/// * `nodes` - Reference to the Nodes HashMap which has already calculated levels
+	///
+	/// # Result
+	///
+	/// A HashMap where the key is the level and the value is the number of nodes on that level
+	fn get_nodes_per_level(nodes: &HashMap<i64, Node>) -> HashMap<i64, i64> {
+		let mut nums: HashMap<i64, i64> = HashMap::new();
+		for (_, node) in nodes {
+			let mut num = *nums.get(&node.level).unwrap_or(&0);
+			num = num + (1 as i64);
+			nums.insert(node.level, i64::from(num));
+		}
+		nums
+	}
+
+	/// Calculates the distances for each node compared to the first node.
+	/// The distance is changed on the node referece.
+	///
+	/// # Arguments
+	///
+	/// * `current` - The node key to process the edges
+	/// * `distance` - Distance for the given node
+	/// * `nodes` - HashMap of all nodes
+	fn build_node_distances(current: i64, distance: i64, nodes: &mut HashMap<i64, Node>) {
+		let mut edges: Vec<i64> = vec![];
+		match nodes.get_mut(&current) {
+			Some(n) => {
+				n.level = i64::from(distance);
+				edges.append(&mut n.edges);
+			}
+			_ => {}
+		}
+		for next in edges {
+			Self::build_node_distances(next, distance + 1, nodes);
+		}
+	}
+
+	/// Add a host icon with a label below it
+	///
+	/// # Arguments
+	///
+	/// * `layer` - Layer to add the icon to
+	/// * `left` - Position from the left
+	/// * `bottom` - Position from the bottom
+	/// * `label` - Label to show below
+	/// * `os` - Operating System to find the correct icon
+	fn add_host_with_label(&self, layer: &PdfLayerReference, left: &f64, bottom: &f64, label: &str, os: &str) {
+		self.add_host_icon(&layer, os, left, bottom, &3.0, &3.0);
+		layer.use_text(label, 7.0, Mm(left - 8.0), Mm(bottom - 2.6), &self.font_regular);
+	}
+
 	/// Add all hosts from the given Scan to the PDF
 	///
 	/// # Arguments
@@ -102,6 +280,7 @@ impl Pdf<'_> {
 	fn add_page(&self, doc: &PdfDocumentReference, title: &str) -> PdfLayerReference {
 		let (page_index, layer_index) = doc.add_page(Mm(210.0), Mm(297.0), String::from(title));
 		self.add_header_and_footer(doc, &page_index, &layer_index);
+
 		let layer = doc.get_page(page_index).get_layer(layer_index);
 		layer.set_outline_color( Color::Rgb(Rgb::new(0.8, 0.8, 0.8, None)) );
 		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
@@ -128,7 +307,7 @@ impl Pdf<'_> {
 
 		start_top -= 20.0;
 		layer.use_text("Found Services:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
-		self.draw_line(&(start_top - 2.0), &15.0, &200.0, &layer);
+		self.draw_line(&15.0, &(start_top - 2.0), &200.0, &(start_top - 2.0), &layer);
 
 		let mut even_line = true;
 		start_top -= line_height / 2.0;
@@ -148,7 +327,7 @@ impl Pdf<'_> {
 
 		start_top -= 16.0;
 		layer.use_text("Found Vulnerabilities:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
-		self.draw_line(&(start_top - 2.0), &15.0, &200.0, &layer);
+		self.draw_line(&15.0, &(start_top - 2.0), &200.0, &(start_top - 2.0), &layer);
 
 		even_line = true;
 		start_top -= line_height * 1.8;
@@ -169,9 +348,9 @@ impl Pdf<'_> {
 		grouped.iter().for_each(|(group, cves)| {
 			layer.use_text(String::from(group).to_uppercase(), font_size, Mm(23.0), Mm(start_top), &self.font_bold);
 			layer.use_text(String::from("CVSS"), font_size, Mm(178.0), Mm(start_top), &self.font_bold);
-			self.draw_line(&(start_top - 2.0), &20.0, &200.0, &layer);
-			start_top -= 2.2;
+			self.draw_line(&20.0, &(start_top - 2.0), &200.0, &(start_top - 2.0), &layer);
 
+			start_top -= 2.2;
 			cves.iter().for_each(|cve| {
 				start_top -= line_height;
 				if start_top < 20.0 {
@@ -260,8 +439,23 @@ impl Pdf<'_> {
 			layer.use_text("Last seen in this scan".to_string(), *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
 		}
 
-		// The Icon
-		let mut check_os = String::from(&host.os);
+		self.add_host_icon(layer, &host.os, &18.0, &242.0, &15.0, &15.0);
+
+		start_top_fnc
+	}
+
+	/// Add a host icon to the layer on the given position in the given scale
+	///
+	/// # Arguments
+	///
+	/// * `layer` - Layer to add the icon onto
+	/// * `host` - Operation System of the host
+	/// * `from_left` - position from left
+	/// * `from_bottom` - position from bottom
+	/// * `scale_x` - scale the icon in X
+	/// * `scale_y` - scale the icon in Y
+	fn add_host_icon(&self, layer: &PdfLayerReference, host: &str, from_left: &f64, from_bottom: &f64, scale_x: &f64, scale_y: &f64) {
+		let mut check_os = String::from(host);
 		check_os.make_ascii_lowercase();
 		let os_icon = match 1 {
 			_ if { check_os.contains("linux") } => include_str!("../assets/device-linux.svg"),
@@ -273,14 +467,12 @@ impl Pdf<'_> {
 		};
 		let svg_logo = Svg::parse(os_icon.as_ref()).unwrap();
 		svg_logo.add_to_layer(&layer, SvgTransform {
-			translate_x: Some(Mm(18.0).into()),
-			translate_y: Some(Mm(242.0).into()),
-			scale_x: Some(15.0),
-			scale_y: Some(15.0),
+			translate_x: Some(Mm(*from_left).into()),
+			translate_y: Some(Mm(*from_bottom).into()),
+			scale_x: Some(*scale_x),
+			scale_y: Some(*scale_y),
 			.. Default::default()
 		});
-
-		start_top_fnc
 	}
 
 	/// Adds a filled square as a higlight background
@@ -327,13 +519,14 @@ impl Pdf<'_> {
 	///
 	/// # Arguments
 	///
-	/// * `start_top` - Starting point from bottom where the line should be shown
-	/// * `left` - Position where the line starts on the left side
-	/// * `right` - Position where the line ends on the right side
+	/// * `from_x` - Starting point from left
+	/// * `from_y` - Starting point from bottom
+	/// * `end_x` - End position from left
+	/// * `end_y` - End position from bottom
 	/// * `layer` - PDF-Layer to draw the line onto
-	fn draw_line(&self, start_top: &f64, left: &f64, right: &f64, layer: &PdfLayerReference) {
+	fn draw_line(&self, from_x: &f64, from_y: &f64, end_x: &f64, end_y: &f64, layer: &PdfLayerReference) {
 		let line = Line {
-			points: vec![ (Point::new(Mm(*left), Mm(*start_top)), false), (Point::new(Mm(*right), Mm(*start_top)), false) ],
+			points: vec![ (Point::new(Mm(*from_x), Mm(*from_y)), false), (Point::new(Mm(*end_x), Mm(*end_y)), false) ],
 			is_closed: false,
 			has_fill: false,
 			has_stroke: true,
