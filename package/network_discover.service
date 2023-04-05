@@ -1,0 +1,10 @@
+[Unit]
+Description=Network-Discover by IT-S GmbH
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/network_discover/network_discover
+
+[Install]
+WantedBy=multi-user.target

@@ -1,4 +1,11 @@
+# Packaging
+package/pkg
+package/*.tar.*
+
+# Rust
 target
+
+# SQLite
 *.lock
 *.sqlite*
 *-swp
