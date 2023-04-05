@@ -1,0 +1,21 @@
+[package]
+name = "network"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Lukas (LukyLuke_ch) Zurschmiede <network-discover@ranta.ch>" ]
+
+[lib]
+name = "network"
+path = "src/lib.rs"
+
+[dependencies]
+config = { path = "../config" }
+local_net = { path = "../local_net" }
+sqlite = { path = "../sqlite" }
+db = { path = "../db" }
+
+log = { version = "0.4" }
+xml-rs = { version = "0.8" }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+chrono = { version = "0.4" }

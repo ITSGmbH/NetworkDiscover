@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Network</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta charset="utf-8">
+	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
+	<script type="text/javascript" src="/static/js/vis_network.min.js"></script>
+	<link rel="stylesheet" href="/static/css/bulma.min.css">
+	<link rel="icon" type="image/png" href="/static/img/its_logo.png">
+	<style type="text/css">
+		#networkarea {
+			width: 100%;
+			height: 85vh;
+			border: 1px solid lightgray;
+		}
+		#scan-now-modal .modal-card-body {
+			color: black;
+		}
+		#host-info-box {
+			margin-bottom: 0.75rem;
+		}
+		.mouse-pointer {
+			cursor: pointer;
+		}
+		.legend .columns {
+			margin-bottom: 0;
+		}
+		.legend .legend-entry {
+			border: 1px solid #2B7CE9;
+			border-radius: 50%;
+			width: 24px;
+			height: 24px;
+		}
+	</style>
+	</style>
+</head>
+<body>
+	<section class="section pb-3">
+		<nav class="navbar is-info is-fixed-top" role="navigation" aria-label="dropdown navigation">
+			<div class="navbar-menu">
+				<div class="navbar-brand">
+					<span class="navbar-item"><img src="/static/img/its_logo.png" alt="IT-S" height="12" /></span>
+					<h1 class="navbar-item title is-4">NetworkDiscovery</h1>
+				</div>
+
+				<div class="navbar-start">
+					<div class="navbar-item"><span class="tag is-warning" id="running-status">...</span></div>
+				</div>
+
+				<div class="navbar-end">
+					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
+						<span class="navbar-link">Config</span>
+						<fieldset class="navbar-dropdown" id="config"></fieldset>
+					</div>
+					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
+						<span class="navbar-link">Network</span>
+						<div class="navbar-dropdown" id="networks"></div>
+					</div>
+					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
+						<span class="navbar-link">Scan</span>
+						<div class="navbar-dropdown is-right" id="scans"></div>
+					</div>
+				</div>
+			</div>
+		</nav>
+	</section>
+
+	<section class="">
+		<div class="columns">
+			<div class="column is-two-thirds">
+				<div id="networkarea"></div>
+			</div>
+			<div class="column">
+				<div class="legend">
+					<div class="columns is-desktop">
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-normal"></div></div><div class="column legend-text">Normal</div>
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-first"></div></div><div class="column legend-text">First seen</div>
+					</div>
+					<div class="columns is-desktop">
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-changed"></div></div><div class="column legend-text">Changed</div>
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-removed"></div></div><div class="column legend-text">Removed</div>
+					</div>
+				</div>
+				<div class="host-info" id="host-info-box"></div>
+				<div class="buttons">
+					<a id="btn-pdf" class="button is-info is-light is-fullwidth is-small" download>Download PDF</a>
+					<a id="btn-csv" class="button is-info is-light is-fullwidth is-small" download>Download CSV</a>
+				</div>
+			</div>
+		</div>
+	</section>
+
+	<footer class="footer p-2">
+		<div class="content has-text-centered">
+			<p>
+				<a href="https://github.com/ITSGmbH/NetworkDiscover">NetworkDiscovery</a>, provided by <a href="https://www.it-s.ch/">IT-S GmbH</a>
+				<br/>
+				<small>&copy; 2021 by Lukas Zurschmiede</small>
+			</p>
+		</div>
+	</footer>
+
+	<script type="text/javascript">
+		var container = document.getElementById("networkarea");
+		var colors = {
+			normal: '#d2e5ff',
+			first: '#91d782',
+			changed: '#f5ce35',
+			removed: '#eaafa2'
+		};
+
+		// Legend
+		document.getElementById("legend-color-normal").style.backgroundColor = colors.normal;
+		document.getElementById("legend-color-first").style.backgroundColor = colors.first;
+		document.getElementById("legend-color-changed").style.backgroundColor = colors.changed;
+		document.getElementById("legend-color-removed").style.backgroundColor = colors.removed;
+
+		// VIS-Network documentation: https://visjs.github.io/vis-network/docs/network/
+		var nodes = new vis.DataSet();
+		var edges = new vis.DataSet();
+		var data = {
+			nodes: nodes,
+			edges: edges,
+		};
+		var options = {
+			layout: { hierarchical: { enabled: true, sortMethod: 'directed', shakeTowards: 'roots', direction: 'DU', }, },
+			edges: { smooth: true, },
+			nodes: { shadow: true, widthConstraint: { maximum: 90, }, font: { size: 11, }, shape: 'dot', },
+			interaction: { dragNodes: true, dragView: true, },
+			physics: { enabled: false },
+		};
+		var network = new vis.Network(container, data, options);
+
+		var load_network = ev => {
+			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
+				var _nodes = [];
+				var _edges = [];
+				Object.entries(data).forEach(entry => {
+					const [k, v] = entry;
+					var color = colors.normal;
+					if (v.first_scan > 1 && v.first_scan == ev.data.scan) { color = colors.first; }
+					if (v.changed_scan > 1 && v.changed_scan == ev.data.scan - 1) { color = colors.changed; }
+					if (v.is_removed) { color = colors.removed; }
+					_nodes.push({
+						id: v.id,
+						label: v.ip + '\n' + v.os,
+						color: { background: color, highlight: { background: color } }
+					});
+					v.nodes.forEach(val => {
+						_edges.push({
+							from: v.id,
+							to: parseInt(val)
+						});
+					})
+				});
+				nodes.clear();
+				edges.clear()
+				nodes.add(_nodes);
+				edges.add(_edges);
+				$('#host-info-box').empty();
+				$('#networkarea').data('network', ev.data.network)
+				$('#networkarea').data('scan', ev.data.scan)
+
+				$('#btn-pdf').attr('href', '/export/pdf?network=' + ev.data.network + '&scan=' + ev.data.scan);
+				$('#btn-csv').attr('href', '/export/csv?network=' + ev.data.network + '&scan=' + ev.data.scan);
+			});
+		}
+
+		var load_scans = ev => {
+			$.getJSON("/api/scans?network=" + ev.data.network, scans => {
+				$('#scans').empty();
+				
+				$('#scans').append('<a class="navbar-item" id="scan-now">Scan now</a>');
+				$('#scan-now').on('click', { id: 'now'}, trigger_scan);
+
+				$('#scans').append('<div id="scan-now-modal" class="modal"><div class="modal-background"></div><div class="modal-card"></div></div>')
+				var header = $('<header class="modal-card-head"><p class="modal-card-title">Scan triggered</p><button class="delete" aria-label="close"></button></header>');
+				var content = $('<section class="modal-card-body">A new scan is triggered and will start shortly.</section>');
+				var footer = $('<footer class="modal-card-foot"><button class="button is-info">Close</button></footer>');
+				$('#scan-now-modal .modal-card').append(header);
+				$('#scan-now-modal .modal-card').append(content);
+				$('#scan-now-modal .modal-card').append(footer);
+				$('#scan-now-modal button.delete').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
+				$('#scan-now-modal button.is-info').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
+
+				scans.forEach((v, k) => {
+					$('#scans').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
+					$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan }, load_network);
+				});
+				$('#scan-' + (scans.length - 1)).trigger('click');
+			});
+		};
+
+		var trigger_scan = ev => {
+			$.getJSON("/api/scan_now", data => {
+				$('#scan-now-modal').toggleClass('is-active');
+			});
+		}
+
+		$(document).ready(function() {
+			$.getJSON("/api/networks", data => {
+				data.forEach((v, k) => {
+					var name = v.name + ( v.name != "" ? " (" : "" ) + v.network + ( v.name != "" ? ")" : "" );
+					$('#networks').append('<a class="navbar-item" id="network-' + k + '">' + name + '</a>');
+					$('#network-' + k).on('click', { id: k, network: v.network }, load_scans);
+					$('#network-' + k).data('network', v);
+				});
+				$('#network-0').trigger('click');
+			}).fail(function() {
+				console.error("Error while loading Networks.");
+			});
+
+			$.getJSON("/config/load", data => {
+				$('#config').empty();
+				$.each(data.config, function(key, val) {
+					val = val == 'None' ? null : val;
+					val = val == 'true' ? true : val;
+					val = val == 'false' ? false : val;
+					
+					field = '<input class="input" type="text" value="' + (val == null ? '' : val) + '" placeholder="' + key + '" name="' + key + '" style="width:220px;"/>';
+					if (typeof(val) == 'boolean') {
+						field = '<input type="checkbox" value="true" name="' + key + '" ' + (val ? 'checked' : '') + '/>';
+					} else if (typeof(val) == 'number') {
+						field = '<input class="input" type="number" value="' + (val == null ? '0' : val) + '" placeholder="' + key + '" name="' + key + '" style="width:220px;"/>';
+					}
+
+					$('#config').append('<div class="navbar-item"><div class="field"><label class="label">' + key + '</label><div class="control">' + field + '</div></div></div>');
+				});
+				$('#config').append('<div class="navbar-item"><div class="field"><div class="control"><button class="button is-primary">Save</button></div></div></div>');
+				$('#config button').on('click', function() {
+					$('#config').attr('disabled', 'disabled');
+					save_data = {};
+					$('#config input').each(function(_, field) {
+						field = $(field);
+						if (field.attr('type') == 'checkbox') field.val(field.prop('checked'));
+						save_data[field.attr('name')] = field.val();
+					});
+					$.ajax("/config/save", {
+						type: 'POST',
+						contentType: 'application/json',
+						data: JSON.stringify(save_data),
+						success: function(resp) {
+							setTimeout(function() {$('#config').removeAttr('disabled');}, 1500);
+						},
+					});
+				});
+			}).fail(function() {
+				console.error("Error while fetching configuration.");
+			});
+
+			window.setInterval(function() {
+				$.getJSON("/api/status", data => {
+					message = '...';
+					if (data.running) {
+						message = "running";
+					} else if (data.paused) {
+						message = "paused";
+					} else if (data.triggered) {
+						message = "triggered...";
+					}
+					$('#running-status').addClass('is-warning');
+					$('#running-status').removeClass('is-danger');
+					$('#running-status').html(message);
+				})
+				.fail(err => {
+					$('#running-status').addClass('is-danger');
+					$('#running-status').removeClass('is-warning');
+					$('#running-status').html('check failed...');
+				});
+			}, 5000);
+		});
+
+		function fill_host_info_box(cont, data, with_hist) {
+			console.debug(cont);
+			if (with_hist) {
+				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu"><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
+				$('.message-body', cont).append('<div id="modal-hosts-history"></div>');
+			} else {
+				$('.message-body', cont).append('<div><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div>');
+			}
+			$('.message-body', cont).append('<div style="padding-top:0.2rem;"><strong>OS:</strong> ' + data.os + '</div>');
+			$('.message-body', cont).append('<hr size="1" />');
+
+			var table = $('.message-body', cont).append('<div class="mt-4 table-container"><table class="table is-striped is-fullwidth"><tbody class="mainbody"></tbody></table></div>');
+			data.ports.forEach(port => {
+				var id = 'cve_' + data.ip.replace(/\./gi, '_') + '-' + port.port + '_' + port.protocol;
+				$('tbody.mainbody', table).append('<tr><td>' + port.port + '/' + port.protocol + '<br/>' + port.service + '</td><td>' + port.product + '</td><td id="' + id + '"></td></tr>');
+
+				if (port.cves.length > 0) {
+					$('#' + id, table).append('<button class="button is-small is-danger is-light">CVEs</button>');
+					var header = $('<header class="modal-card-head"><p class="modal-card-title">CVEs of ' + data.ip + ', Port ' + port.port + '/' + port.protocol + '</p><button class="delete" aria-label="close"></button></header>');
+					var cves = $('<section class="modal-card-body"><table class="table is-fullwidth"><tbody class="cvebody"></tbody></table></section>');
+
+					port.cves.sort((a, b) => a.cvss < b.cvss);
+					port.cves.sort((a, b) => a.database < b.database);
+					var last_db = '';
+					port.cves.forEach(cve => {
+						if (cve.database.length == 0 && cve.id.length == 0)
+							return;
+						var link = 'https://vulners.com/' + cve.database + '/' + cve.id;
+						if (last_db != cve.database) {
+							$('tbody.cvebody', cves).append('<tr><th colspan="3">' + cve.database + '</th></tr>');
+						}
+						$('tbody.cvebody', cves).append('<tr><td><a target="_blank" href="' + link + '">' + cve.id + '</a></td><td>' + (cve.exploit ? '<span class="tag is-danger">Exploit</span>' : '') + '</td><td>' + cve.cvss + '</td></tr>');
+						last_db = cve.database;
+					});
+
+					$('#' + id, table).append('<div id="' + id + '-modal" class="modal"><div class="modal-background"></div><div class="modal-card"></div></div>')
+					$('#' + id + ' .modal-card', table).append(header);
+					$('#' + id + ' .modal-card', table).append(cves);
+
+					$('#' + id + ' button.button', table).on('click', { id: id }, _ev => { $('#' + _ev.data.id + '-modal').toggleClass('is-active'); });
+					$('#' + id + ' button.delete', table).on('click', { id: id }, _ev => { $('#' + _ev.data.id + '-modal').toggleClass('is-active'); });
+				}
+			});
+		}
+
+		network.on('selectNode', ev => {
+			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + ev.nodes.join(';'), data => {
+				$('#host-info-box').empty();
+
+				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
+				fill_host_info_box(cont, data, true);
+
+				// Modal: Hosts History
+				$('#modal-hosts-history', cont).append('<div class="modal"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">History of: ?</p><button class="delete" aria-label="close"></button></header><section class="modal-card-body"><div class="columns"><div class="column col-left"><div class="message-body">left</div></div><div class="column col-right"><div class="message-body">right</div></div></div></section><footer class="modal-card-foot"><button class="button">Close</button></footer></div></div>');
+				data.scan_history.forEach(hist => {
+					$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + (new Date(hist.start)).toUTCString() + '</div>');
+				});
+				$('#modal-hosts-history .modal button', cont).on('click', _ev => {
+					$('#modal-hosts-history .modal', cont).toggleClass('is-active');
+				});
+
+				// Fill Hosts-History
+				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
+					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&info=" + ev.nodes.join(';'), hist_data => {
+						$('#modal-hosts-history .modal-card .message-body', cont).empty();
+						$('#modal-hosts-history .modal-card-title', cont).empty();
+						$('#modal-hosts-history .modal-card-title', cont).append('History of: ' + hist_data.ip);
+						fill_host_info_box($('#modal-hosts-history .modal-card .col-left', cont), hist_data, false);
+						fill_host_info_box($('#modal-hosts-history .modal-card .col-right', cont), data, false);
+						$('#modal-hosts-history .modal', cont).toggleClass('is-active');
+					});
+				});
+
+				$('#host-info-box').append(cont);
+			});
+		});
+
+
+	</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+[package]
+name = "db"
+version = "0.1.0"
+edition = "2021"
+authors = [ "Lukas (LukyLuke_ch) Zurschmiede <network-discover@ranta.ch>" ]
+
+[lib]
+name = "db"
+path = "src/lib.rs"
+
+[dependencies]
+sqlite = { path = "../sqlite" }
+
+sqlx = { version = "0.5", features = ["uuid", "chrono"] }
+chrono = { version = "0.4" }
+futures = { version = "0.3" }
+uuid = { version = "1", features = ["serde", "v4"] }
+
+log = { version = "0.4" }

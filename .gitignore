@@ -1,24 +1,16 @@
-# Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
-
-# Distribution / packaging
-.Python
-build/
-dist/
-
-# Custom:
+# Running
 *.log
+*.csv
 *.pdf
-*.gv
-*.sqlite
-*.sqlite-journal
-db/
-gv/
 
-config.ini
-trigger.run
+# Packaging
+package/pkg
+package/*.tar.*
+
+# Rust
+target
+
+# SQLite
+*.lock
+*.sqlite*
+*-swp
