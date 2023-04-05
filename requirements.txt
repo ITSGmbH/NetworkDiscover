@@ -1,3 +1,0 @@
-graphviz
-simple_http_server
-pysqlite3
