@@ -11,7 +11,9 @@ async fn main() -> std::io::Result<()> {
 
 	let config: config::AppConfig = config::get("network_discover".to_string());
 	config::save(&config);
-	let _res = web::run(config).await;
+	if let Err(err) = web::run(config).await {
+		logger::error!("{}", err);
+	}
 
 	logger::info!("Ended network_discover...!");
 	Ok(())

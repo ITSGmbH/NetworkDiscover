@@ -1,7 +1,8 @@
 use actix_web::{get, post, web, App, HttpServer, Result, Responder, HttpResponse};
 use actix_files::{Files, NamedFile};
 use serde::{Serialize, Deserialize};
-use std::{path::PathBuf, sync::Mutex, thread};
+use std::{path::PathBuf, thread};
+use std::sync::{Arc, Mutex};
 
 use network::scan;
 use export::{pdf::Pdf, csv::Csv, unknown_export};
@@ -97,6 +98,7 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 		paused: true,
 		triggered: false,
 	}));
+	let stop_handle = web::Data::new(StopHandle::default());
 
 	let default_ip = "0.0.0.0".to_owned();
 	let default_port = 9090_u16;
@@ -104,25 +106,33 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	let port = &config.listen.as_ref().map(|listen| listen.port.as_ref().unwrap_or(&default_port) ).unwrap_or(&default_port).to_owned();
 	let web_conf = web::Data::new(config.clone());
 
-	HttpServer::new(move || App::new()
-		.app_data(web_conf.clone())
-		.app_data(running.clone())
-		.service(Files::new("/static", "./static").show_files_listing())
-		.service(index)
-		.service(get_networks)
-		.service(get_scans)
-		.service(get_network)
-		.service(get_info)
-		.service(show_status)
-		.service(scan_start)
-		.service(export_scan)
-		.service(load_config)
-		.service(save_config)
-	)
+	let server = HttpServer::new({
+		let inner_stop_handle = stop_handle.clone();
+		move || App::new()
+			.app_data(web_conf.clone())
+			.app_data(running.clone())
+			.app_data(inner_stop_handle.clone())
+			.service(Files::new("/static", "./static").show_files_listing())
+			.service(index)
+			.service(get_networks)
+			.service(get_scans)
+			.service(get_network)
+			.service(get_info)
+			.service(show_status)
+			.service(scan_start)
+			.service(export_scan)
+			.service(load_config)
+			.service(save_config)
+	})
 	.workers(4)
 	.bind(( ip.to_owned(), port.to_owned() ))?
-	.run()
-	.await
+	.run();
+
+	// Register the Server in the Stop-handler
+	stop_handle.register(server.handle());
+
+	// run the server until it stops
+	server.await
 }
 
 #[get("/")]
@@ -322,11 +332,28 @@ async fn load_config(config: web::Data<config::AppConfig>) -> Result<impl Respon
 }
 
 #[post("/api/config")]
-async fn save_config(payload: web::Json<config::SaveConfig>) -> Result<impl Responder> {
-	log::debug!("Save config: {:?}", payload);
+async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::Data<StopHandle>) -> HttpResponse {
 	let conf = config::AppConfig::from(payload.0);
 	config::save(&conf);
-	Ok(web::Json(conf))
+	stop_handle.stop(true);
+	HttpResponse::NoContent().finish()
 }
 
+/// Holds a Serverhandler in a Mutex to stop the HttpServer gracefully
+#[derive(Default)]
+struct StopHandle {
+	inner: Arc<Mutex<Option<actix_web::dev::ServerHandle>>>
+}
+impl StopHandle {
+	/// Register the StopHandle as a ServerHandler
+	pub(crate) fn register(&self, handle: actix_web::dev::ServerHandle) {
+		*self.inner.lock().unwrap() = Some(handle);
+	}
+
+	/// Sends the Stop-Signal to the ServerHandler
+	pub(crate) fn stop(&self, graceful: bool) {
+		#[allow(clippy::let_underscore_future)]
+		let _ = self.inner.lock().unwrap().as_ref().unwrap().stop(graceful);
+	}
+}
 
