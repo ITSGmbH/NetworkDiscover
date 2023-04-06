@@ -1,4 +1,4 @@
-use actix_web::{get, web, App, HttpServer, Result, Responder, HttpResponse};
+use actix_web::{get, post, web, App, HttpServer, Result, Responder, HttpResponse};
 use actix_files::{Files, NamedFile};
 use serde::{Serialize, Deserialize};
 use std::{path::PathBuf, sync::Mutex, thread};
@@ -116,6 +116,8 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 		.service(show_status)
 		.service(scan_start)
 		.service(export_scan)
+		.service(load_config)
+		.service(save_config)
 	)
 	.workers(4)
 	.bind(( ip.to_owned(), port.to_owned() ))?
@@ -312,5 +314,19 @@ async fn export_scan(config: web::Data<config::AppConfig>, export: web::Path<Str
 	Ok(result)
 }
 
+
+#[get("/api/config")]
+async fn load_config(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
+	let conf = config.clone();
+	Ok(web::Json(conf))
+}
+
+#[post("/api/config")]
+async fn save_config(payload: web::Json<config::SaveConfig>) -> Result<impl Responder> {
+	log::debug!("Save config: {:?}", payload);
+	let conf = config::AppConfig::from(payload.0);
+	config::save(&conf);
+	Ok(web::Json(conf))
+}
 
 

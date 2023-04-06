@@ -1,6 +1,18 @@
 use log::{info, warn};
 use confy;
 use serde::{Serialize, Deserialize};
+use std::convert::From;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SaveConfig {
+	pub name: Option<String>,
+	pub repeat: Option<u32>,
+	pub num_threads: Option<u32>,
+	pub device: Option<String>,
+	pub listen: Option<ConnectionStruct>,
+	pub sqlite: Option<DbStruct>,
+	pub targets: Option<Vec<DiscoverStruct>>,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
@@ -9,11 +21,9 @@ pub struct AppConfig {
 	pub num_threads: u32,
 	pub device: Option<String>,
 	pub listen: Option<ConnectionStruct>,
-	pub syslog: Option<ConnectionStruct>,
 	pub sqlite: Option<DbStruct>,
 	pub targets: Vec<DiscoverStruct>,
 }
-
 impl Default for AppConfig {
 	fn default() -> Self {
 		AppConfig {
@@ -22,9 +32,21 @@ impl Default for AppConfig {
 			num_threads: 10,
 			device: None,
 			listen: Default::default(),
-			syslog: Default::default(),
 			sqlite: Default::default(),
 			targets: vec![],
+		}
+	}
+}
+impl From<SaveConfig> for AppConfig {
+	fn from(item: SaveConfig) -> Self {
+		AppConfig {
+			name: item.name.unwrap_or(String::from("LocalNet")),
+			repeat: item.repeat.unwrap_or_default(),
+			num_threads: item.num_threads.unwrap_or(10),
+			device: item.device,
+			listen: item.listen,
+			sqlite: item.sqlite,
+			targets: item.targets.unwrap_or_default(),
 		}
 	}
 }
@@ -114,7 +136,7 @@ pub fn get(name: String) -> AppConfig {
 }
 
 pub fn save(conf: &AppConfig) {
-	match confy::store(conf.name.as_str(), conf) {
+	match confy::store("network_discover", conf) {
 		Ok(_) => {},
 		Err(e) => warn!("Could not save configuration {:?}: {:?}", conf.name, e)
 	}

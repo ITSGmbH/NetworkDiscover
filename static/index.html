@@ -20,6 +20,9 @@
 		#host-info-box {
 			margin-bottom: 0.75rem;
 		}
+		#config .input.full-width { width: 18rem; }
+		#config .input.double-big { width: 13rem; }
+		#config .input.double-small { width: 5rem; }
 		.mouse-pointer {
 			cursor: pointer;
 		}
@@ -49,14 +52,180 @@
 				</div>
 
 				<div class="navbar-end">
+
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Config</span>
-						<fieldset class="navbar-dropdown" id="config"></fieldset>
+						<fieldset class="navbar-dropdown is-right" id="config">
+
+							<div class="navbar-item">
+								<div class="box">
+									<p class="subtitle is-6">System</p>
+									<div class="field">
+										<label class="label is-small">Scan every (hours)</label>
+										<input class="input is-small full-width" placeholder="24" type="number" name="repeat" value="" />
+									</div>
+									<div class="field">
+										<label class="label is-small">Threads to scan</label>
+										<input class="input is-small full-width" placeholder="10" type="number" name="threads" value="" />
+									</div>
+									<div class="field">
+										<label class="label is-small">Device name for auto config</label>
+										<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
+									</div>
+								</div>
+							</div>
+
+							<div class="navbar-item">
+								<div class="box">
+									<p class="subtitle is-6">Configuration</p>
+									<div class="field">
+										<label class="label is-small">Configuration name</label>
+										<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
+									</div>
+									<div class="field">
+										<label class="label is-small">Web-Listener</label>
+										<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
+										<input class="input is-small double-small" type="number" placeholder="9090" name="listen-port" value="" />
+									</div>
+									<div class="field">
+										<label class="label is-small">Database-Path</label>
+										<input class="input is-small full-width" placeholder="" type="text" name="db-path" value="" />
+									</div>
+									<div class="field">
+										<label class="label is-small">Database-URL</label>
+										<input class="input is-small full-width" placeholder="" type="text" name="db-url" value="" />
+									</div>
+								</div>
+							</div>
+
+							<div class="navbar-item">
+								<div class="box" id="config-network">
+									<p class="subtitle is-6">Networks</p>
+
+									<div class="block tabs is-centered">
+										<ul>
+											<li class="is-active" id="config-network-1-tab"><a>#1</a></li>
+											<li id="config-network-2-tab"><a>#2</a></li>
+											<li id="config-network-3-tab"><a>#3</a></li>
+											<li id="config-network-4-tab"><a>#4</a></li>
+											<li id="config-network-5-tab"><a>#5</a></li>
+										</ul>
+									</div>
+
+									<div class="block tabs-block" id="config-network-1">
+										<div class="field">
+											<label class="label is-small">Name</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-1-name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Network/mask</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-1-network" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Maximum Hops</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-1-hops" value="" />
+										</div>
+										<div class="field">
+											<label class="checkbox">
+												<input type="checkbox" name="target-1-extended" value="true" />
+												Extended Scan
+											</label>
+										</div>
+									</div>
+									<div class="block tabs-block is-hidden" id="config-network-2">
+										<div class="field">
+											<label class="label is-small">Name</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-2-name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Network/mask</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-2-network" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Maximum Hops</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-2-hops" value="" />
+										</div>
+										<div class="field">
+											<label class="checkbox">
+												<input type="checkbox" name="target-2-extended" value="true" />
+												Extended Scan
+											</label>
+										</div>
+									</div>
+									<div class="block tabs-block is-hidden" id="config-network-3">
+										<div class="field">
+											<label class="label is-small">Name</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-3-name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Network/mask</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-3-network" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Maximum Hops</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-3-hops" value="" />
+										</div>
+										<div class="field">
+											<label class="checkbox">
+												<input type="checkbox" name="target-3-extended" value="true" />
+												Extended Scan
+											</label>
+										</div>
+									</div>
+									<div class="block tabs-block is-hidden" id="config-network-4">
+										<div class="field">
+											<label class="label is-small">Name</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-4-name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Network/mask</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-4-network" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Maximum Hops</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-4-hops" value="" />
+										</div>
+										<div class="field">
+											<label class="checkbox">
+												<input type="checkbox" name="target-4-extended" value="true" />
+												Extended Scan
+											</label>
+										</div>
+									</div>
+									<div class="block tabs-block is-hidden" id="config-network-5">
+										<div class="field">
+											<label class="label is-small">Name</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-5-name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Network/mask</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-5-network" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Maximum Hops</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="target-5-hops" value="" />
+										</div>
+										<div class="field">
+											<label class="checkbox">
+												<input type="checkbox" name="target-5-extended" value="true" />
+												Extended Scan
+											</label>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<div class="navbar-item">
+								<button class="button is-primary" id="config-save">Save</button>
+							</div>
+						</fieldset>
 					</div>
+
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Network</span>
 						<div class="navbar-dropdown" id="networks"></div>
 					</div>
+
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Scan</span>
 						<div class="navbar-dropdown is-right" id="scans"></div>
@@ -211,37 +380,78 @@
 				console.error("Error while loading Networks.");
 			});
 
-			$.getJSON("/config/load", data => {
-				$('#config').empty();
-				$.each(data.config, function(key, val) {
-					val = val == 'None' ? null : val;
-					val = val == 'true' ? true : val;
-					val = val == 'false' ? false : val;
-					
-					field = '<input class="input" type="text" value="' + (val == null ? '' : val) + '" placeholder="' + key + '" name="' + key + '" style="width:220px;"/>';
-					if (typeof(val) == 'boolean') {
-						field = '<input type="checkbox" value="true" name="' + key + '" ' + (val ? 'checked' : '') + '/>';
-					} else if (typeof(val) == 'number') {
-						field = '<input class="input" type="number" value="' + (val == null ? '0' : val) + '" placeholder="' + key + '" name="' + key + '" style="width:220px;"/>';
-					}
-
-					$('#config').append('<div class="navbar-item"><div class="field"><label class="label">' + key + '</label><div class="control">' + field + '</div></div></div>');
+			$('#config-network .tabs li').each(function(_, elem) {
+				elem = $(elem);
+				elem.on('click', ev => {
+					$('#config-network .tabs li').removeClass('is-active');
+					$('#config-network .tabs-block').removeClass('is-hidden').addClass('is-hidden');
+					elem.addClass('is-active');
+					$('#' + elem.attr('id').replace('-tab', '')).removeClass('is-hidden');
 				});
-				$('#config').append('<div class="navbar-item"><div class="field"><div class="control"><button class="button is-primary">Save</button></div></div></div>');
-				$('#config button').on('click', function() {
-					$('#config').attr('disabled', 'disabled');
-					save_data = {};
-					$('#config input').each(function(_, field) {
-						field = $(field);
-						if (field.attr('type') == 'checkbox') field.val(field.prop('checked'));
-						save_data[field.attr('name')] = field.val();
+			});
+
+			$.getJSON("/api/config", data => {
+				$('#config [name="repeat"]').prop('value', data.repeat);
+				$('#config [name="threads"]').prop('value', data.num_threads);
+				$('#config [name="interface"]').prop('value', data.device);
+				$('#config [name="name"]').prop('value', data.name);
+				if (data.listen) {
+					$('#config [name="listen-ip"]').prop('value', data.listen.ip);
+					$('#config [name="listen-port"]').prop('value', data.listen.port);
+				}
+				if (data.sqlite) {
+					$('#config [name="db-path"]').prop('value', data.sqlite.file);
+					$('#config [name="db-url"]').prop('value', data.sqlite.url);
+				}
+				if (data.targets && data.targets.forEach) {
+					data.targets.forEach((v, k) => {
+						idx = k + 1;
+						$('#config [name="target-' + idx + '-name"]').prop('value', v.target.name);
+						$('#config [name="target-' + idx + '-network"]').prop('value', v.target.ip + '/' + v.target.mask);
+						$('#config [name="target-' + idx + '-hops"]').prop('value', v.max_hops);
+						$('#config [name="target-' + idx + '-extended"]').prop('checked', v.extended);
 					});
-					$.ajax("/config/save", {
+				}
+
+				$('#config-save').on('click', function() {
+					$('#config-save').attr('disabled', 'disabled');
+					config = {
+						name: $('#config [name="name"]').prop('value').trim() ? $('#config [name="name"]').prop('value').trim() : null,
+						repeat: $('#config [name="repeat"]').prop('value').trim() ? parseInt($('#config [name="repeat"]').prop('value')) : null,
+						num_threads: $('#config [name="threads"]').prop('value').trim() ? parseInt($('#config [name="threads"]').prop('value')) : null,
+						device: $('#config [name="interface"]').prop('value').trim() ? $('#config [name="interface"]').prop('value').trim() : null,
+						listen: $('#config [name="listen-ip"]').prop('value').trim() ? {
+						 ip: $('#config [name="listen-ip"]').prop('value').trim(),
+						 port: parseInt($('#config [name="listen-port"]').prop('value')),
+						} : null,
+						sqlite: $('#config [name="db-path"]').prop('value').trim() || $('#config [name="db-url"]').prop('value').trim() ? {
+						 file: $('#config [name="db-path"]').prop('value').trim() ? $('#config [name="db-path"]').prop('value').trim() : null,
+						 url: $('#config [name="db-url"]').prop('value').trim() ? $('#config [name="db-url"]').prop('value').trim() : null,
+						} : null,
+						targets: [],
+					};
+					[1,2,3,4,5].forEach(idx => {
+						var id = "target-" + idx;
+						if ($('#config [name="' + id + '-name"]').prop('value').trim()) {
+							var nw = $('#config [name="' + id + '-network"]').prop('value').trim().split("/");
+							config.targets[idx-1] = {
+								extended: $('#config [name="' + id + '-extended"]').prop('checked'),
+								max_hops: parseInt($('#config [name="' + id + '-hops"]').prop('value')),
+								target: {
+									name: $('#config [name="' + id + '-name"]').prop('value').trim(),
+									ip: nw[0].trim(),
+									mask: parseInt(nw[1]),
+								}
+							};
+						}
+					});
+
+					$.ajax("/api/config", {
 						type: 'POST',
 						contentType: 'application/json',
-						data: JSON.stringify(save_data),
+						data: JSON.stringify(config),
 						success: function(resp) {
-							setTimeout(function() {$('#config').removeAttr('disabled');}, 1500);
+							setTimeout(function() {$('#config-save').removeAttr('disabled');}, 1500);
 						},
 					});
 				});
