@@ -31,6 +31,7 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 * Better Network Map visualization ( https://d3js.org/ / https://observablehq.com/@d3/force-directed-tree / https://mermaid.js.org/ )
 * Scan a host individually (predefined nmap params or individual?)
 * ARM-Packages and installation images
+* Enterprise-Vulners API with `vulners_enterprise.nse` and a custom API-Key
 * ...
 
 ### Maybe Features
@@ -70,7 +71,7 @@ Or configure it via *--env DATA_DIR="/some/other/path"* for the database and *--
 **For now:** Clone the repository on a RaspberryPi, BananaPi or wherever, install rust and compile it.
 Then use the *package/network_discover.service* file to start it via systemd.
 Add the `Environment="DATA_PATH=/data CONFIG_FILE=/data/config.toml"` to the `[Service]` section.
-Build *Network Discover* via `cargo build --release` and copy the binary `target/release/network_discover` and the folder `static` to `/opt/network_discover/` or change the path in the service-file.
+Build *Network Discover* via `cargo build --release` and copy the binary `target/release/network_discover` and the folder `static` to `/opt/network_discover/` or change the path in the service-file. Download the *vulners.nse* scripts from [github.com/vulnersCom/nmap-vulners/](https://github.com/vulnersCom/nmap-vulners/raw/master/vulners.nse) and install them manually in */usr/share/nmap/scripts/*.
 
 **Future:** A special image will be provided in the releases for direct install and update.
 
