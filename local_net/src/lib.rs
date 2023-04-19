@@ -190,7 +190,7 @@ mod discover_impl {
 			let lines = String::from_utf8(output.unwrap().stdout).unwrap();
 			let default_routes: Vec<Vec<&str>> = lines.lines().filter(|line| line.starts_with("default")).map(|line| line.trim().split_whitespace().collect()).collect();
 			let direct_routes = lines.lines().filter(|line| !line.starts_with("default"));
-			
+
 			for line in direct_routes {
 				let line_parts = line.trim().split_whitespace().collect::<Vec<&str>>();
 				let mut parts = line_parts.iter();
@@ -210,15 +210,17 @@ mod discover_impl {
 						&"metric" => { route.metric = (*next_part.unwrap()).parse::<u16>().unwrap(); }
 						&"src" => {
 							let cur = *next_part.unwrap();
+							// if there is only one default route, the "src x.x.x.x" may be missing so the first one is the default route
+							route.is_default = default_routes.len() == 1;
 							route.link = Some(IpAddr::from_str(cur).unwrap());
-							route.is_default = false;
 
 							for r in &default_routes {
 								let mut via = "";
 								let mut defs = r.iter();
 								while let Some(def) = defs.next() {
-									if def == &"via" { via = *defs.next().unwrap(); }
-									else if def == &"src" && via != "" && defs.next().unwrap() == &cur {
+									if def == &"via" {
+										via = *defs.next().unwrap();
+									} else if def == &"src" && via != "" && defs.next().unwrap() == &cur {
 										route.router = Some(IpAddr::from_str(via).unwrap());
 										route.is_default = true;
 									}
@@ -232,7 +234,6 @@ mod discover_impl {
 						_ => {}
 					}
 				}
-
 				result.push(route);
 			}
 		}
