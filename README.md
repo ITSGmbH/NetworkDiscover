@@ -20,16 +20,17 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 * Checks every running service for known Vulnerabilities (via vulners)
 * Scans can run manually or automatically every given timespan
 * CSV Export of a single scan
+* PDF Reporting
+* Shows a diff between two (or more?) scans
 
 ### Planned Features
 
 * Detect new Hosts based on DHCP and SLAAC messages
-* Shows a diff between two (or more?) scans
 * Scan Windows Systems for NetBios and other vulnerabilities (enum4linux?)
 * SNMP information gathering and display
 * Better Network Map visualization ( https://d3js.org/ / https://observablehq.com/@d3/force-directed-tree )
-* PDF Reporting
 * Scan a host individually (predefined nmap params or individual?)
+* ARM-Packages and installation images
 * ...
 
 ### Maybe Features
@@ -37,6 +38,39 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 * Smoke-Ping similar connectivity test
 * Split it up into Server part and a library to be usable as WASM maybe
 * ...
+
+## Run
+
+There are two environment variables available:
+
+* **CONFIG_FILE** *(./config.toml)* Path and name of the config file.
+* **DATA_DIR** *(./)* Path where to store the database/sqlite if not configured.
+
+### Run it locally from source:
+
+```bash
+$ cargo run
+# or
+$ cargo build --release
+$ target/release/network_discover
+```
+
+### Run it in a container:
+
+```bash
+$ podman build -t its-nwd:0.0.1 -f Dockerfile .
+$ podman run -v /tmp/nwd:/data  -p 9191:9090 --network podman --name its-nwd --replace localhost/its-nwd:0.0.1
+```
+
+Use the Volume */data* to persist the database.
+Or configure it via *--env DATA_DIR="/some/other/path"* for the database and *--env CONFIG_FILE="/some/other/path/config.toml"* for the configuration.
+
+### Run it on an embed device:
+
+**For now:** Clone the repository on a RaspberryPi, BananaPi or wherever, install rust and compile it.
+Then use the *package/network_discover.service* file to start it via system.d.
+
+**Future:** A special image will be provided in the releases for direct install and update.
 
 
 ## Configuration
@@ -98,3 +132,5 @@ protocol = 'UDP'
 * **mask** _(int32)_: Netmask as CIDR for the above network address
 * **port** _(int32)_: Port to use for check if a host is alive
 * **protocol** _(string)_: Protocol (TCP, UDP) to use for check if a host is alive
+
+

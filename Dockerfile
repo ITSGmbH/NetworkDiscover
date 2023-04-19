@@ -13,6 +13,12 @@ RUN echo -e "Cmnd_Alias NMAP = /usr/bin/nmap\nALL ALL=(ALL) NOPASSWD: NMAP" > /e
 ADD https://raw.githubusercontent.com/vulnersCom/nmap-vulners/master/vulners.nse /usr/share/nmap/scripts/vulners.nse
 ADD https://raw.githubusercontent.com/vulnersCom/nmap-vulners/master/vulners_enterprise.nse /usr/share/nmap/scripts/vulners_enterprise.nse
 
+RUN mkdir /data
+VOLUME /data
+
+ENV CONFIG_FILE "/data/config.toml"
+ENV DATA_DIR "/data"
+
 RUN mkdir /opt/nwd
 COPY --from=builder /usr/local/cargo/bin/network_discover /opt/nwd/network_discover
 COPY --from=builder /usr/src/nwd/static /opt/nwd/static
