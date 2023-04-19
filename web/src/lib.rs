@@ -1,7 +1,7 @@
 use actix_web::{get, post, web, App, HttpServer, Result, Responder, HttpResponse};
 use actix_files::{Files, NamedFile};
 use serde::{Serialize, Deserialize};
-use std::{path::PathBuf, thread};
+use std::{path::PathBuf, thread, io};
 use std::sync::{Arc, Mutex};
 
 use network::scan;
@@ -132,7 +132,18 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	stop_handle.register(server.handle());
 
 	// run the server until it stops
-	server.await
+	let res = server.await;
+
+	// In case the server was stopped gracefully, we restart it in main
+	// Otherwise (SIGINT for example) the server is stopped
+	let stopped = stop_handle.stopped.lock().unwrap();
+	match *stopped {
+		true => Err(io::Error::new(
+				io::ErrorKind::ConnectionReset,
+				"gracefully stopped",
+			)),
+		_ => res
+	}
 }
 
 #[get("/")]
@@ -336,24 +347,27 @@ async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::D
 	let conf = config::AppConfig::from(payload.0);
 	config::save(&conf);
 	stop_handle.stop(true);
-	HttpResponse::NoContent().finish()
+	HttpResponse::Ok().body("reload")
 }
 
 /// Holds a Serverhandler in a Mutex to stop the HttpServer gracefully
 #[derive(Default)]
 struct StopHandle {
-	inner: Arc<Mutex<Option<actix_web::dev::ServerHandle>>>
+	inner: Arc<Mutex<Option<actix_web::dev::ServerHandle>>>,
+	stopped: Arc<Mutex<bool>>,
 }
 impl StopHandle {
 	/// Register the StopHandle as a ServerHandler
 	pub(crate) fn register(&self, handle: actix_web::dev::ServerHandle) {
 		*self.inner.lock().unwrap() = Some(handle);
+		*self.stopped.lock().unwrap() = false;
 	}
 
 	/// Sends the Stop-Signal to the ServerHandler
 	pub(crate) fn stop(&self, graceful: bool) {
 		#[allow(clippy::let_underscore_future)]
 		let _ = self.inner.lock().unwrap().as_ref().unwrap().stop(graceful);
+		*self.stopped.lock().unwrap() = true;
 	}
 }
 

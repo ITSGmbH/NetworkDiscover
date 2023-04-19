@@ -1,7 +1,8 @@
 use log::{info, warn};
 use confy;
 use serde::{Serialize, Deserialize};
-use std::convert::From;
+use std::{env, convert::From};
+use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SaveConfig {
@@ -53,14 +54,22 @@ impl From<SaveConfig> for AppConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DbStruct {
-	pub file: String,
-	pub url: String,
+	pub file: Option<String>,
+	pub url: Option<String>,
 }
 impl Default for DbStruct {
 	fn default() -> Self {
 		DbStruct{
-			file: "".to_string(),
-			url: "".to_string(),
+			file: {
+				let mut path = env::var("DATA_DIR").unwrap_or_else(|_| String::from("."));
+				let path_buf = env::current_exe().unwrap_or(PathBuf::from("db"));
+				let name = path_buf.file_name().unwrap_or(std::ffi::OsStr::new("db")).to_str().unwrap_or("db");
+				path.push(std::path::MAIN_SEPARATOR);
+				path.push_str(name);
+				path.push_str(".sqlite");
+				Some(path)
+			},
+			url: None,
 		}
 	}
 }
@@ -122,13 +131,26 @@ impl ConnectionStruct {
 	}
 }
 
+fn get_config_file() -> PathBuf {
+	let name = env::var("CONFIG_FILE").unwrap_or_else(|_| {
+		let dir = env::var("DATA_DIR").unwrap_or_else(|_| String::from("./"));
+		let path = PathBuf::from(dir).canonicalize().unwrap_or(PathBuf::from("/tmp"));
+		let mut conf = String::from(path.to_str().unwrap());
+		conf.push(std::path::MAIN_SEPARATOR);
+		conf.push_str("config.toml");
+		conf
+	});
+	[name].iter().collect()
+}
 
-pub fn get(name: String) -> AppConfig {
-	info!("Loading configuration {:?}", name);
-	let cfg: AppConfig = match confy::load(name.as_str()) {
+pub fn get() -> AppConfig {
+	let path = get_config_file();
+	info!("Loading configuration {:?}", path);
+
+	let cfg: AppConfig = match confy::load_path(&path) {
 		Ok(v) => v,
 		Err(e) => {
-			warn!("No configuration found for {:?}: {:?}", name, e);
+			warn!("No configuration found for {:?}: {:?}", path, e);
 			Default::default()
 		}
 	};
@@ -136,8 +158,11 @@ pub fn get(name: String) -> AppConfig {
 }
 
 pub fn save(conf: &AppConfig) {
-	match confy::store("network_discover", conf) {
+	let path = get_config_file();
+	info!("Save configuration {:?}", path);
+
+	match confy::store_path(&path, conf) {
 		Ok(_) => {},
-		Err(e) => warn!("Could not save configuration {:?}: {:?}", conf.name, e)
+		Err(e) => warn!("Could not save configuration {:?}: {:?}", path, e)
 	}
 }
