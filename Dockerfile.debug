@@ -1,0 +1,12 @@
+FROM archlinux:base
+
+RUN pacman -Syu --noconfirm && pacman -S --noconfirm openssl nmap sudo && pacman -Sc --noconfirm
+RUN echo -e "Cmnd_Alias NMAP = /usr/bin/nmap\nALL ALL=(ALL) NOPASSWD: NMAP" > /etc/sudoers.d/nmap
+
+WORKDIR /opt/nwd
+COPY target/debug/network_discover .
+COPY static static
+
+WORKDIR /opt/nwd
+CMD [ "./network_discover" ]
+#CMD [ "bash" ]
