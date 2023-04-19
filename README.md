@@ -28,7 +28,7 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 * Detect new Hosts based on DHCP and SLAAC messages
 * Scan Windows Systems for NetBios and other vulnerabilities (enum4linux?)
 * SNMP information gathering and display
-* Better Network Map visualization ( https://d3js.org/ / https://observablehq.com/@d3/force-directed-tree )
+* Better Network Map visualization ( https://d3js.org/ / https://observablehq.com/@d3/force-directed-tree / https://mermaid.js.org/ )
 * Scan a host individually (predefined nmap params or individual?)
 * ARM-Packages and installation images
 * ...
