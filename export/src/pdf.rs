@@ -16,7 +16,7 @@ pub struct Pdf<'a> {
 	font_bold: IndirectFontRef,
 	max_bottom: f64,
 	min_bottom: f64,
-	max_left: f64,
+	_max_left: f64,
 	min_left: f64,
 }
 
@@ -68,7 +68,7 @@ impl Pdf<'_> {
 			font_bold: doc.add_builtin_font(printpdf::BuiltinFont::HelveticaBold).unwrap(), // doc.add_external_font(&mut font_bold_reader).unwrap(),
 			max_bottom:  260.0,
 			min_bottom: 20.0,
-			max_left: 190.0,
+			_max_left: 190.0,
 			min_left: 20.0,
 		};
 
