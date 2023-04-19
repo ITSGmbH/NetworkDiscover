@@ -70,14 +70,14 @@ Or configure it via *--env DATA_DIR="/some/other/path"* for the database and *--
 **For now:** Clone the repository on a RaspberryPi, BananaPi or wherever, install rust and compile it.
 Then use the *package/network_discover.service* file to start it via systemd.
 Add the `Environment="DATA_PATH=/data CONFIG_FILE=/data/config.toml"` to the `[Service]` section.
-Build *Network Discover* via `cargo build --release` and copy the binary to `/opt/network_discover/network_discover` or change the path in the service-file.
+Build *Network Discover* via `cargo build --release` and copy the binary `target/release/network_discover` and the folder `static` to `/opt/network_discover/` or change the path in the service-file.
 
 **Future:** A special image will be provided in the releases for direct install and update.
 
 
 ## Configuration
 
-The Configuration is created automaticall on first start. I is stored under `/.config/network_discover/network_discover.toml`
+The Configuration is created automaticall on first start. I is stored under `./config.toml`
 
 ```toml
 name = 'LocalNet'

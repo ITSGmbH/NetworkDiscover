@@ -19,7 +19,7 @@ $ cp static/* /opt/network_discover/static/
 
 ```bash
 $ cp network_discover.service /etc/systemd/system/
-$ chmod +x /etc/systemd/system/network_discover.service
+$ chmod -x /etc/systemd/system/network_discover.service
 $ systemctl enable network_discover
 $ systemctl start network_discover
 ```

@@ -20,7 +20,7 @@ cp ../LICENSE pkg/opt/network_discover/ &>/dev/null
 cp ../README.md pkg/opt/network_discover/ &>/dev/null
 
 chmod +x pkg/opt/network_discover/network_discover &>/dev/null
-chmod +x pkg/etc/systemd/system/network_discover.service &>/dev/null
+chmod -x pkg/etc/systemd/system/network_discover.service &>/dev/null
 
 ARCHIVE="network_discover-${VERSION}.tar.xz"
 rm ${ARCHIVE} &>/dev/null
