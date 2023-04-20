@@ -1,9 +1,11 @@
 use actix_web::{get, post, web, App, HttpServer, Result, Responder, HttpResponse};
 use actix_files::{Files, NamedFile};
 use serde::{Serialize, Deserialize};
-use std::{path::PathBuf, thread, io};
+use std::{path::PathBuf, thread, time, io};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 
+use log::info;
 use network::scan;
 use export::{pdf::Pdf, csv::Csv, unknown_export};
 
@@ -18,6 +20,21 @@ struct ScanStatusResponse {
 	running: bool,
 	paused: bool,
 	triggered: bool,
+}
+
+enum ScanStatus {
+	Started,
+	Running,
+}
+impl From<ScanStatus> for String {
+	fn from(val: ScanStatus) -> Self {
+		String::from(
+			match val {
+				ScanStatus::Started => "Started",
+				ScanStatus::Running => "Running",
+			}
+		)
+	}
 }
 
 #[derive(Serialize)]
@@ -106,11 +123,14 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	let port = &config.listen.as_ref().map(|listen| listen.port.as_ref().unwrap_or(&default_port) ).unwrap_or(&default_port).to_owned();
 	let web_conf = web::Data::new(config.clone());
 
+	info!("Starting Webserver: {}:{}", ip, port);
+
 	let server = HttpServer::new({
 		let inner_stop_handle = stop_handle.clone();
+		let inner_running = running.clone();
 		move || App::new()
 			.app_data(web_conf.clone())
-			.app_data(running.clone())
+			.app_data(inner_running.clone())
 			.app_data(inner_stop_handle.clone())
 			.service(Files::new("/static", "./static").show_files_listing())
 			.service(index)
@@ -131,8 +151,46 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	// Register the Server in the Stop-handler
 	stop_handle.register(server.handle());
 
+	// Start a thread for recurring scans
+	let recurring_stop = Arc::new(AtomicBool::new(false));
+	let recurring = thread::spawn({
+		let recurring_stop = recurring_stop.clone();
+		let recurring_sleep = config.repeat as u64 * 3600;
+		let recurring_conf = config.clone();
+		let recurring_running = running.clone();
+
+		if recurring_sleep <= 0 {
+			info!("Recurring scan not enabled, value is '0'");
+			recurring_stop.store(true, Ordering::Relaxed);
+		}
+
+		move || {
+			info!("Start recurring scan every {}s", recurring_sleep);
+			let mut cnt = 0;
+			loop {
+				 if recurring_stop.load(Ordering::Relaxed) {
+					 break;
+				 }
+				cnt += 1;
+				thread::sleep(time::Duration::from_secs(1));
+				if cnt > recurring_sleep {
+					cnt = 0;
+					info!("Recurring scan triggered after {}s", recurring_sleep);
+					let inner_running = recurring_running.clone();
+					let res = start_scan_thread(recurring_conf.clone(), inner_running.into_inner());
+					info!("Recurring scan: {}", String::from(res));
+				}
+			}
+			info!("Recurring scan stopped");
+		}
+	});
+
 	// run the server until it stops
 	let res = server.await;
+
+	// If the server has stopped, stop the recurring scans
+	recurring_stop.store(true, Ordering::Relaxed);
+	let _ = recurring.join();
 
 	// In case the server was stopped gracefully, we restart it in main
 	// Otherwise (SIGINT for example) the server is stopped
@@ -144,6 +202,37 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 			)),
 		_ => res
 	}
+}
+
+/// Starts a scan in a new thread if there is no scan running at the moment
+///
+/// # Arguments:
+///
+/// * `conf` - Application Configuration
+/// * `running` - Scan-Status Struct
+///
+/// # Result
+///
+/// Status if a scan was started or already running
+fn start_scan_thread(config: config::AppConfig, running: Arc<Mutex<ScanStatusResponse>>) -> ScanStatus {
+	let inner_running = running.clone();
+	let res = match (*inner_running.lock().unwrap()).running {
+		true => ScanStatus::Running,
+		false => {
+			thread::spawn(move|| {
+				let inner_running = running.clone();
+				let conf = config.clone();
+				(*inner_running.lock().unwrap()).running = true;
+				(*inner_running.lock().unwrap()).paused = false;
+				let local = local_net::discover(&conf.device);
+				scan::full(&conf, &local);
+				(*inner_running.lock().unwrap()).running = false;
+				(*inner_running.lock().unwrap()).paused = true;
+			});
+			ScanStatus::Started
+		}
+	};
+	res
 }
 
 #[get("/")]
@@ -187,7 +276,6 @@ async fn get_scans(config: web::Data<config::AppConfig>, args: web::Query<ScanRe
 			end: format!("{}", s.end_time.format("%Y-%m-%d %H:%M:%S")),
 		})
 		.collect::<Vec<ScanResponse>>();
-
 	Ok(web::Json(response))
 }
 
@@ -206,7 +294,6 @@ async fn get_network(config: web::Data<config::AppConfig>, args: web::Query<Netw
 				.map(|host| map_network_db_results(&mut db, &host, &(args.scan - 1), true))
 				.collect::<Vec<NetworkResponse>>()
 		);
-
 	Ok(web::Json(result))
 }
 
@@ -277,7 +364,7 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 						.map(|cve| CveInfoResponse {
 							id: cve.type_id.clone(),
 							database: cve.type_name.clone(),
-							cvss: cve.cvss.clone(),
+							cvss: cve.cvss,
 							exploit: cve.is_exploit == "true" || cve.is_exploit == "TRUE",
 						})
 						.collect(),
@@ -285,31 +372,19 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 			})
 			.collect(),
 	}));
-
 	Ok(web::Json(result))
 }
 
 #[get("/api/scan_now")]
 async fn scan_start(config: web::Data<config::AppConfig>, running: web::Data<Mutex<ScanStatusResponse>>) -> Result<impl Responder> {
-	let mut message = "running";
-	if !(*running.lock().unwrap()).running {
-		let conf = config.clone();
-		thread::spawn(move|| {
-			(*running.lock().unwrap()).running = true;
-			(*running.lock().unwrap()).paused = false;
-			let local = local_net::discover(&conf.device);
-			scan::full(&conf, &local);
-			(*running.lock().unwrap()).running = false;
-			(*running.lock().unwrap()).paused = true;
-		});
-		message = "started";
-	}
+	let res = start_scan_thread(config.get_ref().clone(), running.into_inner());
+	let res = String::from(res);
+	info!("Scan triggered: {}", String::from(&res));
 
-	let response = StateResponse {
+	Ok(web::Json(StateResponse {
 		network: String::from(&config.name),
-		state: String::from(message),
-	};
-	Ok(web::Json(response))
+		state: res,
+	}))
 }
 
 #[get("/export/{export}")]
