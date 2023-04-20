@@ -1,6 +1,8 @@
+use log::error;
 use chrono::prelude::Local;
-use String;
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::prelude::*;
 use printpdf::{
 	pdf_document::PdfDocumentReference, Mm,
 	PdfDocument, IndirectFontRef, PdfPageIndex, PdfLayerIndex, PdfLayerReference,
@@ -57,15 +59,21 @@ impl Pdf<'_> {
 	/// The PDF as a binary string which can be saved to a file or presented as a stream to a browser
 	pub fn export(db: &mut sqlite::Database, network: String, scan: i64) -> String {
 		let (doc, page, layer) = PdfDocument::new("Network-Scan ".to_string() + &scan.to_string(), Mm(210.0), Mm(297.0), "Page 1");
-		//let mut font_regular_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Light.ttf").as_ref());
-		//let mut font_bold_reader = std::io::Cursor::new(include_bytes!("../assets/Roboto-Black.ttf").as_ref());
+		let font_regular_reader = File::open("static/assets/Roboto-Light.ttf");
+		let font_bold_reader = File::open("static/assets/Roboto-Black.ttf");
 
 		let mut pdf = Pdf {
 			db,
 			network: &network,
 			scan: &scan,
-			font_regular: doc.add_builtin_font(printpdf::BuiltinFont::Helvetica).unwrap(), // doc.add_external_font(&mut font_regular_reader).unwrap(),
-			font_bold: doc.add_builtin_font(printpdf::BuiltinFont::HelveticaBold).unwrap(), // doc.add_external_font(&mut font_bold_reader).unwrap(),
+			font_regular: match font_regular_reader {
+				Ok(font) => doc.add_external_font(font).unwrap(),
+				Err(_why) => doc.add_builtin_font(printpdf::BuiltinFont::Helvetica).unwrap(),
+			},
+			font_bold: match font_bold_reader {
+				Ok(font) => doc.add_external_font(font).unwrap(),
+				Err(_why) => doc.add_builtin_font(printpdf::BuiltinFont::HelveticaBold).unwrap(),
+			},
 			max_bottom:  260.0,
 			min_bottom: 20.0,
 			_max_left: 190.0,
@@ -90,14 +98,18 @@ impl Pdf<'_> {
 	fn create_title_page(&mut self, doc: &PdfDocumentReference, page_index: &PdfPageIndex, layer_index: &PdfLayerIndex) {
 		let layer = doc.get_page(*page_index).get_layer(*layer_index);
 
-		let svg_logo = Svg::parse(include_str!("../assets/logo.svg").as_ref()).unwrap();
-		svg_logo.add_to_layer(&layer, SvgTransform {
-			translate_x: Some(Mm(70.0).into()),
-			translate_y: Some(Mm(230.0).into()),
-			scale_x: Some(3.0),
-			scale_y: Some(3.0),
-			.. Default::default()
-		});
+		match Self::get_svg("static/assets/logo.svg") {
+			None => {}
+			Some(svg) => {
+				svg.add_to_layer(&layer, SvgTransform {
+					translate_x: Some(Mm(70.0).into()),
+					translate_y: Some(Mm(230.0).into()),
+					scale_x: Some(3.0),
+					scale_y: Some(3.0),
+					.. Default::default()
+				});
+			},
+		}
 
 		layer.use_text("NetworkDiscover".to_string(), 48.0, Mm(40.0), Mm(180.0), &self.font_bold);
 		layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 24.0, Mm(30.0), Mm(110.0), &self.font_bold);
@@ -107,6 +119,33 @@ impl Pdf<'_> {
 			None => "Unknown".to_string()
 		};
 		layer.use_text("Date: ".to_string() + &scan_date, 24.0, Mm(30.0), Mm(95.0), &self.font_regular);
+	}
+
+	/// Loads a file as text and tries to parse it as SVG
+	///
+	/// # Arguments:
+	///
+	/// * `path` - SVG-File to read and parse
+	///
+	/// # Result
+	///
+	/// An SVG object
+	fn get_svg(path: &str) -> Option<Svg> {
+		let mut file = match File::open(path) {
+			Err(why) => { error!("Loading SVG {}: {}", path, why); return None; },
+			Ok(file) => file,
+		};
+
+		let mut svg = String::new();
+		match file.read_to_string(&mut svg) {
+			Err(why) => { error!("Reading SVG {}: {}", path, why); return None; },
+			Ok(_) => { },
+		};
+
+		match Svg::parse(&svg) {
+			Err(why) => { error!("Parsing SVG {}: {}", path, why); None },
+			Ok(svg) => Some(svg),
+		}
 	}
 
 	/// Create a page with the whole network visualized
@@ -374,14 +413,20 @@ impl Pdf<'_> {
 	/// * `layer_index` - Layer index on the page to add the header and footer onto
 	fn add_header_and_footer(&self, doc: &PdfDocumentReference, page_index: &PdfPageIndex, layer_index: &PdfLayerIndex) {
 		let layer = doc.get_page(*page_index).get_layer(*layer_index);
-		let svg_logo = Svg::parse(include_str!("../assets/logo.svg").as_ref()).unwrap();
-		svg_logo.add_to_layer(&layer, SvgTransform {
-			translate_x: Some(Mm(10.0).into()),
-			translate_y: Some(Mm(280.0).into()),
-			scale_x: Some(1.0),
-			scale_y: Some(1.0),
-			.. Default::default()
-		});
+
+		match Self::get_svg("static/assets/logo.svg") {
+			None => {}
+			Some(svg) => {
+				svg.add_to_layer(&layer, SvgTransform {
+					translate_x: Some(Mm(10.0).into()),
+					translate_y: Some(Mm(280.0).into()),
+					scale_x: Some(1.0),
+					scale_y: Some(1.0),
+					.. Default::default()
+				});
+			},
+		}
+
 		layer.use_text("NetworkDiscover Scan: ".to_string() + &self.scan.to_string(), 16.0, Mm(35.0), Mm(281.5), &self.font_bold);
 		layer.use_text(Local::now().format("%Y-%m-%d %H:%M:%S %:z").to_string(), 10.0, Mm(154.5), Mm(6.0), &self.font_regular);
 
@@ -458,21 +503,26 @@ impl Pdf<'_> {
 		let mut check_os = String::from(host);
 		check_os.make_ascii_lowercase();
 		let os_icon = match 1 {
-			_ if { check_os.contains("linux") } => include_str!("../assets/device-linux.svg"),
-			_ if { check_os.contains("microsoft") } => include_str!("../assets/device-windows.svg"),
-			_ if { check_os.contains("macos") } => include_str!("../assets/device-apple.svg"),
-			_ if { check_os.contains("juniper") } => include_str!("../assets/device-firewall.svg"),
-			_ if { check_os.contains("android") || check_os.contains("ios") } => include_str!("../assets/device-mobile.svg"),
-			_ => include_str!("../assets/device-network.svg")
+			_ if { check_os.contains("linux") } => "static/assets/device-linux.svg",
+			_ if { check_os.contains("microsoft") } => "static/assets/device-windows.svg",
+			_ if { check_os.contains("macos") } => "static/assets/device-apple.svg",
+			_ if { check_os.contains("juniper") } => "static/assets/device-firewall.svg",
+			_ if { check_os.contains("android") || check_os.contains("ios") } => "static/assets/device-mobile.svg",
+			_ => "static/assets/device-network.svg"
 		};
-		let svg_logo = Svg::parse(os_icon.as_ref()).unwrap();
-		svg_logo.add_to_layer(&layer, SvgTransform {
-			translate_x: Some(Mm(*from_left).into()),
-			translate_y: Some(Mm(*from_bottom).into()),
-			scale_x: Some(*scale_x),
-			scale_y: Some(*scale_y),
-			.. Default::default()
-		});
+
+		match Self::get_svg(os_icon) {
+			None => {}
+			Some(svg) => {
+				svg.add_to_layer(&layer, SvgTransform {
+					translate_x: Some(Mm(*from_left).into()),
+					translate_y: Some(Mm(*from_bottom).into()),
+					scale_x: Some(*scale_x),
+					scale_y: Some(*scale_y),
+					.. Default::default()
+				});
+			},
+		}
 	}
 
 	/// Adds a filled square as a higlight background
