@@ -26,14 +26,35 @@
 		.mouse-pointer {
 			cursor: pointer;
 		}
+		.legend {
+			position: absolute;
+			z-index: 999;
+			top: 60px;
+			left: 0px;
+			border: 1px solid lightgray;
+			background: white;
+			padding: 0.6rem;
+			padding-bottom: 0;
+			font-size: 0.75rem;
+		}
 		.legend .columns {
 			margin-bottom: 0;
+		}
+		.legend .column {
+			padding: 0.6rem;
+		}
+		.legend .legend-text {
+			white-space: nowrap;
+			width: 6vw;
 		}
 		.legend .legend-entry {
 			border: 1px solid #2B7CE9;
 			border-radius: 50%;
-			width: 24px;
-			height: 24px;
+			width: 16px;
+			height: 16px;
+		}
+		.scan-info {
+			margin: 1rem 0;
 		}
 	</style>
 	</style>
@@ -235,12 +256,9 @@
 		</nav>
 	</section>
 
-	<section class="">
+	<section>
 		<div class="columns">
 			<div class="column is-two-thirds">
-				<div id="networkarea"></div>
-			</div>
-			<div class="column">
 				<div class="legend">
 					<div class="columns is-desktop">
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-normal"></div></div><div class="column legend-text">Normal</div>
@@ -250,6 +268,12 @@
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-changed"></div></div><div class="column legend-text">Changed</div>
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-removed"></div></div><div class="column legend-text">Removed</div>
 					</div>
+				</div>
+				<div id="networkarea"></div>
+			</div>
+			<div class="column">
+				<div class="scan-info">
+					<p><span class="title is-5" id="selected-network"></span> [ <span id="selected-scan"></span> ]</p>
 				</div>
 				<div class="host-info" id="host-info-box"></div>
 				<div class="buttons">
@@ -355,7 +379,13 @@
 
 				scans.forEach((v, k) => {
 					$('#scans').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
-					$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan }, load_network);
+					$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan, time: v.start }, click_ev => {
+						$('#scans .navbar-item').removeClass('is-active');
+						$('#scan-' + click_ev.data.id).addClass('is-active');
+						$('#selected-scan').empty();
+						$('#selected-scan').append(click_ev.data.time);
+						load_network(click_ev);
+					});
 				});
 				$('#scan-' + (scans.length - 1)).trigger('click');
 			});
@@ -372,7 +402,13 @@
 				data.forEach((v, k) => {
 					var name = v.name + ( v.name != "" ? " (" : "" ) + v.network + ( v.name != "" ? ")" : "" );
 					$('#networks').append('<a class="navbar-item" id="network-' + k + '">' + name + '</a>');
-					$('#network-' + k).on('click', { id: k, network: v.network }, load_scans);
+					$('#network-' + k).on('click', { id: k, network: v.network, name: name }, click_ev => {
+						$('#networks .navbar-item').removeClass('is-active');
+						$('#network-' + k).addClass('is-active');
+						$('#selected-network').empty();
+						$('#selected-network').append(click_ev.data.name);
+						load_scans(click_ev);
+					});
 					$('#network-' + k).data('network', v);
 				});
 				$('#network-0').trigger('click');
