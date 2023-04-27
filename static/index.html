@@ -5,7 +5,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta charset="utf-8">
 	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
-	<script type="text/javascript" src="/static/js/vis_network.min.js"></script>
+	<!--script type="text/javascript" src="/static/js/vis_network.min.js"></script-->
+	<script src="https://d3js.org/d3.v7.min.js"></script>
 	<link rel="stylesheet" href="/static/css/bulma.min.css">
 	<link rel="icon" type="image/png" href="/static/img/its_logo.png">
 	<style type="text/css">
@@ -55,6 +56,13 @@
 		}
 		.scan-info {
 			margin: 1rem 0;
+		}
+		svg .node-label tspan {
+			fill-opacity: 0.4;
+		}
+		svg .node-label tspan:first-child {
+			fill-opacity: 1;
+			font-weight: bold;
 		}
 	</style>
 	</style>
@@ -295,7 +303,6 @@
 	</footer>
 
 	<script type="text/javascript">
-		var container = document.getElementById("networkarea");
 		var colors = {
 			normal: '#d2e5ff',
 			first: '#91d782',
@@ -309,7 +316,246 @@
 		document.getElementById("legend-color-changed").style.backgroundColor = colors.changed;
 		document.getElementById("legend-color-removed").style.backgroundColor = colors.removed;
 
+		function prepareGraph(data, scan) {
+			const graph = { nodes: [], edges: [], node_ids: [], root_node: "root" };
+			Object.entries(data).forEach(entry => {
+				const [k, v] = entry;
+				var color = colors.normal;
+				if (v.first_scan > 1 && v.first_scan == scan) { color = colors.first; }
+				if (v.changed_scan > 1 && v.changed_scan == scan - 1) { color = colors.changed; }
+				if (v.is_removed) { color = colors.removed; }
+
+				graph.node_ids.push(v.id);
+				graph.nodes.push({
+					id: v.id,
+					label: v.ip + "\n" + v.os.replace('(', '\n('),
+					background: color,
+					highlight: color,
+					removed: v.is_removed
+				});
+				if (v.nodes.length == 0) { graph.root_node = v.id; }
+				v.nodes.forEach(val => {
+					graph.edges.push({
+						source: v.id,
+						target: parseInt(val)
+					});
+				});
+			});
+			graph.edges.forEach(val => {
+				if (!graph.node_ids.includes(val.target)) {
+					val.target = graph.root_node;
+				}
+			});
+			if (graph.root_node == "root") {
+				graph.nodes.push({
+					id: "root",
+					label: "",
+					background: "#fd8",
+					highlight: "#d81",
+					removed: true
+				});
+			}
+			delete graph.node_ids;
+			return graph;
+		}
+
+		/*
+		function prepareTree(data, scan) {
+			const nodes = {};
+			const node_ids = [];
+			var root_node = "root";
+
+			Object.entries(data).forEach(entry => {
+				const [k, v] = entry;
+				var color = colors.normal;
+				if (v.first_scan > 1 && v.first_scan == scan) { color = colors.first; }
+				if (v.changed_scan > 1 && v.changed_scan == scan - 1) { color = colors.changed; }
+				if (v.is_removed) { color = colors.removed; }
+
+				// Create all nodes without its children
+				node_ids.push(v.id);
+				nodes["" + v.id] = {
+					id: v.id,
+					label: v.ip + "\n" + v.os.replace('(', '\n('),
+					background: color,
+					highlight: color,
+					removed: v.is_removed,
+					children: []
+				};
+				if (v.nodes.length == 0) { root_node = v.id; }
+			});
+
+			// If no possible root node was found
+			if (root_node == "root") {
+				nodes["root"] = {
+					id: "root",
+					label: "",
+					background: "#fd8",
+					highlight: "#d81",
+					removed: true,
+					children: []
+				};
+			}
+
+			// Move nodes into childrens of the parent node
+			Object.entries(data).forEach(entry => {
+				const [k, v] = entry;
+				var id = v.id;
+				v.nodes.forEach(val => {
+					if (!node_ids.includes(val)) {
+						val = root_node;
+					}
+					nodes[val].children.push(nodes[id]);
+				});
+			});
+			return nodes[root_node];
+		}
+		*/
+
+		// d3 test
+		var width  = document.getElementById("networkarea").offsetWidth,
+		    height = document.getElementById("networkarea").offsetHeight,
+		    radius = 20,
+		    labelsize = 12;
+
+		var load_network = ev => {
+			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
+
+				d3.selectAll("#networkarea > *").remove();
+				const svg = d3.select("#networkarea")
+					.append('svg')
+					.attr("viewBox", [ 0, 0, width, height ])
+					.attr("style", "max-width: 100%; height: 100%;");
+
+				/*
+				// Tree-based visualization
+				const treeData = prepareTree(data, ev.data.scan);
+				const tree = d3.tree().size([height, width]);
+				let treeNodes = d3.hierarchy(treeData, d => d.children);
+				tree(treeNodes);
+
+				const nodes = svg.selectAll('circle.node')
+					.data(treeNodes.descendants())
+					.join('circle')
+					.classed('node', true)
+					.attr('cx', d => d.x)
+					.attr('cy', d => d.y)
+					.attr("fill", d => d.data.background)
+					.attr("stroke", d => d.data.highlight)
+					.attr("r", radius);
+
+			// Links
+			const links = svg.append("g")
+				.attr("class", "links")
+				.attr("stroke", "#996666")
+				.attr("stroke-width", 1.5)
+				.selectAll('line.link')
+				.data(treeNodes.links())
+				.join('line')
+				.classed('link', true)
+				.attr("x1", d => d.source.x)
+				.attr("y1", d => d.source.y)
+				.attr("x2", d => d.target.x)
+				.attr("y2", d => d.target.y);
+
+				const labels = nodes.append("text")
+					.style("text-anchor", d => d.children ? "end" : "start")
+					.attr("class", "node-label")
+					.attr("font-size", labelsize + "px")
+					.attr("fill", "black")
+					.attr("y", -(1.4 * labelsize));
+
+				const label_lines = labels
+					.selectAll("tspan")
+					.data(d => d.data.label.split('\n'))
+					.enter()
+						.append("tspan")
+						.text(d => d)
+						.attr("text-anchor", "middle")
+						.attr("x", 0)
+						.attr("dy", labelsize * 1.2);
+				*/
+
+				// Centric-Force based visualization
+				const graph = prepareGraph(data, ev.data.scan);
+				const simulation = d3.forceSimulation()
+					.force("link", d3.forceLink().id(d => d.id).distance(200))
+					.force("charge", d3.forceManyBody().strength(-1000).theta(0.5).distanceMax(500).distanceMin(300))
+					.force("collision", d3.forceCollide().radius(radius * 2))
+					.force("center", d3.forceCenter(width/2, height/2));
+
+				const links = svg.append("g")
+						.attr("class", "links")
+						.attr("stroke", "#996666")
+						.attr("stroke-width", 1.5)
+					.selectAll("line")
+						.data(graph.edges)
+						.enter()
+						.append("line")
+						.attr("class", "link");
+
+				const nodes = svg.append("g")
+						.attr("class", "nodes")
+						.attr("fill", "#fff")
+						.attr("stroke", "#000")
+						.attr("stroke-width", 1.5)
+					.selectAll("circle")
+						.data(graph.nodes)
+						.enter()
+						.append("circle")
+						.attr("class", "node")
+						.attr("fill", d => d.background)
+						.attr("stroke", d => d.highlight)
+						.attr("r", radius)
+					.call(
+						d3.drag()
+							.on("drag", (ev, d) => {
+								d.x = ev.x;
+								d.y = ev.y;
+							})
+					);
+
+				const labels = svg.append("g")
+						.attr("class", "node-labels")
+					.selectAll("text")
+						.data(graph.nodes)
+						.enter()
+						.append("text")
+						.attr("class", "node-label")
+						.attr("font-size", labelsize + "px")
+						.attr("fill", "black");
+
+				const label_lines = labels
+					.selectAll("tspan")
+					.data(d => d.label.split('\n'))
+					.enter()
+						.append("tspan")
+						.text(d => d)
+						.attr("text-anchor", "middle")
+						.attr("x", 0)
+						.attr("dy", labelsize * 1.2);
+
+				nodes.on("click", (datum, n) => selectNode([ n.id ]) );
+				simulation.nodes(graph.nodes).on("tick", updateGraph);
+				simulation.force("link").links(graph.edges);
+
+				function updateGraph() {
+					links
+						.attr("x1", d => d.source.x)
+						.attr("y1", d => d.source.y)
+						.attr("x2", d => d.target.x)
+						.attr("y2", d => d.target.y);
+
+					nodes
+						.attr("cx", d => d.x)
+						.attr("cy", d => d.y);
+					labels
+						.attr("transform", d => "translate(" + (d.x) + "," + (d.y + radius) + ")");
+				}
+
+		/*
 		// VIS-Network documentation: https://visjs.github.io/vis-network/docs/network/
+		var container = document.getElementById("networkarea");
 		var nodes = new vis.DataSet();
 		var edges = new vis.DataSet();
 		var data = {
@@ -324,6 +570,7 @@
 			physics: { enabled: false },
 		};
 		var network = new vis.Network(container, data, options);
+		network.on('selectNode', ev => selectNode(ev.nodes) );
 
 		var load_network = ev => {
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
@@ -345,12 +592,14 @@
 							from: v.id,
 							to: parseInt(val)
 						});
-					})
+					});
 				});
 				nodes.clear();
 				edges.clear()
 				nodes.add(_nodes);
 				edges.add(_edges);
+				*/
+
 				$('#host-info-box').empty();
 				$('#networkarea').data('network', ev.data.network)
 				$('#networkarea').data('scan', ev.data.scan)
@@ -518,7 +767,6 @@
 		});
 
 		function fill_host_info_box(cont, data, with_hist) {
-			console.debug(cont);
 			if (with_hist) {
 				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu"><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
 				$('.message-body', cont).append('<div id="modal-hosts-history"></div>');
@@ -562,8 +810,8 @@
 			});
 		}
 
-		network.on('selectNode', ev => {
-			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + ev.nodes.join(';'), data => {
+		function selectNode(nodes) {
+			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + nodes.join(';'), data => {
 				$('#host-info-box').empty();
 
 				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
@@ -580,7 +828,7 @@
 
 				// Fill Hosts-History
 				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
-					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&info=" + ev.nodes.join(';'), hist_data => {
+					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&info=" + nodes.join(';'), hist_data => {
 						$('#modal-hosts-history .modal-card .message-body', cont).empty();
 						$('#modal-hosts-history .modal-card-title', cont).empty();
 						$('#modal-hosts-history .modal-card-title', cont).append('History of: ' + hist_data.ip);
@@ -592,7 +840,7 @@
 
 				$('#host-info-box').append(cont);
 			});
-		});
+		}
 
 
 	</script>
