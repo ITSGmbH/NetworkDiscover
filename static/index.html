@@ -330,7 +330,8 @@
 					label: v.ip + "\n" + v.os.replace('(', '\n('),
 					background: color,
 					highlight: color,
-					removed: v.is_removed
+					removed: v.is_removed,
+					group: v.id % 4
 				});
 				if (v.nodes.length == 0) { graph.root_node = v.id; }
 				v.nodes.forEach(val => {
@@ -377,9 +378,11 @@
 				const graph = prepareGraph(data, ev.data.scan);
 				const simulation = d3.forceSimulation()
 					.force("link", d3.forceLink().id(d => d.id).distance(200))
-					.force("charge", d3.forceManyBody().strength(-1000).theta(0.5).distanceMax(500).distanceMin(300))
-					.force("collision", d3.forceCollide().radius(radius * 2))
-					.force("center", d3.forceCenter(width/2, height/2));
+					.force("cluster", forceCluster())
+					.force("charge", d3.forceManyBody().strength(-1000))
+					.force("collision", d3.forceCollide().radius(radius * 1.5))
+					.force("center", d3.forceCenter(width/2, height/2))
+					;
 
 				const links = svg.append("g")
 						.attr("class", "links")
@@ -406,10 +409,9 @@
 						.attr("r", radius)
 					.call(
 						d3.drag()
-							.on("drag", (ev, d) => {
-								d.x = ev.x;
-								d.y = ev.y;
-							})
+							.on("start", dragstarted)
+							.on("drag", dragged)
+							.on("end", dragended)
 					);
 
 				const labels = svg.append("g")
@@ -436,6 +438,34 @@
 				simulation.nodes(graph.nodes).on("tick", updateGraph);
 				simulation.force("link").links(graph.edges);
 
+				function centroid(nodes) {
+					let x = 0;
+					let y = 0;
+					let z = 0;
+					for (const d of nodes) {
+						let k = radius ** 2;
+						x += d.x * k;
+						y += d.y * k;
+						z += k;
+					}
+					return {x: x / z, y: y / z};
+				}
+
+				function forceCluster() {
+					let nodes;
+					function force(alpha) {
+						const centroids = d3.rollup(nodes, centroid, d => d.group);
+						const l = alpha * 0.5;
+						for (const d of nodes) {
+							const { x: cx, y: cy } = centroids.get(d.group);
+							d.vx -= (d.x - (cx || 1)) * l;
+							d.vy -= (d.y - (cy || 1)) * l;
+						}
+					}
+					force.initialize = n => nodes = n;
+					return force;
+				}
+
 				function updateGraph() {
 					links
 						.attr("x1", d => d.source.x)
@@ -448,6 +478,27 @@
 						.attr("cy", d => d.y);
 					labels
 						.attr("transform", d => "translate(" + (d.x) + "," + (d.y + radius) + ")");
+				}
+
+				function dragstarted(ev, d) {
+					if (!ev.active) {
+						simulation.alphaTarget(0.3).restart();
+					}
+					d.fx = d.x;
+					d.fy = d.y;
+				}
+
+				function dragged(ev, d) {
+					d.fx = ev.x;
+					d.fy = ev.y;
+				}
+
+				function dragended(ev, d) {
+					if (!ev.active) {
+						simulation.alphaTarget(0);
+					}
+					d.fx = null;
+					d.fy = null;
 				}
 
 				$('#host-info-box').empty();
