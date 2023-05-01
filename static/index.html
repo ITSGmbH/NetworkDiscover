@@ -345,6 +345,18 @@
 			removed: '#eaafa2'
 		};
 
+		function getNodeGroup(val) {
+			val = val.toLowerCase().replace("microsoft", "");
+			if (val.indexOf("android") >= 0) return "mobile";
+			if (val.indexOf("ios") >= 0) return "mobile";
+			if (val.indexOf("linux") >= 0) return "linux";
+			if (val.indexOf("bsd") >= 0) return "bsd";
+			if (val.indexOf("windows server") >= 0) return "server";
+			if (val.indexOf("windows") >= 0) return "windows";
+			if (val.indexOf("unknown") >= 0) return "unknown";
+			return "different";
+		}
+
 		function prepareGraph(data, scan) {
 			const graph = { nodes: [], edges: [], node_ids: [], root_node: "root" };
 			Object.entries(data).forEach(entry => {
@@ -361,7 +373,7 @@
 					background: color,
 					highlight: color,
 					removed: v.is_removed,
-					group: v.id % 4
+					group: getNodeGroup(v.os)
 				});
 				if (v.nodes.length == 0) { graph.root_node = v.id; }
 				v.nodes.forEach(val => {
