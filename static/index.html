@@ -413,47 +413,23 @@
 				const svg = d3.select("#networkarea")
 					.append('svg')
 					.attr("viewBox", [ 0, 0, width, height ])
-					.attr("style", "max-width: 100%; height: 100%;");
+					.attr("style", "max-width: 100%; height: 100%;")
+					.call(d3.zoom()
+						.scaleExtent([0.1, 5])
+						.on("zoom", ev => d3.selectAll('svg g').attr('transform', ev.transform)))
+					.on("dblclick.zoom", null);
 
 				// Centric-Force based visualization
 				const graph = prepareGraph(data, ev.data.scan);
 				const simulation = d3.forceSimulation()
 					.force("link", d3.forceLink().id(d => d.id).distance(200))
 					.force("cluster", forceCluster())
-					.force("charge", d3.forceManyBody().strength(-1000))
+					.force("charge", d3.forceManyBody())
 					.force("collision", d3.forceCollide().radius(radius * 1.5))
-					.force("center", d3.forceCenter(width/2, height/2));
+					.force("center", d3.forceCenter(width/2, height/2))
+					;
 
-				const links = svg.append("g")
-						.attr("class", "links")
-						.attr("stroke", "#996666")
-						.attr("stroke-width", 1.5)
-					.selectAll("line")
-						.data(graph.edges)
-						.enter()
-						.append("line")
-						.attr("class", "link");
-
-				const nodes = svg.append("g")
-						.attr("class", "nodes")
-						.attr("fill", "#fff")
-						.attr("stroke", "#000")
-						.attr("stroke-width", 1.5)
-					.selectAll("circle")
-						.data(graph.nodes)
-						.enter()
-						.append("circle")
-						.attr("class", "node")
-						.attr("fill", d => d.background)
-						.attr("stroke", d => d.highlight)
-						.attr("r", radius)
-					.call(
-						d3.drag()
-							.on("start", dragstarted)
-							.on("drag", dragged)
-							.on("end", dragended)
-					);
-
+				// Labels in lowest layer
 				const labels = svg.append("g")
 						.attr("class", "node-labels")
 					.selectAll("text")
@@ -473,6 +449,39 @@
 						.attr("text-anchor", "middle")
 						.attr("x", 0)
 						.attr("dy", labelsize * 1.2);
+
+				// Links behind Nodes
+				const links = svg.append("g")
+						.attr("class", "links")
+						.attr("stroke", "#996666")
+						.attr("stroke-width", 1.5)
+					.selectAll("line")
+						.data(graph.edges)
+						.enter()
+						.append("line")
+						.attr("class", "link");
+
+				// Nodes in front
+				const nodes = svg.append("g")
+						.attr("class", "nodes")
+						.attr("fill", "#fff")
+						.attr("stroke", "#000")
+						.attr("stroke-width", 1.5)
+					.selectAll("circle")
+						.data(graph.nodes)
+						.enter()
+						.append("circle")
+						.attr("class", "node")
+						.attr("fill", d => d.background)
+						.attr("stroke", d => d.highlight)
+						.attr("r", radius)
+					.call(
+						d3.drag()
+							.on("start", dragstarted)
+							.on("drag", dragged)
+							.on("end", dragended)
+					)
+					.on("dblclick", unfix);
 
 				nodes.on("click", (datum, n) => selectNode([ n.id ]) );
 				simulation.nodes(graph.nodes).on("tick", updateGraph);
@@ -520,12 +529,15 @@
 						.attr("transform", d => "translate(" + (d.x) + "," + (d.y + radius) + ")");
 				}
 
+				function unfix(ev, d) {
+					delete d.fx,
+					delete d.fy,
+					d3.select(this).classed("fixed", false);
+					simulation.alphaTarget(0).restart();
+				}
+
 				function dragstarted(ev, d) {
-					if (!ev.active) {
-						simulation.alphaTarget(0.3).restart();
-					}
-					d.fx = d.x;
-					d.fy = d.y;
+					d3.select(this).classed("fixed", true);
 				}
 
 				function dragged(ev, d) {
@@ -534,11 +546,7 @@
 				}
 
 				function dragended(ev, d) {
-					if (!ev.active) {
-						simulation.alphaTarget(0);
-					}
-					d.fx = null;
-					d.fy = null;
+					simulation.alphaTarget(0.5).restart();
 				}
 
 				$('#host-info-box').empty();
