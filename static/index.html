@@ -40,8 +40,16 @@
 			overflow-y: scroll;
 		}
 
+		.search {
+			position: fixed;
+			z-index: 999;
+			top: 60px;
+			right: 33.333333%;
+			padding: 0.6rem;
+		}
+
 		.legend {
-			position: absolute;
+			position: fixed;
 			z-index: 999;
 			top: 60px;
 			left: 0px;
@@ -71,6 +79,9 @@
 			margin: 1rem 0;
 		}
 
+		svg .hidden {
+			display: none;
+		}
 		svg .node-label tspan {
 			fill-opacity: 0.4;
 		}
@@ -291,6 +302,16 @@
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-removed"></div></div><div class="column legend-text">Removed</div>
 					</div>
 				</div>
+				<div class="search">
+					<div class="field">
+						<p class="control has-icons-left">
+							<input id="hosts-filter" type="text" placeholder="Search for hosts..." class="input" />
+							<span class="icon is-small is-left">
+								<i class="fas fa-search"></i>
+							</span>
+						</p>
+					</div>
+				</div>
 				<div id="networkarea"></div>
 			</div>
 			<div class="column">
@@ -323,12 +344,6 @@
 			changed: '#f5ce35',
 			removed: '#eaafa2'
 		};
-
-		// Legend
-		document.getElementById("legend-color-normal").style.backgroundColor = colors.normal;
-		document.getElementById("legend-color-first").style.backgroundColor = colors.first;
-		document.getElementById("legend-color-changed").style.backgroundColor = colors.changed;
-		document.getElementById("legend-color-removed").style.backgroundColor = colors.removed;
 
 		function prepareGraph(data, scan) {
 			const graph = { nodes: [], edges: [], node_ids: [], root_node: "root" };
@@ -374,9 +389,8 @@
 			return graph;
 		}
 
-		// d3 test
-		var width  = document.getElementById("networkarea").offsetWidth,
-		    height = document.getElementById("networkarea").offsetHeight,
+		var width  = $("#networkarea").width(),
+		    height = $("#networkarea").width(),
 		    radius = 20,
 		    labelsize = 12;
 
@@ -396,8 +410,7 @@
 					.force("cluster", forceCluster())
 					.force("charge", d3.forceManyBody().strength(-1000))
 					.force("collision", d3.forceCollide().radius(radius * 1.5))
-					.force("center", d3.forceCenter(width/2, height/2))
-					;
+					.force("center", d3.forceCenter(width/2, height/2));
 
 				const links = svg.append("g")
 						.attr("class", "links")
@@ -576,6 +589,13 @@
 		}
 
 		$(document).ready(function() {
+			// Legend
+			$("#legend-color-normal").css("background-color", colors.normal);
+			$("#legend-color-first").css("background-color", colors.first);
+			$("#legend-color-changed").css("background-color", colors.changed);
+			$("#legend-color-removed").css("background-color", colors.removed);
+
+			// Load all Networks
 			$.getJSON("/api/networks", data => {
 				$('#networks').empty();
 
@@ -609,6 +629,7 @@
 				console.error("Error while loading Networks.");
 			});
 
+			// Switch network-config tabs in Configuration
 			$('#config-network .tabs li').each(function(_, elem) {
 				elem = $(elem);
 				elem.on('click', ev => {
@@ -619,6 +640,7 @@
 				});
 			});
 
+			// Load the Configuration
 			$.getJSON("/api/config", data => {
 				$('#config [name="repeat"]').prop('value', data.repeat);
 				$('#config [name="threads"]').prop('value', data.num_threads);
@@ -688,6 +710,31 @@
 				console.error("Error while fetching configuration.");
 			});
 
+			// Setup the Hosts-Filter for D3
+			$('#hosts-filter').on('keyup', evt => {
+				let val = $('#hosts-filter').val().toLowerCase();
+
+				const svg = d3.select("#networkarea svg");
+				const nodes = svg.selectAll(".nodes circle");
+				const links = svg.selectAll(".links line");
+				const labels = svg.selectAll(".node-labels text");
+
+				links.attr("class", "link");
+				labels.attr("class", "node-label");
+
+				nodes.attr("class", "node")
+					.filter(node => (node.label.toLowerCase().indexOf(val) == -1))
+					.attr("class", "node hidden")
+					.each(node => {
+						links.filter(link => link.source.id == node.id || link.target.id == node.id)
+							.attr("class", "link hidden");
+						labels.filter(label => label.id == node.id)
+							.attr("class", "node-label hidden");
+					})
+				;
+			});
+
+			// Check for the scan-status on the server
 			window.setInterval(function() {
 				$.getJSON("/api/status", data => {
 					message = '...';
@@ -710,6 +757,7 @@
 			}, 5000);
 		});
 
+		// Show information about a specific host
 		function fill_host_info_box(cont, data, with_hist) {
 			if (with_hist) {
 				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu"><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
@@ -754,6 +802,7 @@
 			});
 		}
 
+		// Load data from a selected node and display it on success
 		function selectNode(nodes) {
 			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + nodes.join(';'), data => {
 				$('#host-info-box').empty();
