@@ -7,6 +7,7 @@
 	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
 	<script src="https://d3js.org/d3.v7.min.js"></script>
 	<link rel="stylesheet" href="/static/css/bulma.min.css">
+	<link rel="stylesheet" href="/static/css/fa-all.min.css">
 	<link rel="icon" type="image/png" href="/static/img/its_logo.png">
 	<style type="text/css">
 		#networkarea {
@@ -251,7 +252,7 @@
 
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Network</span>
-						<div class="navbar-dropdown" id="networks"></div>
+						<div class="navbar-dropdown is-right" id="networks"></div>
 					</div>
 
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
@@ -513,7 +514,20 @@
 		var load_scans = ev => {
 			$.getJSON("/api/scans?network=" + ev.data.network, scans => {
 				$('#scans').empty();
-				
+
+				$('#scans').append('<div class="navbar-item field"><p class="control has-icons-left"><input id="scans-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>');
+				$('#scans-search').on('keyup', ev => {
+					let val = $('#scans-search').val().toLowerCase();
+					if (val == '') {
+						$('#scans a.navbar-item').removeClass("is-hidden");
+					} else {
+						$('#scans a.navbar-item').each((_, elem) => {
+							if (elem.innerText.toLowerCase().indexOf(val) == -1) { $(elem).addClass("is-hidden"); }
+							else { $(elem).removeClass("is-hidden"); }
+						});
+					}
+				});
+
 				$('#scans').append('<a class="navbar-item" id="scan-now">Scan now</a>');
 				$('#scan-now').on('click', { id: 'now'}, trigger_scan);
 
@@ -549,6 +563,21 @@
 
 		$(document).ready(function() {
 			$.getJSON("/api/networks", data => {
+				$('#networks').empty();
+
+				$('#networks').append('<div class="navbar-item field"><p class="control has-icons-left"><input id="networks-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>');
+				$('#networks-search').on('keyup', ev => {
+					let val = $('#networks-search').val().toLowerCase();
+					if (val == '') {
+						$('#networks a.navbar-item').removeClass("is-hidden");
+					} else {
+						$('#networks a.navbar-item').each((_, elem) => {
+							if (elem.innerText.toLowerCase().indexOf(val) == -1) { $(elem).addClass("is-hidden"); }
+							else { $(elem).removeClass("is-hidden"); }
+						});
+					}
+				});
+
 				data.forEach((v, k) => {
 					var name = v.name + ( v.name != "" ? " (" : "" ) + v.network + ( v.name != "" ? ")" : "" );
 					$('#networks').append('<a class="navbar-item" id="network-' + k + '">' + name + '</a>');
