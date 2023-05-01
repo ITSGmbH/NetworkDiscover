@@ -31,6 +31,7 @@ pub struct Scan {
 	pub scan: i64,
 	pub start_time: NaiveDateTime,
 	pub end_time: NaiveDateTime,
+	pub changed: bool,
 }
 impl Default for Scan {
 	fn default() -> Self {
@@ -38,6 +39,7 @@ impl Default for Scan {
 			scan: 0,
 			start_time: chrono::Utc::now().naive_utc(),
 			end_time: NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap(),
+			changed: true,
 		}
 	}
 }
@@ -88,7 +90,7 @@ impl Scan {
 			// naive::MIN_DATETIME, naive::MAX_DATETIME does not work :(
 			let param_start = if start.is_none() { NaiveDate::from_ymd_opt(1900, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap() } else { start.unwrap() };
 			let param_end = if end.is_none() { NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap() } else { end.unwrap() };
-			let query = query_as::<_, Scan>("SELECT DISTINCT s.* FROM scans AS s,hosts AS h,hosts_history AS hist WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ?")
+			let query = query_as::<_, Scan>("SELECT DISTINCT s.*,true AS changed FROM scans AS s,hosts AS h,hosts_history AS hist WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ?")
 				.bind(network)
 				.bind(&param_start)
 				.bind(&param_end)
@@ -99,6 +101,25 @@ impl Scan {
 			} else {
 				log::error!("[DB] Entity: 'Scan'; List from Network Failed: {}", result.err().unwrap());
 			}
+
+			// Check if there is a change between the scans
+			let mut first = true;
+			list.iter_mut().for_each(|mut scan| {
+				let mut changed = false;
+				let pool1 = con.unwrap();
+				let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? AND h.id NOT IN ( SELECT h1.id FROM hosts AS h1,hosts_history AS hist1 WHERE hist1.scan = ? AND hist1.host_id=h1.id AND h1.network = ? )")
+					.bind(scan.scan - 1)
+					.bind(network)
+					.bind(scan.scan)
+					.bind(network)
+					.fetch_all(pool1);
+				let result = futures::executor::block_on(query);
+				if result.is_ok() {
+					changed = result.ok().unwrap().len() > 0;
+				}
+				scan.changed = first || changed;
+				first = false;
+			});
 		}
 		return list;
 	}

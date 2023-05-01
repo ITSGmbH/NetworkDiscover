@@ -62,7 +62,7 @@
 
 		.legend {
 			position: fixed;
-			z-index: 39;
+			z-index: 2;
 			top: 60px;
 			left: 0px;
 			border: 1px solid lightgray;
@@ -303,7 +303,11 @@
 						<span class="navbar-link">Scans</span>
 						<div class="navbar-dropdown is-right" id="scans">
 							<a class="navbar-item" id="scan-now">Scan now</a>
-							<div class="navbar-item field"><p class="control has-icons-left"><input id="scans-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>
+							<div class="navbar-item field m-0"><p class="control has-icons-left"><input id="scans-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>
+							<div class="navbar-item field m-0">
+								<label class="checkbox"><input type="checkbox" id="scans-changed-only" /> Only changed</label>
+							</div>
+							<hr class="navbar-divider">
 							<div id="scans-list"></div>
 						</div>
 					</div>
@@ -605,17 +609,20 @@
 		}
 
 		var load_scans = ev => {
+			let changed = $('#scans-changed-only').prop("checked");
 			$.getJSON("/api/scans?network=" + ev.data.network, scans => {
 				$('#scans-list').empty();
 				scans.forEach((v, k) => {
-					$('#scans-list').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
-					$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan, time: v.start }, click_ev => {
-						$('#scans .navbar-item').removeClass('is-active');
-						$('#scan-' + click_ev.data.id).addClass('is-active');
-						$('#selected-scan').empty();
-						$('#selected-scan').append(click_ev.data.time);
-						load_network(click_ev);
-					});
+					if (!changed || v.changed == undefined || (v.changed && changed)) {
+						$('#scans-list').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
+						$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan, time: v.start }, click_ev => {
+							$('#scans .navbar-item').removeClass('is-active');
+							$('#scan-' + click_ev.data.id).addClass('is-active');
+							$('#selected-scan').empty();
+							$('#selected-scan').append(click_ev.data.time);
+							load_network(click_ev);
+						});
+					}
 				});
 				$('#scan-' + (scans.length - 1)).trigger('click');
 			});
@@ -664,6 +671,9 @@
 					});
 				}
 			});
+			$('#scans-changed-only').change(ev => {
+				load_scans({ data: { network: $('#selected-network').data("network") } });
+			});
 
 			// Load all Networks
 			$.getJSON("/api/networks", data => {
@@ -676,6 +686,7 @@
 						$('#network-' + k).addClass('is-active');
 						$('#selected-network').empty();
 						$('#selected-network').append(click_ev.data.name);
+						$('#selected-network').data("network", click_ev.data.network);
 						load_scans(click_ev);
 					});
 					$('#network-' + k).data('network', v);

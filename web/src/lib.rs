@@ -52,6 +52,7 @@ struct ScanRequest {
 struct ScanResponse {
 	network: String,
 	scan: i64,
+	changed: bool,
 	start: String,
 	end: String,
 }
@@ -272,6 +273,7 @@ async fn get_scans(config: web::Data<config::AppConfig>, args: web::Query<ScanRe
 		.map(|s| ScanResponse {
 			network: args.network.clone(),
 			scan: s.scan.clone(),
+			changed: s.changed,
 			start: format!("{}", s.start_time.format("%Y-%m-%d %H:%M:%S")),
 			end: format!("{}", s.end_time.format("%Y-%m-%d %H:%M:%S")),
 		})
@@ -348,6 +350,7 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 			ScanResponse {
 				network: args.network.clone(),
 				scan: scan.scan.clone(),
+				changed: scan.changed,
 				start: scan.start_time.to_string(),
 				end: scan.end_time.to_string(),
 			}
