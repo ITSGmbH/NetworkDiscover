@@ -47,6 +47,15 @@
 			right: 33.333333%;
 			padding: 0.6rem;
 		}
+		.area-hint {
+			width: 50%;
+			position: fixed;
+			z-index: 999;
+			bottom: 80px;
+			left: 33.333333%;
+			margin-left: -25%;
+			text-align: center;
+		}
 
 		.legend {
 			position: fixed;
@@ -81,6 +90,10 @@
 
 		svg .hidden {
 			display: none;
+		}
+		svg .fixed {
+			stroke-dasharray: 5,5;
+			stroke: red;
 		}
 		svg .node-label tspan {
 			fill-opacity: 0.4;
@@ -302,6 +315,9 @@
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-removed"></div></div><div class="column legend-text">Removed</div>
 					</div>
 				</div>
+				<div class="area-hint is-size-7 has-text-grey-light">
+					Drag a node to move;<br/>Double-click to reset it's position;
+				</div>
 				<div class="search">
 					<div class="field">
 						<p class="control has-icons-left">
@@ -345,15 +361,15 @@
 			removed: '#eaafa2'
 		};
 
-		function getNodeGroup(val) {
-			val = val.toLowerCase().replace("microsoft", "");
-			if (val.indexOf("android") >= 0) return "mobile";
-			if (val.indexOf("ios") >= 0) return "mobile";
-			if (val.indexOf("linux") >= 0) return "linux";
-			if (val.indexOf("bsd") >= 0) return "bsd";
-			if (val.indexOf("windows server") >= 0) return "server";
-			if (val.indexOf("windows") >= 0) return "windows";
-			if (val.indexOf("unknown") >= 0) return "unknown";
+		function getNodeGroup(os) {
+			os = os.toLowerCase().replace("microsoft", "");
+			if (os.indexOf("android") >= 0) return "mobile";
+			if (os.indexOf("ios") >= 0) return "mobile";
+			if (os.indexOf("linux") >= 0) return "linux";
+			if (os.indexOf("bsd") >= 0) return "bsd";
+			if (os.indexOf("windows server") >= 0) return "server";
+			if (os.indexOf("windows") >= 0) return "windows";
+			if (os.indexOf("unknown") >= 0) return "unknown";
 			return "different";
 		}
 
@@ -373,7 +389,7 @@
 					background: color,
 					highlight: color,
 					removed: v.is_removed,
-					group: getNodeGroup(v.os)
+					group: v.is_removed ? "delete" : getNodeGroup(v.os)
 				});
 				if (v.nodes.length == 0) { graph.root_node = v.id; }
 				v.nodes.forEach(val => {
@@ -424,10 +440,9 @@
 				const simulation = d3.forceSimulation()
 					.force("link", d3.forceLink().id(d => d.id).distance(200))
 					.force("cluster", forceCluster())
-					.force("charge", d3.forceManyBody())
+					.force("charge", d3.forceManyBody().strength(-1000))
 					.force("collision", d3.forceCollide().radius(radius * 1.5))
-					.force("center", d3.forceCenter(width/2, height/2))
-					;
+					.force("center", d3.forceCenter(width/2, height/2));
 
 				// Labels in lowest layer
 				const labels = svg.append("g")
@@ -464,16 +479,13 @@
 				// Nodes in front
 				const nodes = svg.append("g")
 						.attr("class", "nodes")
-						.attr("fill", "#fff")
-						.attr("stroke", "#000")
-						.attr("stroke-width", 1.5)
+						.attr("fill", "#f5ce35")
 					.selectAll("circle")
 						.data(graph.nodes)
 						.enter()
 						.append("circle")
 						.attr("class", "node")
 						.attr("fill", d => d.background)
-						.attr("stroke", d => d.highlight)
 						.attr("r", radius)
 					.call(
 						d3.drag()
@@ -504,7 +516,7 @@
 					let nodes;
 					function force(alpha) {
 						const centroids = d3.rollup(nodes, centroid, d => d.group);
-						const l = alpha * 0.5;
+						const l = alpha * 0.8;
 						for (const d of nodes) {
 							const { x: cx, y: cy } = centroids.get(d.group);
 							d.vx -= (d.x - (cx || 1)) * l;
@@ -546,7 +558,7 @@
 				}
 
 				function dragended(ev, d) {
-					simulation.alphaTarget(0.5).restart();
+					simulation.alphaTarget(0.1).restart();
 				}
 
 				$('#host-info-box').empty();
