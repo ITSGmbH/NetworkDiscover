@@ -36,9 +36,11 @@
 		.mouse-pointer {
 			cursor: pointer;
 		}
-		.navbar-dropdown {
+		#scans-list,
+		#networks-list {
 			max-height: 90vh;
 			overflow-y: scroll;
+			min-height: 2.75em;
 		}
 
 		.search {
@@ -290,13 +292,20 @@
 					</div>
 
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
-						<span class="navbar-link">Network</span>
-						<div class="navbar-dropdown is-right" id="networks"></div>
+						<span class="navbar-link">Networks</span>
+						<div class="navbar-dropdown is-right" id="networks">
+							<div class="navbar-item field"><p class="control has-icons-left"><input id="networks-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>
+							<div id="networks-list"></div>
+						</div>
 					</div>
 
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
-						<span class="navbar-link">Scan</span>
-						<div class="navbar-dropdown is-right" id="scans"></div>
+						<span class="navbar-link">Scans</span>
+						<div class="navbar-dropdown is-right" id="scans">
+							<a class="navbar-item" id="scan-now">Scan now</a>
+							<div class="navbar-item field"><p class="control has-icons-left"><input id="scans-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>
+							<div id="scans-list"></div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -597,26 +606,9 @@
 
 		var load_scans = ev => {
 			$.getJSON("/api/scans?network=" + ev.data.network, scans => {
-				$('#scans').empty();
-
-				$('#scans').append('<div class="navbar-item field"><p class="control has-icons-left"><input id="scans-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>');
-				$('#scans-search').on('keyup', ev => {
-					let val = $('#scans-search').val().toLowerCase();
-					if (val == '') {
-						$('#scans a.navbar-item').removeClass("is-hidden");
-					} else {
-						$('#scans a.navbar-item').each((_, elem) => {
-							if (elem.innerText.toLowerCase().indexOf(val) == -1) { $(elem).addClass("is-hidden"); }
-							else { $(elem).removeClass("is-hidden"); }
-						});
-					}
-				});
-
-				$('#scans').append('<a class="navbar-item" id="scan-now">Scan now</a>');
-				$('#scan-now').on('click', { id: 'now'}, trigger_scan);
-
+				$('#scans-list').empty();
 				scans.forEach((v, k) => {
-					$('#scans').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
+					$('#scans-list').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
 					$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan, time: v.start }, click_ev => {
 						$('#scans .navbar-item').removeClass('is-active');
 						$('#scan-' + click_ev.data.id).addClass('is-active');
@@ -648,26 +640,37 @@
 			$('#modal-hosts-history button.delete').on('click', _ev => { $('#modal-hosts-history').toggleClass('is-active'); });
 			$('#modal-hosts-history button.is-info').on('click', _ev => { $('#modal-hosts-history').toggleClass('is-active'); });
 
+			// search events
+			$('#scan-now').on('click', { id: 'now'}, trigger_scan);
+			$('#scans-search').on('keyup', ev => {
+				let val = $('#scans-search').val().toLowerCase();
+				if (val == '') {
+					$('#scans a.navbar-item').removeClass("is-hidden");
+				} else {
+					$('#scans a.navbar-item').each((_, elem) => {
+						if (elem.innerText.toLowerCase().indexOf(val) == -1) { $(elem).addClass("is-hidden"); }
+						else { $(elem).removeClass("is-hidden"); }
+					});
+				}
+			});
+			$('#networks-search').on('keyup', ev => {
+				let val = $('#networks-search').val().toLowerCase();
+				if (val == '') {
+					$('#networks a.navbar-item').removeClass("is-hidden");
+				} else {
+					$('#networks a.navbar-item').each((_, elem) => {
+						if (elem.innerText.toLowerCase().indexOf(val) == -1) { $(elem).addClass("is-hidden"); }
+						else { $(elem).removeClass("is-hidden"); }
+					});
+				}
+			});
+
 			// Load all Networks
 			$.getJSON("/api/networks", data => {
-				$('#networks').empty();
-
-				$('#networks').append('<div class="navbar-item field"><p class="control has-icons-left"><input id="networks-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>');
-				$('#networks-search').on('keyup', ev => {
-					let val = $('#networks-search').val().toLowerCase();
-					if (val == '') {
-						$('#networks a.navbar-item').removeClass("is-hidden");
-					} else {
-						$('#networks a.navbar-item').each((_, elem) => {
-							if (elem.innerText.toLowerCase().indexOf(val) == -1) { $(elem).addClass("is-hidden"); }
-							else { $(elem).removeClass("is-hidden"); }
-						});
-					}
-				});
-
+				$('#networks-list').empty();
 				data.forEach((v, k) => {
 					var name = v.name + ( v.name != "" ? " (" : "" ) + v.network + ( v.name != "" ? ")" : "" );
-					$('#networks').append('<a class="navbar-item" id="network-' + k + '">' + name + '</a>');
+					$('#networks-list').append('<a class="navbar-item" id="network-' + k + '">' + name + '</a>');
 					$('#network-' + k).on('click', { id: k, network: v.network, name: name }, click_ev => {
 						$('#networks .navbar-item').removeClass('is-active');
 						$('#network-' + k).addClass('is-active');
