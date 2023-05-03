@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use log::info;
-use network::scan;
+use network::{scan, capture};
 use export::{pdf::Pdf, csv::Csv, unknown_export};
 
 #[derive(Serialize)]
@@ -185,6 +185,9 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 			info!("Recurring scan stopped");
 		}
 	});
+
+	// Start listeners
+	capture::start();
 
 	// run the server until it stops
 	let res = server.await;

@@ -42,6 +42,12 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 
 ## Run
 
+To be able to sniff the network for DHCP and other packages, the binary must run as root or have set capabilities for `net_raw` and `net_admin`:
+
+```bash
+$ sudo setcap cap_net_raw,cap_net_admin+eip target/release/network_discover
+```
+
 There are two environment variables available:
 
 * **CONFIG_FILE** *(./config.toml)* Path and name of the config file.

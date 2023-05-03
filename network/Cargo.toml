@@ -19,3 +19,4 @@ xml-rs = { version = "0.8" }
 uuid = { version = "1", features = ["serde", "v4"] }
 
 chrono = { version = "0.4" }
+pcap = { version = "1" }
