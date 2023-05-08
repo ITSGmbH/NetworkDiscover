@@ -39,6 +39,7 @@ impl Display for Protocol {
 	}
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct UdpPacket<T> {
 	src_mac: [u8; 6],
@@ -165,6 +166,7 @@ impl From<u8> for DhcpMessageType {
 	}
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Default)]
 pub struct DhcpData {
 	msg_type: DhcpMessageType,
@@ -193,7 +195,9 @@ impl TryFrom<&[u8]> for DhcpData {
 		while data.len() > option_start {
 			let options_data = &data[option_start..];
 			let option = DhcpOption::try_from(options_data).unwrap_or(DhcpOption::Invalid(0));
-			if option == DhcpOption::End { break; }
+			if option == DhcpOption::End || options_data.len() < 2 {
+				break;
+			}
 			options.push(option);
 			option_start += 2 + options_data[1] as usize;
 		}
@@ -230,6 +234,7 @@ pub enum DhcpOption {
 	RequestedIpAddress(IpAddr), // 50
 	LeaseTime(u32), // 51
 	MessageType(DhcpMessageType), // 53
+	DhcpServer(IpAddr), // 54
 	End, // 255
 }
 impl TryFrom<&[u8]> for DhcpOption {
@@ -278,6 +283,11 @@ impl TryFrom<&[u8]> for DhcpOption {
 			51 => Self::LeaseTime(u32::from_le_bytes(parse[0..4].try_into().unwrap_or_default())),
 			// MessageType
 			53 => Self::MessageType(DhcpMessageType::from(parse[0])),
+			// DHCP-Server IP-Address
+			54 => {
+				let val: [u8; 4] = parse[0..4].try_into().unwrap_or_default();
+				Self::DhcpServer(IpAddr::from(val))
+			},
 			// End
 			255 => Self::End,
 			// Anything else not now
