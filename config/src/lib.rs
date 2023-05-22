@@ -77,14 +77,12 @@ impl Default for DbStruct {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiscoverStruct {
 	pub extended: Option<bool>,
-	pub max_hops: Option<u16>,
 	pub target: Option<ConnectionStruct>,
 }
 impl Default for DiscoverStruct {
 	fn default() -> Self {
 		DiscoverStruct {
 			extended: None,
-			max_hops: None,
 			target: None,
 		}
 	}

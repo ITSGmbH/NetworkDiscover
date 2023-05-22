@@ -1,18 +1,27 @@
 
+use crate::hosts::Host;
 use local_net::LocalNet;
 use log::info;
 
+const MAX_TRACEROUTE_HOPS: u16 = 15;
+
 pub fn start(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) {
-	let hosts = discover_impl::discover(db, local, targets, num_threads);
-	info!("Found hosts: {:?}", hosts.len());
+	info!("HostDiscovery: start");
+	let host_chunks = discover_impl::find_hosts_chunked(local, targets, num_threads);
+	let hosts = scan_hosts(db, host_chunks);
+	info!("Scanned {} hosts", hosts.len());
+	info!("HostDiscovery: ended");
+}
+
+pub fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Vec<Host>>) -> Vec<Host> {
+	discover_impl::scan_hosts(db, hosts)
 }
 
 mod discover_impl {
 	use crate::hosts::{Host, Service, Vulnerability, Protocol, State};
-	
 	use local_net::LocalNet;
-	
-	use log::{info, debug};
+	use log::{info, debug, trace};
+
 	use std::process::Command;
 	use std::net::IpAddr;
 	use std::str::FromStr;
@@ -24,32 +33,34 @@ mod discover_impl {
 	use xml::reader::{EventReader, XmlEvent};
 	use uuid::Uuid;
 
-	pub fn discover(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) -> Vec<Host> {
-		let mut result: Vec<Host> = vec![];
-		let mut result_chunks: Vec<Vec<Host>> = vec![];
-		for _ in 0..*num_threads {
-			result_chunks.push(vec![]);
-		}
+	pub(crate) fn find_hosts_chunked(local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) -> Vec<Vec<Host>> {
+		let mut result: Vec<Vec<Host>> = vec![];
 
-		info!("HostDiscovery: start");
-		debug!("Threads: {}", num_threads);
+		trace!("Threads: {}", num_threads);
+		for _ in 0..*num_threads {
+			result.push(vec![]);
+		}
 
 		let mut count = 0;
 		for target in targets {
-			for host in discover_network(db, local, &target) {
-				let chunk = result_chunks.get_mut((count % num_threads) as usize);
+			for host in discover_network(local, &target) {
+				let chunk = result.get_mut((count % num_threads) as usize);
 				chunk.unwrap().push(host);
 				count += 1;
 			}
 		}
+		result
+	}
 
-		// Portscan in threads
+	pub(crate) fn scan_hosts(db: &mut sqlite::Database, host_chunks: Vec<Vec<Host>>) -> Vec<Host> {
+		let mut result: Vec<Host> = vec![];
 		let mut handles = vec![];
-		for chunk in result_chunks {
+		for chunk in host_chunks {
 			let handle = thread::spawn(move || {
-				debug!("Thread {:?} started", thread::current().id());
+				trace!("Thread {:?} started", thread::current().id());
 				let mut res: Vec<Host> = vec![];
 				for mut host in chunk {
+					traceroute(&mut host);
 					portscan(&mut host);
 					res.push(host.clone());
 				}
@@ -62,17 +73,16 @@ mod discover_impl {
 		for handle in handles {
 			let thread_id = &handle.thread().id();
 			let mut res: Vec<Host> = handle.join().unwrap();
-			debug!("Thread joined: {:?}", thread_id);
+			trace!("Thread joined: {:?}", thread_id);
 
-			for host in &res {
+			for host in &mut res {
+				host.save_to_db(db);
 				host.update_host_information(db);
 				host.save_services_to_db(db);
 			}
 			result.append(&mut res);
 		}
-
-		info!("HostDiscovery: ended");
-		return result;
+		result
 	}
 
 	fn get_tmp_file() -> PathBuf {
@@ -94,7 +104,7 @@ mod discover_impl {
 		String::new()
 	}
 
-	fn discover_network(db: &mut sqlite::Database, local: &LocalNet, target: &config::DiscoverStruct) -> Vec<Host> {
+	fn discover_network(local: &LocalNet, target: &config::DiscoverStruct) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
 		let default_network = local.default_network()
 			.unwrap()
@@ -114,7 +124,7 @@ mod discover_impl {
 			.arg("-oX")
 			.arg(&tmp_file)
 			.arg(&network);
-		debug!("Command: {:?}", cmd);
+		trace!("[{:?}] Command: {:?}", thread::current().id(), cmd);
 
 		let output = cmd.output();
 		if output.is_ok() {
@@ -143,12 +153,7 @@ mod discover_impl {
 										.take(1).next()
 										.unwrap_or(IpAddr::from_str("127.0.0.1"))
 										.unwrap()
-									);
-
-								// Add the scanning host as a hop and trace the others
-								host.hops.push(local.get_ip_for_network(&network).unwrap_or(IpAddr::from_str("127.0.0.1").unwrap()));
-								traceroute(&mut host, &target.max_hops.unwrap_or(10));
-								host.save_to_db(db);
+								);
 								result.push(host);
 							}
 						}
@@ -161,26 +166,72 @@ mod discover_impl {
 		return result;
 	}
 
-	pub fn traceroute(host: &mut Host, hops: &u16) {
+	fn traceroute(host: &mut Host) {
 		if host.ip.is_some() && !host.hops.iter().any(|hop| host.ip.unwrap().to_string() == hop.to_string()) {
 			let ip = host.ip.unwrap().to_string();
-			debug!("  traceroute: {:?}", ip);
-			
+			debug!("Host: {:?}", ip);
+
+			// Default-Gateway to reach the host
+			let mut cmd = Command::new("ip");
+			cmd.arg("route")
+				.arg("list")
+				.arg("match")
+				.arg(ip.clone());
+			trace!("[{:?}] Command: {:?}", thread::current().id(), cmd);
+
+			if let Ok(output) = cmd.output() {
+				let mut gateways: Vec<(String, String)> = vec![];
+				let mut device: Option<(String, String)> = None;
+				let lines = String::from_utf8(output.stdout).unwrap();
+				for line in lines.lines() {
+					let parts = line.trim().split_whitespace().collect::<Vec<&str>>();
+					if parts.get(0).unwrap_or(&"") == &"default" {
+						gateways.push( ( String::from(parts.get(2).unwrap_or(&"").to_string()), String::from(parts.get(4).unwrap_or(&"").to_string()) ) );
+					} else {
+						device = Some( ( String::from(parts.get(2).unwrap_or(&"").to_string()), String::from(parts.get(0).unwrap_or(&"").to_string())  ) );
+					}
+				}
+
+				// Direct Route -> Get the Gateway and Network based on the the "device"
+				let mut gateway = if let Some((ref device, ref network)) = device {
+					gateways.clone().into_iter().find_map(|(gw, dev)| if &dev == device {
+						host.network = network.clone();
+						Some(gw)
+					} else {
+						None
+					} )
+				} else { None };
+
+				// If no direct route was found, take the first default gateway
+				if gateway.is_none() {
+					gateway = Some(gateways.into_iter().next().unwrap_or_default().0)
+				}
+
+				// TODO: If no network could be evaluated from the routing table (only possible on direct connected networks), try to calculate
+
+				debug!("  gateway: {:?}", gateway.clone().unwrap_or(String::from("Unknown")));
+				if let Some(gateway) = gateway {
+					host.hops.push(IpAddr::from_str(gateway.as_str()).unwrap());
+				}
+			}
+
+			// Traceroute the host
 			let mut cmd = Command::new("traceroute");
-			cmd.arg("-n")   // no name lookup
-				.arg("-q 1")  // only one query
-				.arg("-m").arg(hops.to_string()) // max hops
-				.arg(ip);
-			debug!("Command: {:?}", cmd);
-			
+			cmd.arg("-n")  // no name lookup
+				.arg("-q 1") // only one query
+				.arg("-m").arg(super::MAX_TRACEROUTE_HOPS.to_string()) // max hops
+				.arg(ip.clone());
+			trace!("[{:?}] Command: {:?}", thread::current().id(), cmd);
+
 			let output = cmd.output();
 			if output.is_ok() {
 				let lines = String::from_utf8(output.unwrap().stdout).unwrap();
-				
 				for line in lines.lines() {
-					let mut parts = line.trim().split_whitespace();
-					if parts.next().unwrap_or("none").parse::<u16>().is_ok() {
-						match IpAddr::from_str(parts.next().unwrap()) {
+					let mut parts = line.trim().split_whitespace().collect::<Vec<&str>>();
+					// First part has to be a number and the one should not start with a exclamation mark like "!H"
+					if parts.get(0).unwrap_or(&"none").parse::<u16>().is_ok() && parts.pop().unwrap_or(&"a").chars().next().unwrap() != '!' {
+						// In case of a " * " line, the * was removed above
+						match IpAddr::from_str(parts.get(1).unwrap_or(&"*")) {
 							Ok(ip) => host.hops.push(ip),
 							_ => {},
 						}
@@ -192,16 +243,16 @@ mod discover_impl {
 			if !host.hops.contains(&host.ip.unwrap()) {
 				host.hops.push(host.ip.unwrap());
 			}
-			debug!("  found route: {:?}", host.hops);
+			debug!("  route: {:?}", host.hops);
 		} else {
 			debug!("  no route to: {:?}", host.ip);
 		}
 	}
 	
-	pub fn portscan(host: &mut Host) {
+	fn portscan(host: &mut Host) {
 		if host.ip.is_some() {
 			let ip = host.ip.unwrap().to_string();
-			debug!("  portscan: {:?}", ip);
+			debug!("Portscan: {:?}", ip);
 			
 			let tmp_file = get_tmp_file();
 			let mut cmd = Command::new("sudo");
@@ -215,7 +266,7 @@ mod discover_impl {
 			cmd.arg("-oX")
 				.arg(&tmp_file)
 				.arg(ip);
-			debug!("[{:?}] Command: {:?}", thread::current().id(), cmd);
+			trace!("[{:?}] Command: {:?}", thread::current().id(), cmd);
 			
 			let output = cmd.output();
 			if output.is_ok() {
@@ -304,7 +355,7 @@ mod discover_impl {
 
 						Ok(XmlEvent::EndElement { name }) => {
 							if name.local_name == "port" {
-								debug!("[{:?}] Service: {:?}", thread::current().id(), &service);
+								debug!("  service: {:?}", &service);
 								host.services.push(service);
 								service = Service::default();
 

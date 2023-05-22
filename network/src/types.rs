@@ -4,22 +4,20 @@ use std::fmt::{Display, Formatter};
 use std::net::IpAddr;
 use pcap::Packet;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Services {
 	DHCP,
-	DNS,
+}
+impl Display for Services {
+	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+		write!(f, "{}", self.value())
+	}
 }
 impl Services {
 	pub fn value(&self) -> Protocol {
 		match *self {
 			Self::DHCP => Protocol::UDP(68),
-			Self::DNS => Protocol::UDP(53),
 		}
-	}
-}
-impl Display for Services {
-	fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-		write!(f, "{}", self.value())
 	}
 }
 
@@ -42,14 +40,14 @@ impl Display for Protocol {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct UdpPacket<T> {
-	src_mac: [u8; 6],
-	dst_mac: [u8; 6],
-	src_ip: IpAddr,
-	dst_ip: IpAddr,
-	src_port: u16,
-	dst_port: u16,
-	len: u16,
-	data: Option<T>,
+	pub src_mac: [u8; 6],
+	pub dst_mac: [u8; 6],
+	pub src_ip: IpAddr,
+	pub dst_ip: IpAddr,
+	pub src_port: u16,
+	pub dst_port: u16,
+	pub len: u16,
+	pub data: Option<T>,
 }
 impl<T> Default for UdpPacket<T> {
 	fn default() -> UdpPacket<T> {
@@ -110,8 +108,7 @@ impl TryFrom<Packet<'_>> for UdpPacket<DhcpData> {
 			src_port: (u16::from(udp_header[0]) << 8) + u16::from(udp_header[1]),
 			dst_port: (u16::from(udp_header[2]) << 8) + u16::from(udp_header[3]),
 			len: (u16::from(udp_header[4]) << 8) + u16::from(udp_header[5]) - 8,
-			data: Some(DhcpData::try_from(&data[(offset + 8)..]).unwrap_or_default()),
-			..Default::default()
+			data: DhcpData::try_from(&data[(offset + 8)..]).ok(),
 		})
 	}
 }
@@ -167,24 +164,24 @@ impl From<u8> for DhcpMessageType {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct DhcpData {
-	msg_type: DhcpMessageType,
-	hw_type: u8,
-	hw_addr_len: u8,
-	hops: u8,
-	transaction_id: u32,
-	seconds: u16,
-	flags: u16,
-	client_addr: [u8; 4], // Client IP Address
-	your_addr: [u8; 4], // Your IP Address
-	server_addr: [u8; 4], // Server IP Address
-	relay_addr: [u8; 4], // gateway IP Address
-	hw_addr: [u8; 16], // client Hardware Address
+	pub msg_type: DhcpMessageType,
+	pub hw_type: u8,
+	pub hw_addr_len: u8,
+	pub hops: u8,
+	pub transaction_id: u32,
+	pub seconds: u16,
+	pub flags: u16,
+	pub client_addr: IpAddr, // Client IP Address
+	pub your_addr: IpAddr, // Your IP Address
+	pub server_addr: IpAddr, // Server IP Address
+	pub relay_addr: IpAddr, // gateway IP Address
+	pub hw_addr: [u8; 16], // client Hardware Address
 	// 192 * u8 filled with '0'
-	magic_cookie: u32,
+	pub magic_cookie: u32,
 	// Options: type(u8), num_octets(u8), value(num_octets)
-	options: Vec<DhcpOption>,
+	pub options: Vec<DhcpOption>,
 }
 impl TryFrom<&[u8]> for DhcpData {
 	type Error = String;
@@ -210,10 +207,22 @@ impl TryFrom<&[u8]> for DhcpData {
 			transaction_id: u32::from_le_bytes(data[4..8].try_into().unwrap_or_default()),
 			seconds: u16::from_le_bytes(data[8..10].try_into().unwrap_or_default()),
 			flags: u16::from_be_bytes(data[10..12].try_into().unwrap_or_default()), // BigEndian to have the bin-structure as is
-			client_addr: data[12..16].try_into().unwrap_or_default(), // Client IP Address
-			your_addr: data[16..20].try_into().unwrap_or_default(), // Your IP Address
-			server_addr: data[20..24].try_into().unwrap_or_default(), // Server IP Address
-			relay_addr: data[24..28].try_into().unwrap_or_default(), // gateway IP Address
+			client_addr: {
+				let val: [u8; 4] = data[12..16].try_into().unwrap_or_default();
+				IpAddr::from(val)
+			},
+			your_addr: {
+				let val: [u8; 4] = data[16..20].try_into().unwrap_or_default();
+				IpAddr::from(val)
+			},
+			server_addr: {
+				let val: [u8; 4] = data[20..24].try_into().unwrap_or_default();
+				IpAddr::from(val)
+			},
+			relay_addr: {
+				let val: [u8; 4] = data[24..28].try_into().unwrap_or_default();
+				IpAddr::from(val)
+			},
 			hw_addr: data[28..44].try_into().unwrap_or_default(), // client Hardware Address
 			// 192 * u8 filled with '0'
 			magic_cookie: u32::from_le_bytes(data[236..240].try_into().unwrap_or_default()),
@@ -235,6 +244,7 @@ pub enum DhcpOption {
 	LeaseTime(u32), // 51
 	MessageType(DhcpMessageType), // 53
 	DhcpServer(IpAddr), // 54
+	VendorIdentifier(String), // 60
 	End, // 255
 }
 impl TryFrom<&[u8]> for DhcpOption {
@@ -288,6 +298,8 @@ impl TryFrom<&[u8]> for DhcpOption {
 				let val: [u8; 4] = parse[0..4].try_into().unwrap_or_default();
 				Self::DhcpServer(IpAddr::from(val))
 			},
+			// DomainName
+			60 => Self::VendorIdentifier(std::str::from_utf8(parse).unwrap_or_default().to_string()),
 			// End
 			255 => Self::End,
 			// Anything else not now

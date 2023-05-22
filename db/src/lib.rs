@@ -143,7 +143,7 @@ impl Scan {
 			// naive::MIN_DATETIME, naive::MAX_DATETIME does not work :(
 			let param_start = if start.is_none() { NaiveDate::from_ymd_opt(1900, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap() } else { start.unwrap() };
 			let param_end = if end.is_none() { NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap() } else { end.unwrap() };
-			let query = query_as::<_, Scan>("SELECT * FROM scans WHERE start_time >= ? AND end_time <= ?")
+			let query = query_as::<_, Scan>("SELECT *,false AS changed FROM scans WHERE start_time >= ? AND end_time <= ?")
 				.bind(&param_start)
 				.bind(&param_end)
 				.fetch_all(pool);
@@ -155,6 +155,30 @@ impl Scan {
 			}
 		}
 		return list;
+	}
+
+	/// Loads the last scan instance
+	///
+	/// # Arguments:
+	///
+	/// * `db` - Mutable reference to the database connection object
+	///
+	/// # Returns
+	///
+	/// Option to the latest scan
+	pub fn last(db: &mut sqlite::Database) -> Option<Scan> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, Scan>("SELECT *,false AS changed FROM scans ORDER BY scan DESC LIMIT 1").fetch_one(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				return Some(result.ok().unwrap());
+			} else {
+				log::error!("[DB] Entity: 'Scan'; Last failed: {}", result.err().unwrap());
+			}
+		}
+		return None;
 	}
 
 	/// Saves the instance

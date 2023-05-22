@@ -192,10 +192,6 @@
 											<input class="input is-small full-width" placeholder="" type="text" name="target-1-network" value="" />
 										</div>
 										<div class="field">
-											<label class="label is-small">Maximum Hops</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-1-hops" value="" />
-										</div>
-										<div class="field">
 											<label class="checkbox">
 												<input type="checkbox" name="target-1-extended" value="true" />
 												Extended Scan
@@ -210,10 +206,6 @@
 										<div class="field">
 											<label class="label is-small">Network/mask</label>
 											<input class="input is-small full-width" placeholder="" type="text" name="target-2-network" value="" />
-										</div>
-										<div class="field">
-											<label class="label is-small">Maximum Hops</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-2-hops" value="" />
 										</div>
 										<div class="field">
 											<label class="checkbox">
@@ -232,10 +224,6 @@
 											<input class="input is-small full-width" placeholder="" type="text" name="target-3-network" value="" />
 										</div>
 										<div class="field">
-											<label class="label is-small">Maximum Hops</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-3-hops" value="" />
-										</div>
-										<div class="field">
 											<label class="checkbox">
 												<input type="checkbox" name="target-3-extended" value="true" />
 												Extended Scan
@@ -252,10 +240,6 @@
 											<input class="input is-small full-width" placeholder="" type="text" name="target-4-network" value="" />
 										</div>
 										<div class="field">
-											<label class="label is-small">Maximum Hops</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-4-hops" value="" />
-										</div>
-										<div class="field">
 											<label class="checkbox">
 												<input type="checkbox" name="target-4-extended" value="true" />
 												Extended Scan
@@ -270,10 +254,6 @@
 										<div class="field">
 											<label class="label is-small">Network/mask</label>
 											<input class="input is-small full-width" placeholder="" type="text" name="target-5-network" value="" />
-										</div>
-										<div class="field">
-											<label class="label is-small">Maximum Hops</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-5-hops" value="" />
 										</div>
 										<div class="field">
 											<label class="checkbox">
@@ -726,7 +706,6 @@
 						idx = k + 1;
 						$('#config [name="target-' + idx + '-name"]').prop('value', v.target.name);
 						$('#config [name="target-' + idx + '-network"]').prop('value', v.target.ip + '/' + v.target.mask);
-						$('#config [name="target-' + idx + '-hops"]').prop('value', v.max_hops);
 						$('#config [name="target-' + idx + '-extended"]').prop('checked', v.extended);
 					});
 				}
@@ -754,7 +733,6 @@
 							var nw = $('#config [name="' + id + '-network"]').prop('value').trim().split("/");
 							config.targets[idx-1] = {
 								extended: $('#config [name="' + id + '-extended"]').prop('checked'),
-								max_hops: parseInt($('#config [name="' + id + '-hops"]').prop('value')),
 								target: {
 									name: $('#config [name="' + id + '-name"]').prop('value').trim(),
 									ip: nw[0].trim(),

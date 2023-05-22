@@ -187,7 +187,7 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	});
 
 	// Start listeners
-	capture::start();
+	capture::start(&config.clone());
 
 	// run the server until it stops
 	let res = server.await;
