@@ -420,11 +420,13 @@ async fn export_scan(config: web::Data<config::AppConfig>, export: web::Path<Str
 #[get("/api/config")]
 async fn load_config(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 	let conf = config.clone();
+	// TODO: Windows-Password security: Clear passwords
 	Ok(web::Json(conf))
 }
 
 #[post("/api/config")]
 async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::Data<StopHandle>) -> HttpResponse {
+	// TODO: Windows-Password security: Copy over from the original config if None
 	let conf = config::AppConfig::from(payload.0);
 	config::save(&conf);
 	stop_handle.stop(true);

@@ -36,6 +36,7 @@
 		.mouse-pointer {
 			cursor: pointer;
 		}
+		#config-container,
 		#scans-list,
 		#networks-list {
 			max-height: 90vh;
@@ -45,7 +46,7 @@
 
 		.search {
 			position: fixed;
-			z-index: 39;
+			z-index: 20;
 			top: 60px;
 			right: 33.333333%;
 			padding: 0.6rem;
@@ -53,7 +54,6 @@
 		.area-hint {
 			width: 50%;
 			position: fixed;
-			z-index: 39;
 			bottom: 80px;
 			left: 33.333333%;
 			margin-left: -25%;
@@ -127,139 +127,211 @@
 						<span class="navbar-link">Config</span>
 						<fieldset class="navbar-dropdown is-right" id="config">
 
-							<div class="navbar-item">
-								<div class="box">
-									<p class="subtitle is-6">System</p>
-									<div class="field">
-										<label class="label is-small">Scan every (hours)</label>
-										<input class="input is-small full-width" placeholder="24" type="number" name="repeat" value="" />
-									</div>
-									<div class="field">
-										<label class="label is-small">Threads to scan</label>
-										<input class="input is-small full-width" placeholder="10" type="number" name="threads" value="" />
-									</div>
-									<div class="field">
-										<label class="label is-small">Device name for auto config</label>
-										<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
+							<div id="config-container">
+								<div class="navbar-item">
+									<div class="box">
+										<p class="subtitle is-6">System</p>
+										<div class="field">
+											<label class="label is-small">Scan every (hours)</label>
+											<input class="input is-small full-width" placeholder="24" type="number" name="repeat" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Threads to scan</label>
+											<input class="input is-small full-width" placeholder="10" type="number" name="threads" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Device name for auto config</label>
+											<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
+										</div>
 									</div>
 								</div>
-							</div>
 
-							<div class="navbar-item">
-								<div class="box">
-									<p class="subtitle is-6">Configuration</p>
-									<div class="field">
-										<label class="label is-small">Configuration name</label>
-										<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
-									</div>
-									<div class="field">
-										<label class="label is-small">Web-Listener</label>
-										<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
-										<input class="input is-small double-small" type="number" placeholder="9090" name="listen-port" value="" />
-									</div>
-									<div class="field">
-										<label class="label is-small">Database-Path</label>
-										<input class="input is-small full-width" placeholder="" type="text" name="db-path" value="" />
-									</div>
-									<div class="field">
-										<label class="label is-small">Database-URL</label>
-										<input class="input is-small full-width" placeholder="" type="text" name="db-url" value="" />
+								<div class="navbar-item">
+									<div class="box">
+										<p class="subtitle is-6">Configuration</p>
+										<div class="field">
+											<label class="label is-small">Configuration name</label>
+											<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Web-Listener</label>
+											<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
+											<input class="input is-small double-small" type="number" placeholder="9090" name="listen-port" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Database-Path</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="db-path" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Database-URL</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="db-url" value="" />
+										</div>
 									</div>
 								</div>
-							</div>
 
-							<div class="navbar-item">
-								<div class="box" id="config-network">
-									<p class="subtitle is-6">Networks</p>
+								<div class="navbar-item">
+									<div class="box" id="config-network">
+										<p class="subtitle is-6">Networks</p>
 
-									<div class="block tabs is-centered">
-										<ul>
-											<li class="is-active" id="config-network-1-tab"><a>#1</a></li>
-											<li id="config-network-2-tab"><a>#2</a></li>
-											<li id="config-network-3-tab"><a>#3</a></li>
-											<li id="config-network-4-tab"><a>#4</a></li>
-											<li id="config-network-5-tab"><a>#5</a></li>
-										</ul>
-									</div>
+										<div class="block tabs is-centered">
+											<ul>
+												<li class="is-active" id="config-network-1-tab"><a>#1</a></li>
+												<li id="config-network-2-tab"><a>#2</a></li>
+												<li id="config-network-3-tab"><a>#3</a></li>
+												<li id="config-network-4-tab"><a>#4</a></li>
+												<li id="config-network-5-tab"><a>#5</a></li>
+											</ul>
+										</div>
 
-									<div class="block tabs-block" id="config-network-1">
-										<div class="field">
-											<label class="label is-small">Name</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-1-name" value="" />
+										<div class="block tabs-block" id="config-network-1">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-1-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-1-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-1-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-1-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-1-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-1-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-1-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-1-winpass" value="" />
+												</div>
+											</div>
 										</div>
-										<div class="field">
-											<label class="label is-small">Network/mask</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-1-network" value="" />
+										<div class="block tabs-block is-hidden" id="config-network-2">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-2-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-2-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-2-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-2-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-2-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-2-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-2-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-2-winpass" value="" />
+												</div>
+											</div>
 										</div>
-										<div class="field">
-											<label class="checkbox">
-												<input type="checkbox" name="target-1-extended" value="true" />
-												Extended Scan
-											</label>
+										<div class="block tabs-block is-hidden" id="config-network-3">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-3-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-3-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-3-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-3-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-3-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-3-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-3-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-3-winpass" value="" />
+												</div>
+											</div>
 										</div>
-									</div>
-									<div class="block tabs-block is-hidden" id="config-network-2">
-										<div class="field">
-											<label class="label is-small">Name</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-2-name" value="" />
+										<div class="block tabs-block is-hidden" id="config-network-4">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-4-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-4-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-4-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-4-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-4-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-4-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-4-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-4-winpass" value="" />
+												</div>
+											</div>
 										</div>
-										<div class="field">
-											<label class="label is-small">Network/mask</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-2-network" value="" />
-										</div>
-										<div class="field">
-											<label class="checkbox">
-												<input type="checkbox" name="target-2-extended" value="true" />
-												Extended Scan
-											</label>
-										</div>
-									</div>
-									<div class="block tabs-block is-hidden" id="config-network-3">
-										<div class="field">
-											<label class="label is-small">Name</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-3-name" value="" />
-										</div>
-										<div class="field">
-											<label class="label is-small">Network/mask</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-3-network" value="" />
-										</div>
-										<div class="field">
-											<label class="checkbox">
-												<input type="checkbox" name="target-3-extended" value="true" />
-												Extended Scan
-											</label>
-										</div>
-									</div>
-									<div class="block tabs-block is-hidden" id="config-network-4">
-										<div class="field">
-											<label class="label is-small">Name</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-4-name" value="" />
-										</div>
-										<div class="field">
-											<label class="label is-small">Network/mask</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-4-network" value="" />
-										</div>
-										<div class="field">
-											<label class="checkbox">
-												<input type="checkbox" name="target-4-extended" value="true" />
-												Extended Scan
-											</label>
-										</div>
-									</div>
-									<div class="block tabs-block is-hidden" id="config-network-5">
-										<div class="field">
-											<label class="label is-small">Name</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-5-name" value="" />
-										</div>
-										<div class="field">
-											<label class="label is-small">Network/mask</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="target-5-network" value="" />
-										</div>
-										<div class="field">
-											<label class="checkbox">
-												<input type="checkbox" name="target-5-extended" value="true" />
-												Extended Scan
-											</label>
+										<div class="block tabs-block is-hidden" id="config-network-5">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-5-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-5-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-5-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-5-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-5-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-5-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-5-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-5-winpass" value="" />
+												</div>
+											</div>
 										</div>
 									</div>
 								</div>
@@ -687,6 +759,18 @@
 				});
 			});
 
+			// Show Windows-config only when checked
+			$('#config-network .windows-config-selector').each(function(_, elem) {
+				elem = $(elem);
+				elem.on('click', ev => {
+					if (elem.prop('checked')) {
+						$('#' + elem.attr('name') + '-container').removeClass('is-hidden');
+					} else {
+						$('#' + elem.attr('name') + '-container').addClass('is-hidden');
+					}
+				});
+			});
+
 			// Load the Configuration
 			$.getJSON("/api/config", data => {
 				$('#config [name="repeat"]').prop('value', data.repeat);
@@ -707,6 +791,14 @@
 						$('#config [name="target-' + idx + '-name"]').prop('value', v.target.name);
 						$('#config [name="target-' + idx + '-network"]').prop('value', v.target.ip + '/' + v.target.mask);
 						$('#config [name="target-' + idx + '-extended"]').prop('checked', v.extended);
+						if (v.windows) {
+							$('#config [name="target-' + idx + '-windows"]').prop('checked', true);
+							$('#config [name="target-' + idx + '-windom"]').prop('value', v.windows.domain);
+							$('#config [name="target-' + idx + '-winuser"]').prop('value', v.windows.domain_user);
+							$('#config [name="target-' + idx + '-winpass"]').prop('value', v.windows.password);
+						} else {
+							$('#target-' + idx + '-windows-container').addClass('is-hidden');
+						}
 					});
 				}
 
@@ -739,6 +831,13 @@
 									mask: parseInt(nw[1]),
 								}
 							};
+							if ($('#config [name="' + id + '-windows"]').prop('checked')) {
+								config.targets[idx-1].windows = {
+									domain: $('#config [name="' + id + '-windom"]').prop('value').trim() ? $('#config [name="' + id + '-windom"]').prop('value').trim() : null,
+									domain_user: $('#config [name="' + id + '-winuser"]').prop('value').trim() ? $('#config [name="' + id + '-winuser"]').prop('value').trim() : null,
+									password: $('#config [name="' + id + '-winpass"]').prop('value').trim() ? $('#config [name="' + id + '-winpass"]').prop('value').trim() : null,
+								};
+							}
 						}
 					});
 

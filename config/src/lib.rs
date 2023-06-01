@@ -78,12 +78,14 @@ impl Default for DbStruct {
 pub struct DiscoverStruct {
 	pub extended: Option<bool>,
 	pub target: Option<ConnectionStruct>,
+	pub windows: Option<WindowsStruct>,
 }
 impl Default for DiscoverStruct {
 	fn default() -> Self {
 		DiscoverStruct {
 			extended: None,
 			target: None,
+			windows: None,
 		}
 	}
 }
@@ -125,6 +127,22 @@ impl ConnectionStruct {
 			Some(ip)
 		} else {
 			None
+		}
+	}
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WindowsStruct {
+	pub domain: Option<String>,
+	pub domain_user: Option<String>,
+	pub password: Option<String>,
+}
+impl Default for WindowsStruct {
+	fn default() -> Self {
+		WindowsStruct {
+			domain: None,
+			domain_user: None,
+			password: None,
 		}
 	}
 }

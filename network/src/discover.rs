@@ -14,7 +14,11 @@ pub fn start(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::
 }
 
 pub fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Vec<Host>>) -> Vec<Host> {
-	discover_impl::scan_hosts(db, hosts)
+	let num_threads = hosts.len();
+	let scanned_hosts = discover_impl::scan_hosts(db, hosts);
+
+	info!("DEBUG: {}", scanned_hosts.len());
+	scanned_hosts
 }
 
 mod discover_impl {
@@ -34,9 +38,8 @@ mod discover_impl {
 	use uuid::Uuid;
 
 	pub(crate) fn find_hosts_chunked(local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) -> Vec<Vec<Host>> {
-		let mut result: Vec<Vec<Host>> = vec![];
-
 		trace!("Threads: {}", num_threads);
+		let mut result: Vec<Vec<Host>> = vec![];
 		for _ in 0..*num_threads {
 			result.push(vec![]);
 		}
@@ -83,6 +86,22 @@ mod discover_impl {
 			result.append(&mut res);
 		}
 		result
+	}
+
+	pub(crate) fn start_windows_enumeration(db: &mut sqlite::Database, hosts: Vec<Host>, num_threads: usize) {
+		let mut result: Vec<Vec<Host>> = vec![];
+		for _ in 0..num_threads {
+			result.push(vec![]);
+		}
+		hosts.iter().enumerate()
+			.for_each(|(k, host)| result.get_mut(k % num_threads)
+				.unwrap()
+				.push(host.clone()));
+			// TODO
+	}
+
+	fn enumerate_windows_information(db: &mut sqlite::Database, host: &Host) {
+
 	}
 
 	fn get_tmp_file() -> PathBuf {
