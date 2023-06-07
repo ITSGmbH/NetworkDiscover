@@ -113,9 +113,9 @@ mod discover_impl {
 	/// ```
 	pub(crate) fn scan_hosts(db: &mut sqlite::Database, host_chunks: Vec<Vec<Host>>) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
-		let mut handles = vec![];
-		trace!("[Scan] Threads: {}", host_chunks.len());
 
+		trace!("[Scan] Threads: {}", host_chunks.len());
+		let mut handles = vec![];
 		for chunk in host_chunks {
 			let handle = thread::spawn(move || {
 				trace!("[Scan] Thread {:?} started", thread::current().id());
@@ -133,14 +133,14 @@ mod discover_impl {
 		// Join and wait till every thread is finished
 		for handle in handles {
 			trace!("[Scan] Thread joined: {:?}", &handle.thread().id());
-			let mut res: Vec<Host> = handle.join().unwrap();
-
-			for host in &mut res {
-				host.save_to_db(db);
-				host.update_host_information(db);
-				host.save_services_to_db(db);
-			}
-			result.append(&mut res);
+			handle.join().unwrap()
+				.iter_mut()
+				.for_each(|host| {
+					host.save_to_db(db);
+					host.update_host_information(db);
+					host.save_services_to_db(db);
+					result.push(host.clone());
+				});
 		}
 		result
 	}
@@ -172,7 +172,7 @@ mod discover_impl {
 				.push(host.clone()));
 
 		// Start threads
-		trace!("[Windows] Threads: {}", num_threads.len());
+		trace!("[Windows] Threads: {}", num_threads);
 		let mut handles = vec![];
 		for mut chunk in host_chunks {
 			let handle = thread::spawn(move || {
@@ -187,7 +187,9 @@ mod discover_impl {
 		// Join and wait till every thread is finished
 		for handle in handles {
 			trace!("[Windows] Thread joined: {:?}", &handle.thread().id());
-			handle.join().unwrap().iter().for_each(|host| host.save_windows_information(db) );
+			handle.join().unwrap()
+				.iter()
+				.for_each(|host| host.save_windows_information(db) );
 		};
 	}
 
