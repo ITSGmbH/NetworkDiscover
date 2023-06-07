@@ -5,6 +5,21 @@ use log::info;
 
 const MAX_TRACEROUTE_HOPS: u16 = 15;
 
+/// Scan for all hosts from the given target networks, scan them for services, vulnerabilities and windows information.
+/// The result is saved into the database and is not returned.
+///
+/// # Arguments
+///
+/// * `db` - Database connection used to save all information with
+/// * `local` - The local network configuration
+/// * `targets` - A List of target networks to scan for online hosts
+/// * `num_threads` - Number of threads to use in parallel for scanning
+///
+/// # Example
+///
+/// ```
+/// start(&db, local, targets, 5);
+/// ```
 pub fn start(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) {
 	info!("HostDiscovery: start");
 	let host_chunks = discover_impl::find_hosts_chunked(local, targets, num_threads);
@@ -13,10 +28,23 @@ pub fn start(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::
 	info!("HostDiscovery: ended");
 }
 
-pub fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Vec<Host>>) -> Vec<Host> {
-	let num_threads = hosts.len();
-	let scanned_hosts = discover_impl::scan_hosts(db, hosts);
-	discover_impl::start_windows_enumeration(db, scanned_hosts.clone(), num_threads);
+/// Scan and return a list of hosts, grouped in sublists, for services, vulnerabilities and windows information.
+///
+/// # Arguments
+///
+/// * `db` - Database connection used to save all information with
+/// * `grouped_hosts` - Hosts grouped into chunks of Hosts to scan in parallel
+///
+/// # Example
+///
+/// ```
+/// let grouped: Vec<Vec<Host>> = vec![];
+/// let scanned = scanned_hosts(&db, grouped);
+/// ```
+pub fn scan_hosts(db: &mut sqlite::Database, grouped_hosts: Vec<Vec<Host>>) -> Vec<Host> {
+	let num_threads = grouped_hosts.len();
+	let scanned_hosts = discover_impl::scan_hosts(db, grouped_hosts);
+	discover_impl::enummerate_windows(db, scanned_hosts.clone(), num_threads);
 
 	info!("DEBUG: {}", scanned_hosts.len());
 	scanned_hosts
@@ -38,17 +66,30 @@ mod discover_impl {
 	use xml::reader::{EventReader, XmlEvent};
 	use uuid::Uuid;
 
-	pub(crate) fn find_hosts_chunked(local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) -> Vec<Vec<Host>> {
-		trace!("Threads: {}", num_threads);
+	/// Scans the Network for Hosts and returns a list a given number of grouped hosts.
+	///
+	/// # Arguments
+	///
+	/// * `local` - Local network configuration
+	/// * `targets` - List of targets and/or Networks to find Hosts on and scan
+	/// * `num_chunks` - The numebr of groups to separate the hosts in
+	///
+	/// # Example
+	///
+	/// ```
+	/// let chunks = find_hosts_chunked(lcoal, targest, 5);
+	/// let hosts = scan_hosts(&db, chunks);
+	/// ```
+	pub(crate) fn find_hosts_chunked(local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_chunks: &u32) -> Vec<Vec<Host>> {
 		let mut result: Vec<Vec<Host>> = vec![];
-		for _ in 0..*num_threads {
+		for _ in 0..*num_chunks {
 			result.push(vec![]);
 		}
 
 		let mut count = 0;
 		for target in targets {
 			for host in discover_network(local, &target) {
-				let chunk = result.get_mut((count % num_threads) as usize);
+				let chunk = result.get_mut((count % num_chunks) as usize);
 				chunk.unwrap().push(host);
 				count += 1;
 			}
@@ -56,9 +97,25 @@ mod discover_impl {
 		result
 	}
 
+	/// Returns a List of all hosts after they where scanned for services and vulnerabilities.
+	/// First routing information are gathered, after each host scanned for services and optionally for vulnerabilities.
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database connection to use to save the hosts after all scans are done
+	/// * `host_chunks` - List of host-lists; Each List is used in a thread to scan in parallel
+	///
+	/// # Example
+	///
+	/// ```
+	/// let chunks = find_hosts_chunked(lcoal, targest, 5);
+	/// let hosts = scan_hosts(&db, chunks);
+	/// ```
 	pub(crate) fn scan_hosts(db: &mut sqlite::Database, host_chunks: Vec<Vec<Host>>) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
 		let mut handles = vec![];
+		trace!("[Scan] Threads: {}", host_chunks.len());
+
 		for chunk in host_chunks {
 			let handle = thread::spawn(move || {
 				trace!("[Scan] Thread {:?} started", thread::current().id());
@@ -88,7 +145,23 @@ mod discover_impl {
 		result
 	}
 
-	pub(crate) fn start_windows_enumeration(db: &mut sqlite::Database, hosts: Vec<Host>, num_threads: usize) {
+	/// Tries to enummerate windows information on all given hosts in parallel.
+	///
+	/// The function is blocking until all threads are finished up.
+	/// The information is saved for all hosts in a thread after it finished.
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database conenction to use to save the hosts after information where enummerated
+	/// * `hosts` - List of hosts to try to enummerate windows information
+	/// * `num_threads` - Number of threads to split the hosts and scan the hosts simultanously
+	///
+	/// # Example
+	///
+	/// ```
+	/// enummerate_windows(&db, hosts, 5);
+	/// ```
+	pub(crate) fn enummerate_windows(db: &mut sqlite::Database, hosts: Vec<Host>, num_threads: usize) {
 		let mut host_chunks: Vec<Vec<Host>> = vec![];
 		for _ in 0..num_threads {
 			host_chunks.push(vec![]);
@@ -99,6 +172,7 @@ mod discover_impl {
 				.push(host.clone()));
 
 		// Start threads
+		trace!("[Windows] Threads: {}", num_threads.len());
 		let mut handles = vec![];
 		for mut chunk in host_chunks {
 			let handle = thread::spawn(move || {
@@ -117,10 +191,35 @@ mod discover_impl {
 		};
 	}
 
+	/// Scan a host for windows services, shares, printers, general information
+	///
+	/// Based on the configuration if the host, the user, password, workgroup is omitted.
+	///
+	/// This function creates system commands:
+	///
+	/// * `sudo NO_COLOR=1 enum4linux IP.AD.DR.ES -A -C -d -oJ TMP_FILE -u USER -w WORKGROUP -p PASSWORD`
+	///
+	/// # Arguments
+	///
+	/// * `host` - The Host to scan for windows services
+	///
+	/// # Example
+	///
+	/// ```
+	/// let windows_host = enumerate_windows_information(&host);
+	/// ```
 	fn enumerate_windows_information(host: &Host) -> Option<Host> {
 		None
 	}
 
+	/// Returns a unique XML-Filename as a PathBuf in the systems temp folder.
+	/// The File is not created, it's just the filename and path.
+	///
+	/// # Example
+	///
+	/// ```
+	/// let tmp_file = get_tmp_file();
+	/// ```
 	fn get_tmp_file() -> PathBuf {
 		let mut tmp_dir = temp_dir();
 		let tmp_name = format!("{}.xml", Uuid::new_v4());
@@ -128,6 +227,17 @@ mod discover_impl {
 		tmp_dir
 	}
 
+	/// Returns the content of a given file as a String and removes the file afterwards.
+	///
+	/// # Arguments
+	///
+	/// * `path` - Location of the file to read and remove
+	///
+	/// # Example
+	///
+	/// ```
+	/// let lines = get_file_content_and_cleanup(&tmp_file);
+	/// ```
 	fn get_file_content_and_cleanup(path: &PathBuf) -> String {
 		let file = File::open(path);
 		if file.is_ok() {
@@ -140,6 +250,24 @@ mod discover_impl {
 		String::new()
 	}
 
+	/// Returns all online hosts from a given network.
+	///
+	/// This function creates system commands:
+	///
+	/// * `sudo nmap -sn -oX /tmp/...xml HOST`
+	///
+	/// # Arguments
+	///
+	/// * `local` - The local network configuration used to get routing information
+	/// * `target` - The target network to search all online hosts
+	///
+	/// # Example
+	///
+	/// ```
+	/// for host in discover_network(local, &target) {
+	///     info!("Found Host: {:?}", host);
+	/// }
+	/// ```
 	fn discover_network(local: &LocalNet, target: &config::DiscoverStruct) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
 		let default_network = local.default_network()
@@ -202,6 +330,23 @@ mod discover_impl {
 		return result;
 	}
 
+	/// Traces and fills routing information on the given host object
+	///
+	/// This function creates system commands:
+	///
+	/// * `ip route list match IP.AD.DR.ES`
+	/// * `traceroute -n -q1 -m IP.AD.DR.ES`
+	///
+	/// # Arguments
+	///
+	/// * `host` - Host to trace and find the route to
+	///
+	/// # Example
+	///
+	/// ```
+	/// traceroute(&mut host);
+	/// ```
+	/// TODO: Is it more Rust-Style if the host is returned and not modified?
 	fn traceroute(host: &mut Host) {
 		if host.ip.is_some() && !host.hops.iter().any(|hop| host.ip.unwrap().to_string() == hop.to_string()) {
 			let ip = host.ip.unwrap().to_string();
@@ -285,6 +430,24 @@ mod discover_impl {
 		}
 	}
 	
+	/// Scans a host for open ports and services.
+	///
+	/// If the host is flagged as `extended_scan`, also a vulnerability scan is performed with the `vulners.nse` nmap script
+	///
+	/// This function creates system commands:
+	///
+	/// * `nmap -O -sT -sV --script=vulners.nse`
+	///
+	/// # Arguments
+	///
+	/// * `host` - Host to scan for services and vulnerabilities
+	///
+	/// # Example
+	///
+	/// ```
+	/// portscan(&mut host);
+	/// ```
+	/// TODO: Is it more Rust-Style if the host is returned and not modified?
 	fn portscan(host: &mut Host) {
 		if host.ip.is_some() {
 			let ip = host.ip.unwrap().to_string();
