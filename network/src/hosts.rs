@@ -230,6 +230,10 @@ impl Host {
 			}
 		}
 	}
+
+	pub(crate) fn save_windows_information(&self, db: &mut sqlite::Database) {
+
+	}
 }
 
 #[derive(Debug,Clone)]

@@ -16,6 +16,7 @@ pub fn start(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::
 pub fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Vec<Host>>) -> Vec<Host> {
 	let num_threads = hosts.len();
 	let scanned_hosts = discover_impl::scan_hosts(db, hosts);
+	discover_impl::start_windows_enumeration(db, scanned_hosts.clone(), num_threads);
 
 	info!("DEBUG: {}", scanned_hosts.len());
 	scanned_hosts
@@ -60,7 +61,7 @@ mod discover_impl {
 		let mut handles = vec![];
 		for chunk in host_chunks {
 			let handle = thread::spawn(move || {
-				trace!("Thread {:?} started", thread::current().id());
+				trace!("[Scan] Thread {:?} started", thread::current().id());
 				let mut res: Vec<Host> = vec![];
 				for mut host in chunk {
 					traceroute(&mut host);
@@ -74,9 +75,8 @@ mod discover_impl {
 
 		// Join and wait till every thread is finished
 		for handle in handles {
-			let thread_id = &handle.thread().id();
+			trace!("[Scan] Thread joined: {:?}", &handle.thread().id());
 			let mut res: Vec<Host> = handle.join().unwrap();
-			trace!("Thread joined: {:?}", thread_id);
 
 			for host in &mut res {
 				host.save_to_db(db);
@@ -89,19 +89,36 @@ mod discover_impl {
 	}
 
 	pub(crate) fn start_windows_enumeration(db: &mut sqlite::Database, hosts: Vec<Host>, num_threads: usize) {
-		let mut result: Vec<Vec<Host>> = vec![];
+		let mut host_chunks: Vec<Vec<Host>> = vec![];
 		for _ in 0..num_threads {
-			result.push(vec![]);
+			host_chunks.push(vec![]);
 		}
 		hosts.iter().enumerate()
-			.for_each(|(k, host)| result.get_mut(k % num_threads)
+			.for_each(|(k, host)| host_chunks.get_mut(k % num_threads)
 				.unwrap()
 				.push(host.clone()));
-			// TODO
+
+		// Start threads
+		let mut handles = vec![];
+		for mut chunk in host_chunks {
+			let handle = thread::spawn(move || {
+				trace!("[Windows] Thread {:?} started", thread::current().id());
+				chunk.iter_mut()
+					.filter_map(|host| enumerate_windows_information(host))
+					.collect::<Vec<Host>>()
+			});
+			handles.push(handle);
+		}
+
+		// Join and wait till every thread is finished
+		for handle in handles {
+			trace!("[Windows] Thread joined: {:?}", &handle.thread().id());
+			handle.join().unwrap().iter().for_each(|host| host.save_windows_information(db) );
+		};
 	}
 
-	fn enumerate_windows_information(db: &mut sqlite::Database, host: &Host) {
-
+	fn enumerate_windows_information(host: &Host) -> Option<Host> {
+		None
 	}
 
 	fn get_tmp_file() -> PathBuf {
