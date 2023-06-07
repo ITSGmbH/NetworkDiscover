@@ -16,7 +16,7 @@ pub mod scan {
 		let mut scan = db::Scan::default();
 		if scan.save(&mut db).is_ok() {
 			db.current_scan_id = scan.scan;
-			discover::start(&mut db, network, &conf.targets, &conf.num_threads);
+			discover::start(&mut db, network, conf);
 		}
 		let _ = scan.end_scan(&mut db);
 
@@ -84,7 +84,7 @@ pub mod capture {
 											info!("DHCP-Initiated Scan");
 											let mut host = Host::default();
 											host.ip = Some(IpAddr::from(*client_ip));
-											discover::scan_hosts(&mut db, vec![vec![host]]);
+											discover::scan_hosts(&mut db, &conf, vec![vec![host]]);
 										}
 									}
 								},

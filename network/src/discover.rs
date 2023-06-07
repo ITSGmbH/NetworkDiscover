@@ -1,6 +1,7 @@
 
 use crate::hosts::Host;
 use local_net::LocalNet;
+use config::AppConfig;
 use log::info;
 
 const MAX_TRACEROUTE_HOPS: u16 = 15;
@@ -12,19 +13,16 @@ const MAX_TRACEROUTE_HOPS: u16 = 15;
 ///
 /// * `db` - Database connection used to save all information with
 /// * `local` - The local network configuration
-/// * `targets` - A List of target networks to scan for online hosts
-/// * `num_threads` - Number of threads to use in parallel for scanning
+/// * `config` - Reference to the main configuration
 ///
 /// # Example
 ///
 /// ```
-/// start(&db, local, targets, 5);
+/// start(&db, local, config);
 /// ```
-pub fn start(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_threads: &u32) {
+pub fn start(db: &mut sqlite::Database, local: &LocalNet, config: &AppConfig) {
 	info!("HostDiscovery: start");
-	let host_chunks = discover_impl::find_hosts_chunked(local, targets, num_threads);
-	let hosts = scan_hosts(db, host_chunks);
-	info!("Scanned {} hosts", hosts.len());
+	scan_hosts(db, &config, discover_impl::find_hosts_chunked(local, &config.targets, &config.num_threads));
 	info!("HostDiscovery: ended");
 }
 
@@ -33,18 +31,18 @@ pub fn start(db: &mut sqlite::Database, local: &LocalNet, targets: &Vec<config::
 /// # Arguments
 ///
 /// * `db` - Database connection used to save all information with
+/// * `config` - Reference to the main configuration
 /// * `grouped_hosts` - Hosts grouped into chunks of Hosts to scan in parallel
 ///
 /// # Example
 ///
 /// ```
 /// let grouped: Vec<Vec<Host>> = vec![];
-/// let scanned = scanned_hosts(&db, grouped);
+/// let scanned = scanned_hosts(&db, &config, grouped);
 /// ```
-pub fn scan_hosts(db: &mut sqlite::Database, grouped_hosts: Vec<Vec<Host>>) -> Vec<Host> {
-	let num_threads = grouped_hosts.len();
+pub fn scan_hosts(db: &mut sqlite::Database, config: &AppConfig, grouped_hosts: Vec<Vec<Host>>) -> Vec<Host> {
 	let scanned_hosts = discover_impl::scan_hosts(db, grouped_hosts);
-	discover_impl::enummerate_windows(db, scanned_hosts.clone(), num_threads);
+	discover_impl::enummerate_windows(db, &config, scanned_hosts.clone());
 
 	info!("DEBUG: {}", scanned_hosts.len());
 	scanned_hosts
@@ -53,6 +51,7 @@ pub fn scan_hosts(db: &mut sqlite::Database, grouped_hosts: Vec<Vec<Host>>) -> V
 mod discover_impl {
 	use crate::hosts::{Host, Service, Vulnerability, Protocol, State};
 	use local_net::LocalNet;
+	use config::AppConfig;
 	use log::{info, debug, trace};
 
 	use std::process::Command;
@@ -153,15 +152,16 @@ mod discover_impl {
 	/// # Arguments
 	///
 	/// * `db` - Database conenction to use to save the hosts after information where enummerated
+	/// * `config` - Reference to the main configuration
 	/// * `hosts` - List of hosts to try to enummerate windows information
-	/// * `num_threads` - Number of threads to split the hosts and scan the hosts simultanously
 	///
 	/// # Example
 	///
 	/// ```
 	/// enummerate_windows(&db, hosts, 5);
 	/// ```
-	pub(crate) fn enummerate_windows(db: &mut sqlite::Database, hosts: Vec<Host>, num_threads: usize) {
+	pub(crate) fn enummerate_windows(db: &mut sqlite::Database, config: &AppConfig, hosts: Vec<Host>) {
+		let num_threads = config.num_threads as usize;
 		let mut host_chunks: Vec<Vec<Host>> = vec![];
 		for _ in 0..num_threads {
 			host_chunks.push(vec![]);
@@ -175,10 +175,11 @@ mod discover_impl {
 		trace!("[Windows] Threads: {}", num_threads);
 		let mut handles = vec![];
 		for mut chunk in host_chunks {
+			let conf = config.clone();
 			let handle = thread::spawn(move || {
 				trace!("[Windows] Thread {:?} started", thread::current().id());
 				chunk.iter_mut()
-					.filter_map(|host| enumerate_windows_information(host))
+					.filter_map(|host| enumerate_windows_information(&conf, host))
 					.collect::<Vec<Host>>()
 			});
 			handles.push(handle);
@@ -199,10 +200,11 @@ mod discover_impl {
 	///
 	/// This function creates system commands:
 	///
-	/// * `sudo NO_COLOR=1 enum4linux IP.AD.DR.ES -A -C -d -oJ TMP_FILE -u USER -w WORKGROUP -p PASSWORD`
+	/// * `enum4linux IP.AD.DR.ES -A -C -d -oJ TMP_FILE -u USER -w WORKGROUP -p PASSWORD`
 	///
 	/// # Arguments
 	///
+	/// * `config` - Reference to the main configuration
 	/// * `host` - The Host to scan for windows services
 	///
 	/// # Example
@@ -210,21 +212,52 @@ mod discover_impl {
 	/// ```
 	/// let windows_host = enumerate_windows_information(&host);
 	/// ```
-	fn enumerate_windows_information(host: &Host) -> Option<Host> {
+	fn enumerate_windows_information(config: &AppConfig, host: &Host) -> Option<Host> {
+		let target = config.targets.iter()
+			.filter(|t| t.is_responsive_for(host.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap())))
+			.next();
+
+		let tmp_file = get_tmp_file(None);
+		let mut cmd = Command::new("enum4linux-ng");
+		cmd.arg(host.ip.unwrap().to_string())
+			.arg("-A")
+			.arg("-C")
+			.arg("-d")
+			.arg("-oJ")
+			.arg(&tmp_file);
+		if let Some(t) = &target {
+			if let Some(win) = &t.windows {
+				if let Some(val) = &win.domain_user { cmd.arg("-u").arg(val); }
+				if let Some(val) = &win.password { cmd.arg("-p").arg(val); }
+				if let Some(val) = &win.domain { cmd.arg("-w").arg(val); }
+			}
+		}
+		trace!("[{:?}] Command: {:?}", thread::current().id(), cmd);
+
+		let output = cmd.output();
+		if output.is_ok() {
+			// TODO: Read tmp_file and parse it
+		}
+
 		None
 	}
 
-	/// Returns a unique XML-Filename as a PathBuf in the systems temp folder.
+	/// Returns a unique filename as a PathBuf in the systems temp folder.
 	/// The File is not created, it's just the filename and path.
+	///
+	/// # Arguments
+	///
+	/// * `extension` - Optional File-Extension
 	///
 	/// # Example
 	///
 	/// ```
-	/// let tmp_file = get_tmp_file();
+	/// let tmp_xml_file = get_tmp_file(Some("xml"));
+	/// let tmp_file = get_tmp_file(None);
 	/// ```
-	fn get_tmp_file() -> PathBuf {
+	fn get_tmp_file(extension: Option<&str>) -> PathBuf {
 		let mut tmp_dir = temp_dir();
-		let tmp_name = format!("{}.xml", Uuid::new_v4());
+		let tmp_name = format!("{}{}{}", Uuid::new_v4(), if extension.is_some() { "" } else {"."}, extension.unwrap_or_default());
 		tmp_dir.push(tmp_name);
 		tmp_dir
 	}
@@ -283,7 +316,7 @@ mod discover_impl {
 			.unwrap_or(default_network);
 		info!("Network: {}", network);
 
-		let tmp_file = get_tmp_file();
+		let tmp_file = get_tmp_file(Some("xml"));
 		let mut cmd = Command::new("sudo");
 		cmd.arg("nmap")
 			.arg("-sn")
@@ -455,7 +488,7 @@ mod discover_impl {
 			let ip = host.ip.unwrap().to_string();
 			debug!("Portscan: {:?}", ip);
 			
-			let tmp_file = get_tmp_file();
+			let tmp_file = get_tmp_file(Some("xml"));
 			let mut cmd = Command::new("sudo");
 			cmd.arg("nmap")
 				.arg("-O")

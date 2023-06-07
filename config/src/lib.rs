@@ -3,6 +3,7 @@ use confy;
 use serde::{Serialize, Deserialize};
 use std::{env, convert::From};
 use std::path::PathBuf;
+use std::net::IpAddr;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SaveConfig {
@@ -87,6 +88,12 @@ impl Default for DiscoverStruct {
 			target: None,
 			windows: None,
 		}
+	}
+}
+impl DiscoverStruct {
+	pub fn is_responsive_for(&self, ip: IpAddr) -> bool {
+		// TODO: Implement
+		true
 	}
 }
 
