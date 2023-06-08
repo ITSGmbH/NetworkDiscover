@@ -1,10 +1,16 @@
 
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result};
 
-#[derive(Debug,Clone)]
-pub enum Protocol { UNKNOWN, TCP, UDP }
+#[derive(Debug, Default, Clone)]
+pub enum Protocol {
+	#[default]
+	UNKNOWN,
+	TCP,
+	UDP
+}
 impl Display for Protocol {
 	fn fmt(&self, f: &mut Formatter) -> Result {
 		match self {
@@ -26,8 +32,14 @@ impl FromStr for Protocol {
 	}
 }
 
-#[derive(Debug,Clone)]
-pub enum State { UNKNOWN, OPEN, FILTER, CLOSE }
+#[derive(Debug, Default, Clone)]
+pub enum State {
+	#[default]
+	UNKNOWN,
+	OPEN,
+	FILTER,
+	CLOSE
+}
 impl Display for State {
 	fn fmt(&self, f: &mut Formatter) -> Result {
 		match self {
@@ -52,30 +64,17 @@ impl FromStr for State {
 }
 
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Host {
 	pub network: String,
 	pub ip: Option<IpAddr>,
 	pub hops: Vec<IpAddr>,
 	pub services: Vec<Service>,
 	pub os: Option<String>,
+	pub windows: Option<Windows>,
 	pub extended_scan: bool,
 	db_id: i64,
 	db_hist_id: i64,
-}
-impl Default for Host {
-	fn default() -> Self {
-		Host {
-			network: "".to_string(),
-			ip: None,
-			hops: vec![],
-			services: vec![],
-			os: None,
-			extended_scan: false,
-			db_id: 0,
-			db_hist_id: 0,
-		}
-	}
 }
 impl Host {
 	/// Save this host-information to the database and stores some internal IDs.
@@ -232,11 +231,56 @@ impl Host {
 	}
 
 	pub(crate) fn save_windows_information(&self, db: &mut sqlite::Database) {
-
+		todo!("save_windows_information");
 	}
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Default, Clone)]
+pub struct Windows {
+	pub info: Option<WindowsInfo>,
+	pub domain: Option<WindowsDomain>,
+	pub shares: Vec<WindowsShare>,
+	pub printers: Vec<WindowsPrinter>,
+}
+#[derive(Debug, Default, Clone)]
+pub struct WindowsInfo {
+	pub native_lan_manager: Option<String>,
+	pub native_os: Option<String>,
+	pub os_name: Option<String>,
+	pub os_build: Option<String>,
+	pub os_release: Option<String>,
+	pub os_version: Option<String>,
+	pub platform: Option<String>,
+	pub server_type: Option<String>,
+	pub server_string: Option<String>,
+}
+#[derive(Debug, Default, Clone)]
+pub struct WindowsDomain {
+	pub domain: Option<String>,
+	pub dns_domain: Option<String>,
+	pub derived_domain: Option<String>,
+	pub derived_membership: Option<String>,
+	pub fqdn: Option<String>,
+	pub netbios_name: Option<String>,
+	pub ntbios_domain: Option<String>,
+}
+#[derive(Debug, Default, Clone)]
+pub struct WindowsShare {
+	pub name: Option<String>,
+	pub comment: Option<String>,
+	pub share_type: Option<String>,
+	pub access: HashMap<String, String>,
+}
+#[derive(Debug, Default, Clone)]
+pub struct WindowsPrinter {
+	pub uri: Option<String>,
+	pub comment: Option<String>,
+	pub description: Option<String>,
+	pub flags: Option<String>,
+}
+
+
+#[derive(Debug, Default, Clone)]
 pub struct Service {
 	pub port: u16,
 	pub protocol: Protocol,
@@ -246,34 +290,11 @@ pub struct Service {
 	pub version: String,
 	pub vulns: Vec<Vulnerability>,
 }
-impl Default for Service {
-	fn default() -> Self {
-		Service {
-			port: 0,
-			protocol: Protocol::UNKNOWN,
-			state: State::UNKNOWN,
-			name: String::from(""),
-			product: String::from(""),
-			version: String::from(""),
-			vulns: vec![],
-		}
-	}
-}
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Vulnerability {
 	pub database: String,
 	pub id: String,
 	pub cvss: f32,
 	pub exploit: bool,
-}
-impl Default for Vulnerability {
-	fn default() -> Self {
-		Vulnerability {
-			database: String::from(""),
-			id: String::from(""),
-			cvss: 0.0,
-			exploit: false,
-		}
-	}
 }

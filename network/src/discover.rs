@@ -49,7 +49,7 @@ pub fn scan_hosts(db: &mut sqlite::Database, config: &AppConfig, grouped_hosts: 
 }
 
 mod discover_impl {
-	use crate::hosts::{Host, Service, Vulnerability, Protocol, State};
+	use crate::hosts::{Host, Service, Vulnerability, Protocol, State, Windows, WindowsInfo, WindowsDomain, WindowsShare, WindowsPrinter};
 	use local_net::LocalNet;
 	use config::AppConfig;
 	use log::{info, debug, trace};
@@ -61,9 +61,10 @@ mod discover_impl {
 	use std::path::PathBuf;
 	use std::fs::File;
 	use std::thread;
-	use std::io::prelude::*;
+	use std::io::{BufReader, prelude::*};
 	use xml::reader::{EventReader, XmlEvent};
 	use uuid::Uuid;
+	use serde_json;
 
 	/// Scans the Network for Hosts and returns a list a given number of grouped hosts.
 	///
@@ -236,7 +237,72 @@ mod discover_impl {
 
 		let output = cmd.output();
 		if output.is_ok() {
-			// TODO: Read tmp_file and parse it
+			let json_file = PathBuf::from( format!("{}.json", tmp_file.to_str().unwrap()) );
+			let reader = BufReader::new(File::open(&json_file).unwrap());
+			let parsed: serde_json::Value = serde_json::from_reader(reader).unwrap_or(serde_json::from_str("{}").unwrap());
+
+			let info = match &parsed.get("os_info") {
+				None => None,
+				Some(info) => Some(WindowsInfo {
+						native_lan_manager: info["Native LAN manager"].as_str().map(|s| String::from(s)),
+						native_os: info["Native OS"].as_str().map(|s| String::from(s)),
+						os_name: info["OS"].as_str().map(|s| String::from(s)),
+						os_build: info["OS build"].as_str().map(|s| String::from(s)),
+						os_release: info["OS release"].as_str().map(|s| String::from(s)),
+						os_version: info["OS version"].as_str().map(|s| String::from(s)),
+						platform: info["Platform id"].as_str().map(|s| String::from(s)),
+						server_type: info["Server type"].as_str().map(|s| String::from(s)),
+						server_string: info["Server type string"].as_str().map(|s| String::from(s)),
+					}),
+			};
+			let domain = match &parsed.get("smb_domain_info") {
+				None => None,
+				Some(info) => Some(WindowsDomain {
+						domain: parsed["domain"].as_str().map(|s| String::from(s)),
+						dns_domain: info["DNS domain"].as_str().map(|s| String::from(s)),
+						derived_domain: info["Derived domain"].as_str().map(|s| String::from(s)),
+						derived_membership: info["Derived membership"].as_str().map(|s| String::from(s)),
+						fqdn: info["FQDN"].as_str().map(|s| String::from(s)),
+						netbios_name: info["NetBIOS computer name"].as_str().map(|s| String::from(s)),
+						ntbios_domain: info["NetBIOS domain name"].as_str().map(|s| String::from(s)),
+					}),
+			};
+			let shares = match &parsed["shares"].as_object() {
+				None => vec![],
+				Some(shares) => {
+					let mut res = vec![];
+					for idx in 0..shares.len() {
+						let share = shares.get(idx);
+						// TODO: share is a map
+						res.push(WindowsShare {
+							name: share.get().as_str().map(|s| String::from(s)),
+							comment: share["comment"].as_str().map(|s| String::from(s)),
+							share_type: share["type"].as_str().map(|s| String::from(s)),
+							access: HashMap::new(),
+						});
+					}
+					res
+				}
+			};
+			let printers = match &parsed["printers"].as_object() {
+				None => vec![],
+				Some(printers) => {
+					let mut res = vec![];
+					for idx in 0..printers.len() {
+						let printer = printers.get(idx);
+						// TODO: share is a map
+						res.push(WindowsPrinter {
+							uri: printer.get().as_str().map(|s| String::from(s)),
+							comment: printer["comment"].as_str().map(|s| String::from(s)),
+							description: printer["description"].as_str().map(|s| String::from(s)),
+							flags: printer["flags"].as_str().map(|s| String::from(s)),
+						});
+					}
+					res
+				}
+			};
+
+			std::fs::remove_file(json_file).unwrap_or_default();
 		}
 
 		None
@@ -257,7 +323,7 @@ mod discover_impl {
 	/// ```
 	fn get_tmp_file(extension: Option<&str>) -> PathBuf {
 		let mut tmp_dir = temp_dir();
-		let tmp_name = format!("{}{}{}", Uuid::new_v4(), if extension.is_some() { "" } else {"."}, extension.unwrap_or_default());
+		let tmp_name = format!("{}{}{}", Uuid::new_v4(), if extension.is_some() { "." } else {""}, extension.unwrap_or_default());
 		tmp_dir.push(tmp_name);
 		tmp_dir
 	}

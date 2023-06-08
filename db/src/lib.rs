@@ -227,7 +227,7 @@ impl Scan {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Log {
 	pub log_time: NaiveDateTime,
 	pub scan: i64,
@@ -264,7 +264,7 @@ impl Log {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Host {
 	pub id: i64,
 	pub hist_id: i64,
@@ -273,19 +273,6 @@ pub struct Host {
 	pub os: String,
 	pub ignore: bool,
 	pub comment: String,
-}
-impl Default for Host {
-	fn default() -> Self {
-		Host {
-			id: 0,
-			hist_id: 0,
-			network: "".to_string(),
-			ip: "".to_string(),
-			os: "".to_string(),
-			ignore: false,
-			comment: "".to_string(),
-		}
-	}
 }
 impl Host {
 	/// Loads an instance from the Database.
@@ -547,7 +534,7 @@ impl Host {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct HostHistory {
 	pub id: i64,
 	pub host_id: i64,
@@ -707,7 +694,7 @@ impl HostHistory {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Routing {
 	pub scan: i64,
 	pub left: i64,
@@ -803,7 +790,7 @@ impl Routing {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Port {
 	pub host_history_id: i64,
 	pub port: i32,
@@ -872,7 +859,7 @@ impl Port {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Cve {
 	pub host_history_id: i64,
 	pub port: i32,
@@ -1001,3 +988,65 @@ impl Cve {
 	}
 }
 
+#[derive(FromRow, Default, Debug)]
+pub struct Windows {
+	pub id: i64,
+	pub scan: i64,
+	pub hist_id: i64,
+}
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsInfo {
+	pub id: i64,
+	pub windows_id: i64,
+	pub native_lan_manager: String,
+	pub native_os: String,
+	pub os_name: String,
+	pub os_build: String,
+	pub os_release: String,
+	pub os_version: String,
+	pub platform: String,
+	pub server_type: String,
+	pub server_string: String,
+}
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsDomain {
+	pub id: i64,
+	pub windows_id: i64,
+	pub domain: String,
+	pub dns_domain: String,
+	pub derived_domain: String,
+	pub derived_membership: String,
+	pub fqdn: String,
+	pub netbios_name: String,
+	pub ntbios_domain: String,
+}
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsPrinter {
+	pub id: i64,
+	pub windows_id: i64,
+	pub uri: String,
+	pub comment: String,
+	pub description: String,
+	pub flags: String,
+}
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsShare {
+	pub id: i64,
+	pub windows_id: i64,
+	pub name: String,
+	pub comment: String,
+	#[sqlx(rename = "type")]
+	pub share_type: String,
+}
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsAccess {
+	pub id: i64,
+	pub share_id: i64,
+	pub name: String,
+	pub value: String,
+}
