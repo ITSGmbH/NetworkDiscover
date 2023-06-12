@@ -291,10 +291,15 @@ mod discover_impl {
 				};
 				std::fs::remove_file(json_file).unwrap_or_default();
 
-				let mut windows_host = host.clone();
-				windows_host.windows = Some(Windows { info, domain, shares, printers });
-				debug!("Windows ({:?}): {:?}", windows_host.ip, windows);
-				Some(windows_host)
+				match info.is_some() {
+					true => {
+						let mut windows_host = host.clone();
+						windows_host.windows = Some(Windows { info, domain, shares, printers });
+						debug!("Windows ({:?}): {:?}", windows_host.ip, &windows_host.windows);
+						Some(windows_host)
+					},
+					false => None
+				}
 			},
 			Err(_) => None
 		}
@@ -559,7 +564,7 @@ mod discover_impl {
 				.arg(&tmp_file)
 				.arg(ip);
 			trace!("[{:?}] Command: {:?}", thread::current().id(), cmd);
-			
+
 			let output = cmd.output();
 			if output.is_ok() {
 				let mut service = Service::default();
