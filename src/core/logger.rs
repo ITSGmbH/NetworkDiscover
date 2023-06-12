@@ -4,7 +4,7 @@ use std::io::Write;
 use env_logger;
 use log::LevelFilter;
 
-pub use log::{info, warn, debug, error};
+pub use log::{info, warn, debug, error, trace};
 
 pub fn init() {
 	env_logger::Builder::new()

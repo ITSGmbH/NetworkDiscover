@@ -9,7 +9,6 @@ CREATE INDEX idx_windows_host ON windows(hist_id);
 
 
 CREATE TABLE IF NOT EXISTS windows_info (
-	id INTEGER PRIMARY KEY,
 	windows_id INTEGER DEFAULT 0,
 	native_lan_manager NVARCHAR(254) DEFAULT "",
 	native_os NVARCHAR(254) DEFAULT "",
@@ -25,7 +24,6 @@ CREATE INDEX idx_win_info_id ON windows_info(windows_id);
 
 
 CREATE TABLE IF NOT EXISTS windows_domain (
-	id INTEGER PRIMARY KEY,
 	windows_id INTEGER DEFAULT 0,
 	domain NVARCHAR(254) DEFAULT "",
 	fqdn NVARCHAR(254) DEFAULT "",
@@ -39,7 +37,6 @@ CREATE INDEX idx_win_domain_id ON windows_domain(windows_id);
 
 
 CREATE TABLE IF NOT EXISTS windows_printer (
-	id INTEGER PRIMARY KEY,
 	windows_id INTEGER DEFAULT 0,
 	uri NVARCHAR(254) DEFAULT "",
 	flags NVARCHAR(10) DEFAULT "",
@@ -50,19 +47,9 @@ CREATE INDEX idx_win_printer_id ON windows_printer(windows_id);
 
 
 CREATE TABLE IF NOT EXISTS windows_share (
-	id INTEGER PRIMARY KEY,
 	windows_id INTEGER DEFAULT 0,
 	name NVARCHAR(254) DEFAULT "",
 	type NVARCHAR(100) DEFAULT "",
 	comment TEXT DEFAULT ""
 );
 CREATE INDEX idx_win_share_id ON windows_share(windows_id);
-
-
-CREATE TABLE IF NOT EXISTS windows_access (
-	id INTEGER PRIMARY KEY,
-	share_id INTEGER DEFAULT 0,
-	name NVARCHAR(100) DEFAULT "",
-	value NVARCHAR(100) DEFAULT ""
-);
-CREATE INDEX idx_win_access_id ON windows_access(share_id);

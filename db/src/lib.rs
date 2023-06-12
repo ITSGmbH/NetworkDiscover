@@ -994,10 +994,39 @@ pub struct Windows {
 	pub scan: i64,
 	pub hist_id: i64,
 }
+impl Windows {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&mut self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			if self.id <= 0 {
+				self.id = next_id(pool, "id", "windows");
+				let query = query("INSERT INTO windows (id,scan,hist_id) VALUES(?,?,?)")
+					.bind(self.id)
+					.bind(self.scan)
+					.bind(self.hist_id)
+					.execute(pool);
+				return futures::executor::block_on(query)
+					.map_or_else(
+						|err| Err(format!("[DB] Entity: 'Windows'; Save failed: {}", err)),
+						|_|  Ok(())
+					);
+			}
+			return Err(format!("[DB] Entity: 'Windows' can not be changed."));
+		}
+		Err(format!("[DB] Entity: 'Windows'; No Connection available."))
+	}
+}
+
 
 #[derive(FromRow, Default, Debug)]
 pub struct WindowsInfo {
-	pub id: i64,
 	pub windows_id: i64,
 	pub native_lan_manager: String,
 	pub native_os: String,
@@ -1009,10 +1038,42 @@ pub struct WindowsInfo {
 	pub server_type: String,
 	pub server_string: String,
 }
+impl WindowsInfo {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO windows_info (windows_id,native_lan_manager,native_os,os_name,os_build,os_release,os_version,platform,server_type,server_string) VALUES(?,?,?,?,?,?,?,?,?,?)")
+				.bind(self.windows_id)
+				.bind(&self.native_lan_manager)
+				.bind(&self.native_os)
+				.bind(&self.os_name)
+				.bind(&self.os_build)
+				.bind(&self.os_release)
+				.bind(&self.os_version)
+				.bind(&self.platform)
+				.bind(&self.server_type)
+				.bind(&self.server_string)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'WindowsInfo'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'WindowsInfo'; No Connection available."))
+	}
+}
+
 
 #[derive(FromRow, Default, Debug)]
 pub struct WindowsDomain {
-	pub id: i64,
 	pub windows_id: i64,
 	pub domain: String,
 	pub dns_domain: String,
@@ -1020,33 +1081,108 @@ pub struct WindowsDomain {
 	pub derived_membership: String,
 	pub fqdn: String,
 	pub netbios_name: String,
-	pub ntbios_domain: String,
+	pub netbios_domain: String,
+}
+impl WindowsDomain {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO windows_domain (windows_id,domain,fqdn,dns_domain,derived_domain,derived_membership,netbios_name,netbios_domain) VALUES(?,?,?,?,?,?,?,?)")
+				.bind(self.windows_id)
+				.bind(&self.domain)
+				.bind(&self.dns_domain)
+				.bind(&self.derived_domain)
+				.bind(&self.derived_membership)
+				.bind(&self.fqdn)
+				.bind(&self.netbios_name)
+				.bind(&self.netbios_domain)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'WindowsDomain'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'WindowsDomain'; No Connection available."))
+	}
 }
 
-#[derive(FromRow, Default, Debug)]
-pub struct WindowsPrinter {
-	pub id: i64,
-	pub windows_id: i64,
-	pub uri: String,
-	pub comment: String,
-	pub description: String,
-	pub flags: String,
-}
 
 #[derive(FromRow, Default, Debug)]
 pub struct WindowsShare {
-	pub id: i64,
 	pub windows_id: i64,
 	pub name: String,
 	pub comment: String,
 	#[sqlx(rename = "type")]
 	pub share_type: String,
 }
+impl WindowsShare {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO windows_share (windows_id,name,type,comment) VALUES(?,?,?,?)")
+				.bind(self.windows_id)
+				.bind(&self.name)
+				.bind(&self.share_type)
+				.bind(&self.comment)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'WindowsShare'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'WindowsShare'; No Connection available."))
+	}
+}
+
 
 #[derive(FromRow, Default, Debug)]
-pub struct WindowsAccess {
-	pub id: i64,
-	pub share_id: i64,
-	pub name: String,
-	pub value: String,
+pub struct WindowsPrinter {
+	pub windows_id: i64,
+	pub uri: String,
+	pub comment: String,
+	pub description: String,
+	pub flags: String,
+}
+impl WindowsPrinter {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO windows_printer (windows_id,uri,flags,description,comment) VALUES(?,?,?,?,?)")
+				.bind(self.windows_id)
+				.bind(&self.uri)
+				.bind(&self.flags)
+				.bind(&self.description)
+				.bind(&self.comment)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'WindowsPrinter'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'WindowsPrinter'; No Connection available."))
+	}
 }

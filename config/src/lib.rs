@@ -91,7 +91,7 @@ impl Default for DiscoverStruct {
 	}
 }
 impl DiscoverStruct {
-	pub fn is_responsive_for(&self, ip: IpAddr) -> bool {
+	pub fn is_responsible_for(&self, _ip: IpAddr) -> bool {
 		// TODO: Implement
 		true
 	}

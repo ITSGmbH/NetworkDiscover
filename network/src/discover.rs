@@ -43,8 +43,6 @@ pub fn start(db: &mut sqlite::Database, local: &LocalNet, config: &AppConfig) {
 pub fn scan_hosts(db: &mut sqlite::Database, config: &AppConfig, grouped_hosts: Vec<Vec<Host>>) -> Vec<Host> {
 	let scanned_hosts = discover_impl::scan_hosts(db, grouped_hosts);
 	discover_impl::enummerate_windows(db, &config, scanned_hosts.clone());
-
-	info!("DEBUG: {}", scanned_hosts.len());
 	scanned_hosts
 }
 
@@ -62,6 +60,7 @@ mod discover_impl {
 	use std::fs::File;
 	use std::thread;
 	use std::io::{BufReader, prelude::*};
+	use std::collections::HashMap;
 	use xml::reader::{EventReader, XmlEvent};
 	use uuid::Uuid;
 	use serde_json;
@@ -159,7 +158,7 @@ mod discover_impl {
 	/// # Example
 	///
 	/// ```
-	/// enummerate_windows(&db, hosts, 5);
+	/// enummerate_windows(&db, &config, hosts);
 	/// ```
 	pub(crate) fn enummerate_windows(db: &mut sqlite::Database, config: &AppConfig, hosts: Vec<Host>) {
 		let num_threads = config.num_threads as usize;
@@ -211,11 +210,11 @@ mod discover_impl {
 	/// # Example
 	///
 	/// ```
-	/// let windows_host = enumerate_windows_information(&host);
+	/// let windows_host = enumerate_windows_information(&config, &host);
 	/// ```
 	fn enumerate_windows_information(config: &AppConfig, host: &Host) -> Option<Host> {
 		let target = config.targets.iter()
-			.filter(|t| t.is_responsive_for(host.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap())))
+			.filter(|t| t.is_responsible_for(host.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap())))
 			.next();
 
 		let tmp_file = get_tmp_file(None);
@@ -236,76 +235,69 @@ mod discover_impl {
 		trace!("[{:?}] Command: {:?}", thread::current().id(), cmd);
 
 		let output = cmd.output();
-		if output.is_ok() {
-			let json_file = PathBuf::from( format!("{}.json", tmp_file.to_str().unwrap()) );
-			let reader = BufReader::new(File::open(&json_file).unwrap());
-			let parsed: serde_json::Value = serde_json::from_reader(reader).unwrap_or(serde_json::from_str("{}").unwrap());
+		match output {
+			Ok(_) => {
+				let json_file = PathBuf::from( format!("{}.json", tmp_file.to_str().unwrap()) );
+				let reader = BufReader::new(File::open(&json_file).unwrap());
+				let parsed: serde_json::Value = serde_json::from_reader(reader).unwrap_or(serde_json::from_str("{}").unwrap());
 
-			let info = match &parsed.get("os_info") {
-				None => None,
-				Some(info) => Some(WindowsInfo {
-						native_lan_manager: info["Native LAN manager"].as_str().map(|s| String::from(s)),
-						native_os: info["Native OS"].as_str().map(|s| String::from(s)),
-						os_name: info["OS"].as_str().map(|s| String::from(s)),
-						os_build: info["OS build"].as_str().map(|s| String::from(s)),
-						os_release: info["OS release"].as_str().map(|s| String::from(s)),
-						os_version: info["OS version"].as_str().map(|s| String::from(s)),
-						platform: info["Platform id"].as_str().map(|s| String::from(s)),
-						server_type: info["Server type"].as_str().map(|s| String::from(s)),
-						server_string: info["Server type string"].as_str().map(|s| String::from(s)),
-					}),
-			};
-			let domain = match &parsed.get("smb_domain_info") {
-				None => None,
-				Some(info) => Some(WindowsDomain {
-						domain: parsed["domain"].as_str().map(|s| String::from(s)),
-						dns_domain: info["DNS domain"].as_str().map(|s| String::from(s)),
-						derived_domain: info["Derived domain"].as_str().map(|s| String::from(s)),
-						derived_membership: info["Derived membership"].as_str().map(|s| String::from(s)),
-						fqdn: info["FQDN"].as_str().map(|s| String::from(s)),
-						netbios_name: info["NetBIOS computer name"].as_str().map(|s| String::from(s)),
-						ntbios_domain: info["NetBIOS domain name"].as_str().map(|s| String::from(s)),
-					}),
-			};
-			let shares = match &parsed["shares"].as_object() {
-				None => vec![],
-				Some(shares) => {
-					let mut res = vec![];
-					for idx in 0..shares.len() {
-						let share = shares.get(idx);
-						// TODO: share is a map
-						res.push(WindowsShare {
-							name: share.get().as_str().map(|s| String::from(s)),
-							comment: share["comment"].as_str().map(|s| String::from(s)),
-							share_type: share["type"].as_str().map(|s| String::from(s)),
-							access: HashMap::new(),
-						});
+				let info = match &parsed.get("os_info") {
+					None => None,
+					Some(info) => Some(WindowsInfo {
+							native_lan_manager: info["Native LAN manager"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							native_os: info["Native OS"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							os_name: info["OS"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							os_build: info["OS build"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							os_release: info["OS release"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							os_version: info["OS version"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							platform: info["Platform id"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							server_type: info["Server type"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							server_string: info["Server type string"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+						}),
+				};
+				let domain = match &parsed.get("smb_domain_info") {
+					None => None,
+					Some(info) => Some(WindowsDomain {
+							domain: parsed["domain"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							dns_domain: info["DNS domain"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							derived_domain: info["Derived domain"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							derived_membership: info["Derived membership"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							fqdn: info["FQDN"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							netbios_name: info["NetBIOS computer name"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+							netbios_domain: info["NetBIOS domain name"].as_str().map(|s| String::from(s)).filter(|s| !s.is_empty()),
+						}),
+				};
+				let shares = match &parsed["shares"].as_object() {
+					None => vec![],
+					Some(shares) => {
+						shares.iter().map(|(key, value)| WindowsShare {
+							name: Some(String::from(key)),
+							comment: value["comment"].as_str().map(|s| String::from(s)),
+							share_type: value["type"].as_str().map(|s| String::from(s)),
+							access: HashMap::new(), // TODO: Do we need this?
+						}).collect::<Vec<WindowsShare>>()
 					}
-					res
-				}
-			};
-			let printers = match &parsed["printers"].as_object() {
-				None => vec![],
-				Some(printers) => {
-					let mut res = vec![];
-					for idx in 0..printers.len() {
-						let printer = printers.get(idx);
-						// TODO: share is a map
-						res.push(WindowsPrinter {
-							uri: printer.get().as_str().map(|s| String::from(s)),
-							comment: printer["comment"].as_str().map(|s| String::from(s)),
-							description: printer["description"].as_str().map(|s| String::from(s)),
-							flags: printer["flags"].as_str().map(|s| String::from(s)),
-						});
+				};
+				let printers = match &parsed["printers"].as_object() {
+					None => vec![],
+					Some(printers) => {
+						printers.iter().map(|(key, value)| WindowsPrinter {
+							uri: Some(String::from(key)),
+							comment: value["comment"].as_str().map(|s| String::from(s)),
+							description: value["description"].as_str().map(|s| String::from(s)),
+							flags: value["flags"].as_str().map(|s| String::from(s)),
+						}).collect::<Vec<WindowsPrinter>>()
 					}
-					res
-				}
-			};
+				};
+				std::fs::remove_file(json_file).unwrap_or_default();
 
-			std::fs::remove_file(json_file).unwrap_or_default();
+				let mut windows_host = host.clone();
+				windows_host.windows = Some(Windows { info, domain, shares, printers });
+				debug!("Windows ({:?}): {:?}", windows_host.ip, windows);
+				Some(windows_host)
+			},
+			Err(_) => None
 		}
-
-		None
 	}
 
 	/// Returns a unique filename as a PathBuf in the systems temp folder.
