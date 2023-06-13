@@ -465,6 +465,17 @@
 			return "different";
 		}
 
+		function getNodeIcon(os) {
+			os = os.toLowerCase();
+			if (os.indexOf("android") >= 0 || os.indexOf("ios") >= 0) { return "/static/assets/device-mobile.svg"; }
+			if (os.indexOf("linux") >= 0) { return "/static/assets/device-linux.svg"; }
+			if (os.indexOf("macos") >= 0) { return "/static/assets/device-apple.svg"; }
+			if (os.indexOf("bsd") >= 0) { return "/static/assets/device-bsd.svg"; }
+			if (os.indexOf("microsoft") >= 0) { return "/static/assets/device-windows.svg"; }
+			if (os.indexOf("juniper") >= 0) { return "/static/assets/device-firewall.svg"; }
+			return "/static/assets/device-network.svg";
+		}
+
 		function prepareGraph(data, scan) {
 			const graph = { nodes: [], edges: [], node_ids: [], root_node: "root" };
 			Object.entries(data).forEach(entry => {
@@ -478,6 +489,7 @@
 				graph.nodes.push({
 					id: v.id,
 					label: v.ip + "\n" + v.os.replace('(', '\n('),
+					os: v.os,
 					background: color,
 					highlight: color,
 					removed: v.is_removed,
@@ -589,7 +601,7 @@
 						.data(graph.nodes)
 						.enter()
 						.append("image")
-						.attr("xlink:href", "/static/assets/device-windows.svg")
+						.attr("xlink:href", d => getNodeIcon(d.os))
 						.attr("width", radius)
 						.attr("height", radius)
 					.call(

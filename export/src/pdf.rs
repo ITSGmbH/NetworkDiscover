@@ -503,11 +503,12 @@ impl Pdf<'_> {
 		let mut check_os = String::from(host);
 		check_os.make_ascii_lowercase();
 		let os_icon = match 1 {
-			_ if { check_os.contains("linux") } => "static/assets/device-linux.svg",
-			_ if { check_os.contains("microsoft") } => "static/assets/device-windows.svg",
-			_ if { check_os.contains("macos") } => "static/assets/device-apple.svg",
-			_ if { check_os.contains("juniper") } => "static/assets/device-firewall.svg",
 			_ if { check_os.contains("android") || check_os.contains("ios") } => "static/assets/device-mobile.svg",
+			_ if { check_os.contains("linux") } => "static/assets/device-linux.svg",
+			_ if { check_os.contains("macos") } => "static/assets/device-apple.svg",
+			_ if { check_os.contains("bsd") } => "static/assets/device-bsd.svg",
+			_ if { check_os.contains("microsoft") } => "static/assets/device-windows.svg",
+			_ if { check_os.contains("juniper") } => "static/assets/device-firewall.svg",
 			_ => "static/assets/device-network.svg"
 		};
 
