@@ -4,8 +4,8 @@
 	<title>Network</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta charset="utf-8">
-	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
-	<script src="https://d3js.org/d3.v7.min.js"></script>
+	<script src="/static/js/jquery.min.js"></script>
+	<script src="/static/js/d3.v7.min.js"></script>
 	<link rel="stylesheet" href="/static/css/bulma.min.css">
 	<link rel="stylesheet" href="/static/css/fa-all.min.css">
 	<link rel="icon" type="image/png" href="/static/img/its_logo.png">
@@ -94,9 +94,11 @@
 		svg .hidden {
 			display: none;
 		}
+		svg .selected {
+			stroke: #14990D !important;
+		}
 		svg .fixed {
-			stroke-dasharray: 5,5;
-			stroke: red;
+			stroke: #990C39;
 		}
 		svg .node-label tspan {
 			fill-opacity: 0.4;
@@ -377,8 +379,8 @@
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-first"></div></div><div class="column legend-text">First seen</div>
 					</div>
 					<div class="columns is-desktop">
-						<div class="column is-narrow"><div class="legend-entry" id="legend-color-changed"></div></div><div class="column legend-text">Changed</div>
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-removed"></div></div><div class="column legend-text">Removed</div>
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-changed"></div></div><div class="column legend-text">Changed</div>
 					</div>
 				</div>
 				<div class="area-hint is-size-7 has-text-grey-light">
@@ -447,8 +449,8 @@
 		var colors = {
 			normal: '#d2e5ff',
 			first: '#91d782',
-			changed: '#f5ce35',
-			removed: '#eaafa2'
+			removed: '#eaafa2',
+			changed: '#f5ce35'
 		};
 
 		function getNodeGroup(os) {
@@ -469,8 +471,8 @@
 				const [k, v] = entry;
 				var color = colors.normal;
 				if (v.first_scan > 1 && v.first_scan == scan) { color = colors.first; }
-				if (v.changed_scan > 1 && v.changed_scan == scan - 1) { color = colors.changed; }
 				if (v.is_removed) { color = colors.removed; }
+				if (v.changed_scan > 1 && v.changed_scan == scan - 1) { color = colors.changed; }
 
 				graph.node_ids.push(v.id);
 				graph.nodes.push({
@@ -536,7 +538,7 @@
 
 				// Labels in lowest layer
 				const labels = svg.append("g")
-						.attr("class", "node-labels")
+					.attr("class", "node-labels")
 					.selectAll("text")
 						.data(graph.nodes)
 						.enter()
@@ -568,8 +570,9 @@
 
 				// Nodes in front
 				const nodes = svg.append("g")
-						.attr("class", "nodes")
-						.attr("fill", "#f5ce35")
+					.attr("class", "nodes")
+					.attr("stroke-width", "2")
+					.attr("stroke-dasharray", "5,5")
 					.selectAll("circle")
 						.data(graph.nodes)
 						.enter()
@@ -577,6 +580,18 @@
 						.attr("class", "node")
 						.attr("fill", d => d.background)
 						.attr("r", radius)
+						.attr("id", d => "node-" + d.id);
+
+				// Icon on top of the node
+				const icons = svg.append("g")
+					.attr("class", "icons")
+					.selectAll("image")
+						.data(graph.nodes)
+						.enter()
+						.append("image")
+						.attr("xlink:href", "/static/assets/device-windows.svg")
+						.attr("width", radius)
+						.attr("height", radius)
 					.call(
 						d3.drag()
 							.on("start", dragstarted)
@@ -585,7 +600,6 @@
 					)
 					.on("dblclick", unfix);
 
-				nodes.on("click", (datum, n) => selectNode([ n.id ]) );
 				simulation.nodes(graph.nodes).on("tick", updateGraph);
 				simulation.force("link").links(graph.edges);
 
@@ -629,22 +643,28 @@
 						.attr("cy", d => d.y);
 					labels
 						.attr("transform", d => "translate(" + (d.x) + "," + (d.y + radius) + ")");
+					icons
+						.attr("x", d => d.x - (0.5*radius))
+						.attr("y", d => d.y - (0.5*radius));
 				}
 
 				function unfix(ev, d) {
 					delete d.fx,
 					delete d.fy,
-					d3.select(this).classed("fixed", false);
+					d3.select("#node-" + d.id).classed("fixed", false);
 					simulation.alphaTarget(0).restart();
 				}
 
 				function dragstarted(ev, d) {
-					d3.select(this).classed("fixed", true);
+					selectNode([ d.id ])
+					nodes.classed("selected", false);
+					d3.select("#node-" + d.id).classed("selected", true);
 				}
 
 				function dragged(ev, d) {
 					d.fx = ev.x;
 					d.fy = ev.y;
+					d3.select("#node-" + d.id).classed("fixed", true);
 				}
 
 				function dragended(ev, d) {
@@ -690,8 +710,8 @@
 			// Legend
 			$("#legend-color-normal").css("background-color", colors.normal);
 			$("#legend-color-first").css("background-color", colors.first);
-			$("#legend-color-changed").css("background-color", colors.changed);
 			$("#legend-color-removed").css("background-color", colors.removed);
+			$("#legend-color-changed").css("background-color", colors.changed);
 
 			// Modal dialogs
 			$('#scan-now-modal button.delete').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
@@ -947,6 +967,7 @@
 
 		// Load data from a selected node and display it on success
 		function selectNode(nodes) {
+			// TODO: Unselect selected nodes if clicked again
 			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + nodes.join(';'), data => {
 				$('#host-info-box').empty();
 
