@@ -111,6 +111,12 @@
 		svg .fixed {
 			stroke: #990C39;
 		}
+		svg image.extended {
+			filter: invert(.5) sepia(1) saturate(4) hue-rotate(180deg);
+		}
+		svg image.cve {
+			filter: invert(.4) sepia(1) saturate(4) hue-rotate(-30deg);
+		}
 		svg .node-label tspan {
 			fill-opacity: 0.4;
 		}
@@ -532,7 +538,9 @@
 					background: color,
 					highlight: color,
 					removed: v.is_removed,
-					group: v.is_removed ? "delete" : getNodeGroup(v.os)
+					group: v.is_removed ? "delete" : getNodeGroup(v.os),
+					extended: v.extended,
+					cve: v.has_cve,
 				});
 				if (v.nodes.length == 0) { graph.root_node = v.id; }
 				v.nodes.forEach(val => {
@@ -640,6 +648,11 @@
 						.data(graph.nodes)
 						.enter()
 						.append("image")
+						.attr("class", d => {
+							if (d.cve) return "cve";
+							if (d.extended) return "extended";
+							return "";
+						})
 						.attr("xlink:href", d => getNodeIcon(d.os))
 						.attr("width", radius)
 						.attr("height", radius)
@@ -994,16 +1007,20 @@
 				// General information
 				var win_info = $('#modal-windows-data .windows-info');
 				var table_info = $('#modal-windows-data .info-table');
+				table_info.empty();
 				for (key in data.windows.info) {
-					table_info.append('<tr><th>' + key.replaceAll('_', ' ') + '</th><td>' + data.windows.info[key] + '</td></tr>');
+					var val = data.windows.info[key];
+					table_info.append('<tr><th>' + key.replaceAll('_', ' ') + '</th><td>' + (val == null ? "" : val) + '</td></tr>');
 				}
 				for (key in data.windows.domain) {
-					table_info.append('<tr><th>' + key.replaceAll('_', ' ') + '</th><td>' + data.windows.domain[key] + '</td></tr>');
+					var val = data.windows.domain[key];
+					table_info.append('<tr><th>' + key.replaceAll('_', ' ') + '</th><td>' + (val == null ? "" : val) + '</td></tr>');
 				}
 
 				// Shares
 				var win_shares = $('#modal-windows-data .windows-shares');
 				var table_shares = $('#modal-windows-data .shares-list');
+				table_shares.empty();
 				win_shares.removeClass("is-hidden");
 				if (data.windows.shares.length == 0) { win_shares.addClass("is-hidden"); }
 				for (key in data.windows.shares) {
@@ -1014,6 +1031,7 @@
 				// Printers
 				var win_printers = $('#modal-windows-data .windows-printers');
 				var table_printers = $('#modal-windows-data .printer-list');
+				table_printers.empty();
 				win_printers.removeClass("is-hidden");
 				if (data.windows.printers.length == 0) { win_printers.addClass("is-hidden"); }
 				for (key in data.windows.printers) {

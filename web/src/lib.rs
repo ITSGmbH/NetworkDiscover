@@ -74,6 +74,8 @@ struct NetworkResponse {
 	changed_scan: i64,
 	last_scan: i64,
 	is_removed: bool,
+	extended: bool,
+	has_cve: bool,
 }
 
 #[derive(Deserialize)]
@@ -351,6 +353,8 @@ fn map_network_db_results(db: &mut sqlite::Database, host: &db::Host, scan: &i64
 	let first = db::Host::find_first_emerge(db, &host.ip);
 	let change = db::Host::find_last_change(db, &host.ip, scan);
 	let route = db::Routing::from_host(db, &host.hist_id, scan);
+	let extended = db::Windows::load(db, &host.hist_id);
+	let cve = db::Cve::from_host_hist(db, &host.hist_id);
 	NetworkResponse {
 		id: host.hist_id,
 		network: host.network.clone(),
@@ -363,6 +367,8 @@ fn map_network_db_results(db: &mut sqlite::Database, host: &db::Host, scan: &i64
 		changed_scan: change.map_or(0, |hist| hist.scan),
 		last_scan: last.map_or(0, |hist| hist.scan),
 		is_removed: removed,
+		extended: extended.is_some(),
+		has_cve: cve.len() > 0,
 	}
 }
 
