@@ -58,7 +58,7 @@ impl Scan {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Scan>("SELECT * FROM scans WHERE scan=?")
+			let query = query_as::<_, Scan>("SELECT *,false AS changed FROM scans WHERE scan=?")
 				.bind(id)
 				.fetch_one(pool);
 			let result = futures::executor::block_on(query);
@@ -389,7 +389,7 @@ impl Host {
 	pub fn find_last_change(db: &mut sqlite::Database, ip: &str, scan: &i64) -> Option<HostHistory> {
 		let con = db.connection();
 		con.map(|pool| {
-			let query = query_as::<_, HostHistory>("SELECT hist.* FROM hosts AS h,hosts_history AS hist WHERE h.ip = ? AND hist.host_id=h.id AND hist.scan < ? ORDER BY hist.scan DESC")
+			let query = query_as::<_, HostHistory>("SELECT hist.* FROM hosts AS h,hosts_history AS hist WHERE h.ip = ? AND hist.host_id=h.id AND hist.scan <= ? ORDER BY hist.scan DESC")
 				.bind(ip)
 				.bind(scan)
 				.fetch_all(pool);
@@ -583,7 +583,7 @@ impl HostHistory {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Scan>("SELECT s.* FROM scans AS s, hosts_history AS hist WHERE hist.scan=s.scan AND hist.host_id IN ( SELECT host_id FROM hosts_history WHERE id = ? )")
+			let query = query_as::<_, Scan>("SELECT s.*,false AS changed FROM scans AS s, hosts_history AS hist WHERE hist.scan=s.scan AND hist.host_id IN ( SELECT host_id FROM hosts_history WHERE id = ? )")
 				.bind(id)
 				.fetch_all(pool);
 			let result = futures::executor::block_on(query);
