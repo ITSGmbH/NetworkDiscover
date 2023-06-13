@@ -38,7 +38,8 @@
 		}
 		#config-container,
 		#scans-list,
-		#networks-list {
+		#networks-list,
+		#windows-information {
 			max-height: 90vh;
 			overflow-y: scroll;
 			min-height: 2.75em;
@@ -89,6 +90,16 @@
 		}
 		.scan-info {
 			margin: 1rem 0;
+		}
+
+		tbody.info-table th {
+			text-transform: capitalize;
+		}
+		tbody.info-table tr {
+			background-color: #d7e6f5;
+		}
+		tbody.info-table tr:nth-child(2n) {
+			background-color: #eff5fb;
 		}
 
 		svg .hidden {
@@ -433,6 +444,34 @@
 			</div>
 		</div>
 
+		<div id="modal-windows-data" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">Extended Windows-Scan</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body" id="windows-information">
+					<p class="subtitle is-5 windows-info">General Information</p>
+					<article class="message is-info windows-info">
+						<div class="message-body table-container">
+							<table class="table is-fullwidth"><tbody class="info-table"></tbody></table>
+						</div>
+					</article>
+					<p class="subtitle is-5 windows-shares">Shares</p>
+					<article class="message windows-shares">
+						<div class="message-body table-container">
+							<table class="table is-striped is-fullwidth"><tbody class="shares-list"></tbody></table>
+						</div>
+					</article>
+					<p class="subtitle is-5 windows-printers">Printer</p>
+					<article class="message windows-printers">
+						<div class="message-body table-container">
+							<table class="table is-striped is-fullwidth"><tbody class="printer-list"></tbody></table>
+						</div>
+					</article>
+				</section>
+				<footer class="modal-card-foot"><button class="button">Close</button></footer>
+			</div>
+		</div>
+
 	</section>
 
 	<footer class="footer p-2">
@@ -730,6 +769,8 @@
 			$('#scan-now-modal button.is-info').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
 			$('#modal-hosts-history button.delete').on('click', _ev => { $('#modal-hosts-history').toggleClass('is-active'); });
 			$('#modal-hosts-history button.is-info').on('click', _ev => { $('#modal-hosts-history').toggleClass('is-active'); });
+			$('#modal-windows-data button.delete').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
+			$('#modal-windows-data button.button').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
 
 			// search events
 			$('#scan-now').on('click', { id: 'now'}, trigger_scan);
@@ -936,13 +977,52 @@
 		// Show information about a specific host
 		function fill_host_info_box(cont, data, with_hist) {
 			if (with_hist) {
-				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu"><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
+				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-date.svg" /></figure><span class="pl-2">' + (new Date(data.scan_timestamp)).toUTCString() + '</span></div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
 			} else {
-				$('.message-body', cont).append('<div><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div>');
+				$('.message-body', cont).append('<div style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">' + (new Date(data.scan_timestamp)).toUTCString() + '</span></div>');
 			}
-			$('.message-body', cont).append('<div style="padding-top:0.2rem;"><strong>OS:</strong> ' + data.os + '</div>');
-			$('.message-body', cont).append('<hr size="1" />');
+			$('.message-body', cont).append('<div class="pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-os.svg" /></figure><span class="pl-2">' + data.os + '</span></div>');
 
+			// Windows Data
+			if (data.windows && with_hist) {
+				$('.message-body', cont)
+					.append('<div id="extended-windows-scan-button" class="mouse-pointer pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">Extended Windows-Information</span></div>')
+					.on('click', ev => {
+						$('#modal-windows-data').toggleClass('is-active');
+					});
+
+				// General information
+				var win_info = $('#modal-windows-data .windows-info');
+				var table_info = $('#modal-windows-data .info-table');
+				for (key in data.windows.info) {
+					table_info.append('<tr><th>' + key.replaceAll('_', ' ') + '</th><td>' + data.windows.info[key] + '</td></tr>');
+				}
+				for (key in data.windows.domain) {
+					table_info.append('<tr><th>' + key.replaceAll('_', ' ') + '</th><td>' + data.windows.domain[key] + '</td></tr>');
+				}
+
+				// Shares
+				var win_shares = $('#modal-windows-data .windows-shares');
+				var table_shares = $('#modal-windows-data .shares-list');
+				win_shares.removeClass("is-hidden");
+				if (data.windows.shares.length == 0) { win_shares.addClass("is-hidden"); }
+				for (key in data.windows.shares) {
+					var share = data.windows.shares[key];
+					table_shares.append('<tr><th>' + share.name + '</th><td><em>' + share.share_type + '</em></td><td>' + share.comment + '</td></tr>');
+				}
+
+				// Printers
+				var win_printers = $('#modal-windows-data .windows-printers');
+				var table_printers = $('#modal-windows-data .printer-list');
+				win_printers.removeClass("is-hidden");
+				if (data.windows.printers.length == 0) { win_printers.addClass("is-hidden"); }
+				for (key in data.windows.printers) {
+					var printer = data.windows.printers[key];
+					table_printers.append('<tr><th>' + printer.uri + '</th><td><em>' + printer.description + '</em></td><td>' + printer.comment + '</td></tr>');
+				}
+			}
+
+			// Ports and CVEs
 			var table = $('.message-body', cont).append('<div class="mt-4 table-container"><table class="table is-striped is-fullwidth"><tbody class="mainbody"></tbody></table></div>');
 			data.ports.forEach(port => {
 				var id = 'cve_' + data.ip.replace(/\./gi, '_') + '-' + port.port + '_' + port.protocol;

@@ -91,6 +91,7 @@ struct HostInfoResponse {
 	scan_timestamp: String,
 	scan_history: Vec<ScanResponse>,
 	ports: Vec<PortInfoResponse>,
+	windows: Option<WindowsResponse>,
 }
 
 #[derive(Serialize)]
@@ -100,6 +101,49 @@ struct PortInfoResponse {
 	service: String,
 	product: String,
 	cves: Vec<CveInfoResponse>,
+}
+
+#[derive(Serialize)]
+struct WindowsResponse {
+	info: Option<WindowsInfoResponse>,
+	domain: Option<WindowsDomainResponse>,
+	shares: Vec<WindowsShareResponse>,
+	printers: Vec<WindowsPrinterResponse>,
+}
+#[derive(Serialize)]
+struct WindowsInfoResponse {
+	native_lan_manager: Option<String>,
+	native_os: Option<String>,
+	os_name: Option<String>,
+	os_build: Option<String>,
+	os_release: Option<String>,
+	os_version: Option<String>,
+	platform: Option<String>,
+	server_type: Option<String>,
+	server_string: Option<String>,
+}
+#[derive(Serialize)]
+struct WindowsDomainResponse {
+	domain: Option<String>,
+	dns_domain: Option<String>,
+	derived_domain: Option<String>,
+	derived_membership: Option<String>,
+	fqdn: Option<String>,
+	netbios_name: Option<String>,
+	netbios_domain: Option<String>,
+}
+#[derive(Serialize)]
+struct WindowsShareResponse {
+	name: Option<String>,
+	comment: Option<String>,
+	share_type: Option<String>,
+}
+#[derive(Serialize)]
+struct WindowsPrinterResponse {
+	uri: Option<String>,
+	comment: Option<String>,
+	description: Option<String>,
+	flags: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -343,6 +387,42 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 			host
 		});
 	let ports = db::Port::load(&mut db, &args.info);
+	let windows = db::Windows::load(&mut db, &args.info)
+		.map(|win| {
+			WindowsResponse {
+				info: db::WindowsInfo::load(&mut db, &win.id).map(|info| WindowsInfoResponse {
+					native_lan_manager: if info.native_lan_manager.is_empty() { None } else { Some(String::from(&info.native_lan_manager)) },
+					native_os: if info.native_os.is_empty() { None } else { Some(String::from(&info.native_os)) },
+					os_name: if info.os_name.is_empty() { None } else { Some(String::from(&info.os_name)) },
+					os_build: if info.os_build.is_empty() { None } else { Some(String::from(&info.os_build)) },
+					os_release: if info.os_release.is_empty() { None } else { Some(String::from(&info.os_release)) },
+					os_version: if info.os_version.is_empty() { None } else { Some(String::from(&info.os_version)) },
+					platform: if info.platform.is_empty() { None } else { Some(String::from(&info.platform)) },
+					server_type: if info.server_type.is_empty() { None } else { Some(String::from(&info.server_type)) },
+					server_string: if info.server_string.is_empty() { None } else { Some(String::from(&info.server_string)) },
+				}),
+				domain: db::WindowsDomain::load(&mut db, &win.id).map(|domain| WindowsDomainResponse {
+					domain: if domain.domain.is_empty() { None } else { Some(String::from(&domain.domain)) },
+					dns_domain: if domain.dns_domain.is_empty() { None } else { Some(String::from(&domain.dns_domain)) },
+					derived_domain: if domain.derived_domain.is_empty() { None } else { Some(String::from(&domain.derived_domain)) },
+					derived_membership: if domain.derived_membership.is_empty() { None } else { Some(String::from(&domain.derived_membership)) },
+					fqdn: if domain.fqdn.is_empty() { None } else { Some(String::from(&domain.fqdn)) },
+					netbios_name: if domain.netbios_name.is_empty() { None } else { Some(String::from(&domain.netbios_name)) },
+					netbios_domain: if domain.netbios_domain.is_empty() { None } else { Some(String::from(&domain.netbios_domain)) },
+				}),
+				shares: db::WindowsShare::load(&mut db, &win.id).iter().map(|share| WindowsShareResponse {
+					name: if share.name.is_empty() { None } else { Some(String::from(&share.name)) },
+					comment: if share.comment.is_empty() { None } else { Some(String::from(&share.comment)) },
+					share_type: if share.share_type.is_empty() { None } else { Some(String::from(&share.share_type)) },
+				}).collect(),
+				printers: db::WindowsPrinter::load(&mut db, &win.id).iter().map(|printer| WindowsPrinterResponse {
+					uri: if printer.uri.is_empty() { None } else { Some(String::from(&printer.uri)) },
+					comment: if printer.comment.is_empty() { None } else { Some(String::from(&printer.comment)) },
+					description: if printer.description.is_empty() { None } else { Some(String::from(&printer.description)) },
+					flags: if printer.flags.is_empty() { None } else { Some(String::from(&printer.flags)) },
+				}).collect(),
+			}
+		});
 
 	let result = host.map_or(None, |host| Some(HostInfoResponse {
 		id: host.id,
@@ -377,6 +457,7 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 				}
 			})
 			.collect(),
+		windows,
 	}));
 	Ok(web::Json(result))
 }

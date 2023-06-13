@@ -1022,6 +1022,32 @@ impl Windows {
 		}
 		Err(format!("[DB] Entity: 'Windows'; No Connection available."))
 	}
+
+	/// Loads all windows scan information from a host and scan (defined by the Host-History ID)
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `hist_id` - Host-History-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// Windows-Scan Information if any
+	pub fn load(db: &mut sqlite::Database, hist_id: &i64) -> Option<Windows> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, Windows>("SELECT * FROM windows WHERE hist_id=?")
+				.bind(hist_id)
+				.fetch_one(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				return Some(result.ok().unwrap());
+			}
+			log::error!("[DB] Entity: 'Windows'; Load failed: {}", result.err().unwrap());
+		}
+		None
+	}
 }
 
 
@@ -1069,6 +1095,32 @@ impl WindowsInfo {
 		}
 		Err(format!("[DB] Entity: 'WindowsInfo'; No Connection available."))
 	}
+
+	/// Returns teh Windows-Scan Information from the given Windows-Scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `win_id` - Windows-Scan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// All collected Windows-Information if any
+	pub fn load(db: &mut sqlite::Database, win_id: &i64) -> Option<WindowsInfo> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, WindowsInfo>("SELECT * FROM windows_info WHERE windows_id=?")
+				.bind(win_id)
+				.fetch_one(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				return Some(result.ok().unwrap());
+			}
+			log::error!("[DB] Entity: 'WindowsInfo'; Load failed: {}", result.err().unwrap());
+		}
+		None
+	}
 }
 
 
@@ -1112,6 +1164,32 @@ impl WindowsDomain {
 		}
 		Err(format!("[DB] Entity: 'WindowsDomain'; No Connection available."))
 	}
+
+	/// Returns teh Windows-Scan DomainData from the given Windows-Scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `win_id` - Windows-Scan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// All collected Windows-DomainData if any
+	pub fn load(db: &mut sqlite::Database, win_id: &i64) -> Option<WindowsDomain> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, WindowsDomain>("SELECT * FROM windows_domain WHERE windows_id=?")
+				.bind(win_id)
+				.fetch_one(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				return Some(result.ok().unwrap());
+			}
+			log::error!("[DB] Entity: 'WindowsDomain'; Load failed: {}", result.err().unwrap());
+		}
+		None
+	}
 }
 
 
@@ -1147,6 +1225,34 @@ impl WindowsShare {
 				);
 		}
 		Err(format!("[DB] Entity: 'WindowsShare'; No Connection available."))
+	}
+
+	/// Loads a list of all shares found during a windows scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `win_id` - Windows Scan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// A List with windows share information
+	pub fn load(db: &mut sqlite::Database, win_id: &i64) -> Vec<WindowsShare> {
+		let mut list = vec![];
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, WindowsShare>("SELECT * FROM windows_share WHERE windows_id = ?")
+				.bind(win_id)
+				.fetch_all(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				list.append(&mut result.ok().unwrap());
+			} else {
+				log::error!("[DB] Entity: 'WindowsShare'; Load failed: {}", result.err().unwrap());
+			}
+		}
+		return list;
 	}
 }
 
@@ -1184,5 +1290,33 @@ impl WindowsPrinter {
 				);
 		}
 		Err(format!("[DB] Entity: 'WindowsPrinter'; No Connection available."))
+	}
+
+	/// Loads a list of all printers found during a windows scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `win_id` - Windows Scan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// A List with windows prinetr information
+	pub fn load(db: &mut sqlite::Database, win_id: &i64) -> Vec<WindowsPrinter> {
+		let mut list = vec![];
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, WindowsPrinter>("SELECT * FROM windows_printer WHERE windows_id = ?")
+				.bind(win_id)
+				.fetch_all(pool);
+			let result = futures::executor::block_on(query);
+			if result.is_ok() {
+				list.append(&mut result.ok().unwrap());
+			} else {
+				log::error!("[DB] Entity: 'WindowsPrinter'; Load failed: {}", result.err().unwrap());
+			}
+		}
+		return list;
 	}
 }
