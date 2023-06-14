@@ -1,6 +1,6 @@
 use log::error;
 use chrono::prelude::Local;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::prelude::*;
 use printpdf::{
@@ -20,6 +20,12 @@ pub struct Pdf<'a> {
 	min_bottom: f64,
 	_max_left: f64,
 	min_left: f64,
+	header_space: f64,
+	header_underline_offset: f64,
+	header_font_size: f64,
+	font_size: f64,
+	line_height: f64,
+	page_top: f64,
 }
 
 #[derive(Debug)]
@@ -78,6 +84,12 @@ impl Pdf<'_> {
 			min_bottom: 20.0,
 			_max_left: 190.0,
 			min_left: 20.0,
+			header_space: 16.0,
+			header_underline_offset: 2.0,
+			header_font_size: 15.0,
+			font_size: 10.5,
+			line_height: 6.0,
+			page_top: 266.0,
 		};
 
 		pdf.create_title_page(&doc, &page, &layer);
@@ -338,70 +350,228 @@ impl Pdf<'_> {
 		let title = "Host ".to_string() + &host.ip;
 		let mut layer = self.add_page(doc, &title);
 
-		let font_size = 11.0;
-		let line_height = 6.0;
-		let mut start_top = 266.0;
+		let mut start_top = self.add_hosts_header(&layer, host, self.page_top);
+		start_top -= self.header_space;
 
-		start_top = self.add_hosts_header(&layer, host, &start_top, &line_height, &font_size);
+		(start_top, layer) = self.add_services_part(doc, layer.clone(), &title, start_top, host);
+		(start_top, layer) = self.add_windows_part(doc, layer.clone(), &title, start_top, host);
+		(_, _) = self.add_vulnerabilities_part(doc, layer.clone(), &title, start_top, host);
+	}
 
-		start_top -= 20.0;
-		layer.use_text("Found Services:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
-		self.draw_line(&15.0, &(start_top - 2.0), &200.0, &(start_top - 2.0), &layer);
-
+	/// Add all services from the given host to the page
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document
+	/// * `page` - Current Layer/Page to draw on
+	/// * `page_title` - Title for any further page
+	/// * `top` - Where to start vertically
+	/// * `host` - Host to show the services from
+	///
+	/// # Returns
+	///
+	/// A Tuple tith the vertical position for the next part and the PDF Layer-Reference
+	fn add_services_part(&mut self, doc: &PdfDocumentReference, mut page: PdfLayerReference, page_title: &str, top: f64, host: &db::Host) -> (f64, PdfLayerReference) {
 		let mut even_line = true;
-		start_top -= line_height / 2.0;
-		db::Port::load(self.db, &host.hist_id).iter()
-			.for_each(|port| {
-				start_top -= line_height;
-				if start_top < 20.0 {
-					layer = self.add_page(doc, &title);
-					start_top = 266.0;
-				}
-				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &20.0, &200.0, &layer);
+		let mut start_top = top;
+		let ports = db::Port::load(self.db, &host.hist_id);
+		if ports.len() > 0 {
+			(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
+			page.use_text("Services:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+			self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
+			start_top -= self.line_height / 2.0;
 
-				layer.use_text(port.port.to_string() + "/" + &port.protocol, font_size, Mm(25.0), Mm(start_top), &self.font_regular);
-				layer.use_text(String::from(&port.service), font_size, Mm(50.0), Mm(start_top), &self.font_regular);
-				layer.use_text(String::from(&port.product), font_size, Mm(85.0), Mm(start_top), &self.font_regular);
+			ports.iter()
+				.for_each(|port| {
+					(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top - self.line_height, false);
+					even_line = self.draw_highlight_line(even_line, &start_top, &self.line_height, &20.0, &200.0, &page);
+
+					page.use_text(port.port.to_string() + "/" + &port.protocol, self.font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+					page.use_text(String::from(&port.service), self.font_size, Mm(50.0), Mm(start_top), &self.font_regular);
+					page.use_text(String::from(&port.product), self.font_size, Mm(85.0), Mm(start_top), &self.font_regular);
 			});
+			start_top -= self.header_space;
+		}
+		(start_top, page)
+	}
 
-		start_top -= 16.0;
-		layer.use_text("Found Vulnerabilities:".to_string(), font_size + 4.0, Mm(20.0), Mm(start_top), &self.font_bold);
-		self.draw_line(&15.0, &(start_top - 2.0), &200.0, &(start_top - 2.0), &layer);
+	/// Add all windows scan information from the given host to the page
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document
+	/// * `page` - Current Layer/Page to draw on
+	/// * `page_title` - Title for any further page
+	/// * `top` - Where to start vertically
+	/// * `host` - Host to show the services from
+	///
+	/// # Returns
+	///
+	/// A Tuple with the vertical position for the next part and the PDF Layer-Reference
+	fn add_windows_part(&mut self, doc: &PdfDocumentReference, mut page: PdfLayerReference, page_title: &str, top: f64, host: &db::Host) -> (f64, PdfLayerReference) {
+		let mut start_top = top;
 
-		even_line = true;
-		start_top -= line_height * 1.8;
-		let mut grouped: HashMap<String, Vec<&db::Cve>> = HashMap::new();
-		let binding = db::Cve::from_host_hist(self.db, &host.hist_id);
-		binding.iter()
-			.for_each(|cve| {
-				let cves: &mut Vec<&db::Cve> = match grouped.get_mut(&cve.type_name) {
-					Some(val) => val,
-					None => {
-						grouped.insert(String::from(&cve.type_name), Vec::new());
-						grouped.get_mut(&cve.type_name).unwrap()
-					}
-				};
-				cves.push(cve);
+		if let Some(win) = db::Windows::load(self.db, &host.hist_id) {
+			let mut win_data: Vec<(&str, String)> = vec![];
+			if let Some(info) = db::WindowsInfo::load(self.db, &win.id) {
+					if !info.native_lan_manager.is_empty() { win_data.push((&"Native LAN Manager", info.native_lan_manager)); }
+					if !info.native_os.is_empty() { win_data.push((&"Native OS", info.native_os)); }
+					if !info.os_name.is_empty() { win_data.push((&"OS name", info.os_name)); }
+					if !info.os_build.is_empty() { win_data.push((&"OS Build", info.os_build)); }
+					if !info.os_release.is_empty() { win_data.push((&"OS Release", info.os_release)); }
+					if !info.os_version.is_empty() { win_data.push((&"OS Version", info.os_version)); }
+					if !info.platform.is_empty() { win_data.push((&"Platform", info.platform)); }
+					if !info.server_type.is_empty() { win_data.push((&"Server Type", info.server_type)); }
+					if !info.server_string.is_empty() { win_data.push((&"Server String", info.server_string)); }
+			}
+			if let Some(domain) = db::WindowsDomain::load(self.db, &win.id) {
+					if !domain.domain.is_empty() { win_data.push((&"Domain", domain.domain)); }
+					if !domain.dns_domain.is_empty() { win_data.push((&"DNS Domain", domain.dns_domain)); }
+					if !domain.derived_domain.is_empty() { win_data.push((&"Derived Domain", domain.derived_domain)); }
+					if !domain.derived_membership.is_empty() { win_data.push((&"Derived Membership", domain.derived_membership)); }
+					if !domain.fqdn.is_empty() { win_data.push((&"FQDN", domain.fqdn)); }
+					if !domain.netbios_name.is_empty() { win_data.push((&"NetBIOS Name", domain.netbios_name)); }
+					if !domain.netbios_domain.is_empty() { win_data.push((&"NetBIOS Domain", domain.netbios_domain)); }
+			}
+			if win_data.len() > 0 {
+				(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
+				page.use_text("Windows Information:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+				self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
+				start_top -= self.line_height / 2.0;
+
+				let mut even_line = true;
+				win_data.iter()
+					.for_each(|(key, value)| {
+						(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top - self.line_height, false);
+						even_line = self.draw_highlight_line(even_line, &start_top, &self.line_height, &20.0, &200.0, &page);
+
+						page.use_text(String::from(*key), self.font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+						page.use_text(value, self.font_size, Mm(85.0), Mm(start_top), &self.font_regular);
+				});
+				start_top -= self.header_space;
+			}
+
+			let shares = db::WindowsShare::load(self.db, &win.id);
+			if shares.len() > 0 {
+				(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
+				page.use_text("Windows Shares:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+				self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
+				start_top -= self.line_height / 2.0;
+
+				let mut even_line = true;
+				shares.iter()
+					.for_each(|share| {
+						(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top - self.line_height, false);
+						even_line = self.draw_highlight_line(even_line, &start_top, &self.line_height, &20.0, &200.0, &page);
+
+						page.use_text(String::from(&share.name), self.font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+						page.use_text(String::from(&share.share_type), self.font_size, Mm(50.0), Mm(start_top), &self.font_regular);
+						page.use_text(String::from(&share.comment), self.font_size, Mm(85.0), Mm(start_top), &self.font_regular);
+				});
+				start_top -= self.header_space;
+			}
+
+			let printers = db::WindowsPrinter::load(self.db, &win.id);
+			if printers.len() > 0 {
+				(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
+				page.use_text("Shared Printers:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+				self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
+				start_top -= self.line_height / 2.0;
+
+				let mut even_line = true;
+				printers.iter()
+					.for_each(|printer| {
+						(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top - self.line_height, false);
+						even_line = self.draw_highlight_line(even_line, &start_top, &self.line_height, &20.0, &200.0, &page);
+
+						page.use_text(String::from(&printer.uri), self.font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+						page.use_text(String::from(&printer.comment), self.font_size, Mm(50.0), Mm(start_top), &self.font_regular);
+						page.use_text(String::from(&printer.description), self.font_size, Mm(85.0), Mm(start_top), &self.font_regular);
+				});
+				start_top -= self.header_space;
+			}
+		}
+		(start_top, page)
+	}
+
+	/// Add all Vulnerabilities from the given Host
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document
+	/// * `page` - Current Layer/Page to draw on
+	/// * `page_title` - Title for any further page
+	/// * `top` - Where to start vertically
+	/// * `host` - Host to show the services from
+	///
+	/// # Returns
+	///
+	/// A Tuple with the vertical position for the next part and the PDF Layer-Reference
+	fn add_vulnerabilities_part(&mut self, doc: &PdfDocumentReference, mut page: PdfLayerReference, page_title: &str, top: f64, host: &db::Host) -> (f64, PdfLayerReference) {
+		let mut even_line = true;
+		let mut start_top = top;
+		let cves = db::Cve::from_host_hist(self.db, &host.hist_id);
+		if cves.len() > 0 {
+			(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
+			page.use_text("Possible Vulnerabilities:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+			self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
+			start_top -= self.line_height * 1.8;
+
+			let mut grouped: BTreeMap<String, Vec<&db::Cve>> = BTreeMap::new();
+			cves.iter()
+				.for_each(|cve| {
+					let cves: &mut Vec<&db::Cve> = match grouped.get_mut(&cve.type_name) {
+						Some(val) => val,
+						None => {
+							grouped.insert(String::from(&cve.type_name), Vec::new());
+							grouped.get_mut(&cve.type_name).unwrap()
+						}
+					};
+					cves.push(cve);
+				});
+
+			grouped.iter().for_each(|(group, cves)| {
+				(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
+				page.use_text(String::from(group).to_uppercase(), self.font_size, Mm(23.0), Mm(start_top), &self.font_bold);
+				page.use_text(String::from("CVSS"), self.font_size, Mm(178.0), Mm(start_top), &self.font_bold);
+				self.draw_line(&20.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
+
+				start_top -= 2.2;
+				cves.iter().for_each(|cve| {
+					(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top - self.line_height, false);
+					even_line = self.draw_highlight_line(even_line, &start_top, &self.line_height, &23.0, &200.0, &page);
+
+					page.use_text(String::from(&cve.type_id), self.font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+					page.use_text(format!("{:.1}", cve.cvss), self.font_size, Mm( if cve.cvss >= 10.0 { 180.0 } else { 182.1 }), Mm(start_top), &self.font_regular);
+				});
+				start_top -= self.line_height * 1.8;
 			});
+		}
+		(start_top, page)
+	}
 
-		grouped.iter().for_each(|(group, cves)| {
-			layer.use_text(String::from(group).to_uppercase(), font_size, Mm(23.0), Mm(start_top), &self.font_bold);
-			layer.use_text(String::from("CVSS"), font_size, Mm(178.0), Mm(start_top), &self.font_bold);
-			self.draw_line(&20.0, &(start_top - 2.0), &200.0, &(start_top - 2.0), &layer);
-
-			start_top -= 2.2;
-			cves.iter().for_each(|cve| {
-				start_top -= line_height;
-				if start_top < 20.0 {
-					layer = self.add_page(doc, &title);
-					start_top = 266.0;
-				}
-				even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &23.0, &200.0, &layer);
-
-				layer.use_text(String::from(&cve.type_id), font_size, Mm(25.0), Mm(start_top), &self.font_regular);
-				layer.use_text(cve.cvss.to_string(), font_size, Mm(180.0), Mm(start_top), &self.font_regular);
-			})
-		});
+	/// Based on the current vertical position it is decided if a new page should be inserted.
+	/// The Vertical position and a Reference to the PDF Page is returned.
+	///
+	/// # Arguments
+	///
+	/// * `doc` - Reference to the PDF Document
+	/// * `page` - Current Layer/Page to draw on
+	/// * `page_title` - Title for any further page
+	/// * `top` - Where to start vertically
+	/// * `header` - Check the space for a header
+	///
+	/// # Returns
+	///
+	/// A Tuple with the vertical position for the next part and the PDF Layer-Reference
+	fn add_new_page_if_needed(&mut self, doc: &PdfDocumentReference, mut page: PdfLayerReference, page_title: &str, top: f64, header: bool) -> (f64, PdfLayerReference) {
+		let mut start_top = top;
+		let needed_space = if header { self.header_space + self.header_font_size + (self.line_height * 2.0) } else { self.header_space };
+		if start_top < needed_space {
+			page = self.add_page(doc, &page_title);
+			start_top = self.page_top;
+		}
+		(start_top, page)
 	}
 
 	/// Adds a header and footer to the PDF Page
@@ -413,7 +583,6 @@ impl Pdf<'_> {
 	/// * `layer_index` - Layer index on the page to add the header and footer onto
 	fn add_header_and_footer(&self, doc: &PdfDocumentReference, page_index: &PdfPageIndex, layer_index: &PdfLayerIndex) {
 		let layer = doc.get_page(*page_index).get_layer(*layer_index);
-
 		match Self::get_svg("static/assets/logo.svg") {
 			None => {}
 			Some(svg) => {
@@ -459,29 +628,44 @@ impl Pdf<'_> {
 	/// * `layer` - The PDFLayer to print the header on
 	/// * `host` - Host struct to get all information from
 	/// * `start_top` - Position from bottom where to start with the header
-	/// * `line_height` - Height of a text line
-	/// * `font_size` - Font size to use
 	///
 	/// # Returns
 	///
 	/// The new position form bottom where the next text has to be oriented at
-	fn add_hosts_header(&mut self, layer: &PdfLayerReference, host: &db::Host, start_top: &f64, line_height: &f64, font_size: &f64) -> f64 {
-		let mut start_top_fnc = *start_top;
+	fn add_hosts_header(&mut self, layer: &PdfLayerReference, host: &db::Host, start_top: f64) -> f64 {
+		let mut start_top_fnc = start_top;
 
 		let gw = db::Host::get_gateway(self.db, &host.hist_id, &self.scan).map_or_else(|| "0.0.0.0".to_string(), |host| host.ip);
 		let first_emerge = db::Host::find_first_emerge(self.db, &host.ip).map_or(false, |h| h.id == host.hist_id);
 		let last_emerge = db::Host::find_last_emerge(self.db, &host.ip).map_or(false, |h| h.id == host.hist_id);
 
+		let pos_key = 50.0;
+		let pos_val = 86.0;
+
 		// Text
-		layer.use_text("Host: ".to_string() + &host.ip, *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
-		layer.use_text("Operating System: ".to_string() + &host.os, *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
-		layer.use_text("Found via: ".to_string() + &gw, *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
-		layer.use_text("Network: ".to_string() + &host.network, *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+		start_top_fnc -= self.line_height;
+		layer.use_text("Host: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_regular);
+		layer.use_text(&host.ip, self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_bold);
+
+		start_top_fnc -= self.line_height;
+		layer.use_text("Operating System: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_bold);
+		layer.use_text(&host.os, self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_regular);
+
+		start_top_fnc -= self.line_height;
+		layer.use_text("Found via: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_bold);
+		layer.use_text(&gw, self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_regular);
+
+		start_top_fnc -= self.line_height;
+		layer.use_text("Network: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_bold);
+		layer.use_text(&host.network, self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_regular);
+
 		if first_emerge {
-			layer.use_text("First seen in this scan".to_string(), *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+			start_top_fnc -= self.line_height;
+			layer.use_text("First seen in this scan".to_string(), self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_regular);
 		}
 		if last_emerge {
-			layer.use_text("Last seen in this scan".to_string(), *font_size, Mm(50.0), Mm({ start_top_fnc -= line_height; start_top_fnc }), &self.font_regular);
+			start_top_fnc -= self.line_height;
+			layer.use_text("Last seen in this scan".to_string(), self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_regular);
 		}
 
 		self.add_host_icon(layer, &host.os, &18.0, &242.0, &15.0, &15.0);
