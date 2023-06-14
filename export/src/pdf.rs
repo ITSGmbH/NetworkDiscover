@@ -204,7 +204,7 @@ impl Pdf<'_> {
 		// Calculate the nodes position
 		let grid_h = 13.0;
 		let grid_w = 30.0;
-		let center_h = self.min_bottom + (self.max_bottom - self.min_bottom) / 2.0;
+		let center_h = self.min_bottom + (self.max_bottom - self.min_bottom + grid_h) / 2.0;
 		let mut next_level_pos = Self::init_start_pos_per_level(&nodes, grid_h, center_h);
 		for (_, node) in &mut nodes {
 			node.pos_x = self.min_left + (grid_w * (node.level as f64));
@@ -226,7 +226,6 @@ impl Pdf<'_> {
 				Some(parent) => self.draw_line(&(parent.pos_x + offset_x_parent), &(parent.pos_y + offset_y_parent), &(node.pos_x - offset_x_node), &(node.pos_y + offset_y_node), &layer),
 				_ => {}
 			}
-
 			self.add_host_with_label(&layer, &node.pos_x, &node.pos_y, &node.label, &node.os);
 		}
 	}
@@ -265,7 +264,7 @@ impl Pdf<'_> {
 		let mut nums: HashMap<i64, i64> = HashMap::new();
 		for (_, node) in nodes {
 			let mut num = *nums.get(&node.level).unwrap_or(&0);
-			num = num + (1 as i64);
+			num = num + 1;
 			nums.insert(node.level, i64::from(num));
 		}
 		nums
@@ -288,8 +287,9 @@ impl Pdf<'_> {
 			}
 			_ => {}
 		}
-		for next in edges {
-			Self::build_node_distances(next, distance + 1, nodes);
+		let max = 20;
+		for (k, next) in edges.into_iter().enumerate() {
+			Self::build_node_distances(next, distance + (k as i64 / max) + 1, nodes);
 		}
 	}
 
@@ -304,7 +304,8 @@ impl Pdf<'_> {
 	/// * `os` - Operating System to find the correct icon
 	fn add_host_with_label(&self, layer: &PdfLayerReference, left: &f64, bottom: &f64, label: &str, os: &str) {
 		self.add_host_icon(&layer, os, left, bottom, &3.0, &3.0);
-		layer.use_text(label, 7.0, Mm(left - 8.0), Mm(bottom - 2.6), &self.font_regular);
+		let center = left + 1.7 - (7.0 * label.len() as f64 * 0.09); // Based on precise guessing
+		layer.use_text(label, 7.0, Mm(center), Mm(bottom - 2.6), &self.font_regular);
 	}
 
 	/// Add all hosts from the given Scan to the PDF
