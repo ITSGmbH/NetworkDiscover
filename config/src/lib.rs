@@ -1,9 +1,9 @@
 use log::{info, warn};
 use confy;
 use serde::{Serialize, Deserialize};
-use std::{env, convert::From};
+use std::{env, convert::From, str::FromStr};
 use std::path::PathBuf;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SaveConfig {
@@ -91,8 +91,23 @@ impl Default for DiscoverStruct {
 	}
 }
 impl DiscoverStruct {
-	pub fn is_responsible_for(&self, _ip: IpAddr) -> bool {
-		// TODO: Implement
+	pub fn is_responsible_for(&self, ip: IpAddr) -> bool {
+		if let Some(target) = &self.target {
+			let shift: u32 = 32 - (target.mask.unwrap_or(0) as u32);
+			return match ip {
+				IpAddr::V4(ip) => {
+					let network = Ipv4Addr::from_str(target.ip.as_ref().unwrap_or(&"127.0.0.1".to_string())).unwrap().octets();
+					let check = ip.octets();
+					let mut bin_network: u32 = ((network[0] as u32) << 24) + ((network[1] as u32) << 16) + ((network[2] as u32) << 8) + (network[3] as u32);
+					let mut bin_check: u32 = ((check[0] as u32) << 24) + ((check[1] as u32) << 16) + ((check[2] as u32) << 8) + (check[3] as u32);
+					bin_network = bin_network >> shift;
+					bin_check = bin_check >> shift;
+
+					bin_check == bin_network
+				},
+				IpAddr::V6(_ip) => { false },
+			}
+		}
 		true
 	}
 }
