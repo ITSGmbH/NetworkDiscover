@@ -84,7 +84,7 @@ pub mod capture {
 											info!("DHCP-Initiated Scan");
 											let mut host = Host::default();
 											host.ip = Some(IpAddr::from(*client_ip));
-											discover::scan_hosts(&mut db, &conf, vec![vec![host]]);
+											discover::scan_hosts(&mut db, &conf, vec![host], 1);
 										}
 									}
 								},

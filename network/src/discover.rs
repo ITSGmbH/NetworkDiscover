@@ -22,7 +22,7 @@ const MAX_TRACEROUTE_HOPS: u16 = 15;
 /// ```
 pub fn start(db: &mut sqlite::Database, local: &LocalNet, config: &AppConfig) {
 	info!("HostDiscovery: start");
-	scan_hosts(db, &config, discover_impl::find_hosts_chunked(local, &config.targets, &config.num_threads));
+	scan_hosts(db, &config, discover_impl::find_hosts(local, &config.targets), config.num_threads);
 	info!("HostDiscovery: ended");
 }
 
@@ -32,16 +32,17 @@ pub fn start(db: &mut sqlite::Database, local: &LocalNet, config: &AppConfig) {
 ///
 /// * `db` - Database connection used to save all information with
 /// * `config` - Reference to the main configuration
-/// * `grouped_hosts` - Hosts grouped into chunks of Hosts to scan in parallel
+/// * `hosts` - Hosts to scan in parallel
+/// * `threads` - Number of Threads
 ///
 /// # Example
 ///
 /// ```
 /// let grouped: Vec<Vec<Host>> = vec![];
-/// let scanned = scanned_hosts(&db, &config, grouped);
+/// let scanned = scanned_hosts(&db, &config, grouped, 5);
 /// ```
-pub fn scan_hosts(db: &mut sqlite::Database, config: &AppConfig, grouped_hosts: Vec<Vec<Host>>) -> Vec<Host> {
-	let scanned_hosts = discover_impl::scan_hosts(db, grouped_hosts);
+pub fn scan_hosts(db: &mut sqlite::Database, config: &AppConfig, hosts: Vec<Host>, threads: u32) -> Vec<Host> {
+	let scanned_hosts = discover_impl::scan_hosts(db, hosts, threads);
 	discover_impl::enummerate_windows(db, &config, scanned_hosts.clone());
 	scanned_hosts
 }
@@ -59,6 +60,7 @@ mod discover_impl {
 	use std::path::PathBuf;
 	use std::fs::File;
 	use std::thread;
+	use std::sync::{Arc, Mutex};
 	use std::io::{BufReader, prelude::*};
 	use std::collections::HashMap;
 	use xml::reader::{EventReader, XmlEvent};
@@ -71,26 +73,18 @@ mod discover_impl {
 	///
 	/// * `local` - Local network configuration
 	/// * `targets` - List of targets and/or Networks to find Hosts on and scan
-	/// * `num_chunks` - The numebr of groups to separate the hosts in
 	///
 	/// # Example
 	///
 	/// ```
-	/// let chunks = find_hosts_chunked(lcoal, targest, 5);
-	/// let hosts = scan_hosts(&db, chunks);
+	/// let hosts = find_hosts_chunked(local, targest);
+	/// let hosts = scan_hosts(&db, hosts, 5);
 	/// ```
-	pub(crate) fn find_hosts_chunked(local: &LocalNet, targets: &Vec<config::DiscoverStruct>, num_chunks: &u32) -> Vec<Vec<Host>> {
-		let mut result: Vec<Vec<Host>> = vec![];
-		for _ in 0..*num_chunks {
-			result.push(vec![]);
-		}
-
-		let mut count = 0;
+	pub(crate) fn find_hosts(local: &LocalNet, targets: &Vec<config::DiscoverStruct>) -> Vec<Host> {
+		let mut result: Vec<Host> = vec![];
 		for target in targets {
 			for host in discover_network(local, &target) {
-				let chunk = result.get_mut((count % num_chunks) as usize);
-				chunk.unwrap().push(host);
-				count += 1;
+				result.push(host);
 			}
 		}
 		result
@@ -102,27 +96,42 @@ mod discover_impl {
 	/// # Arguments
 	///
 	/// * `db` - Database connection to use to save the hosts after all scans are done
-	/// * `host_chunks` - List of host-lists; Each List is used in a thread to scan in parallel
+	/// * `hosts` - List of host-lists; Each List is used in a thread to scan in parallel
+	/// * `threads` - The number of threads to use for scanning
 	///
 	/// # Example
 	///
 	/// ```
-	/// let chunks = find_hosts_chunked(lcoal, targest, 5);
-	/// let hosts = scan_hosts(&db, chunks);
+	/// let hosts = find_hosts_chunked(lcoal, targest);
+	/// let hosts = scan_hosts(&db, hosts, 5);
 	/// ```
-	pub(crate) fn scan_hosts(db: &mut sqlite::Database, host_chunks: Vec<Vec<Host>>) -> Vec<Host> {
+	pub(crate) fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Host>, threads: u32) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
-
-		trace!("[Scan] Threads: {}", host_chunks.len());
 		let mut handles = vec![];
-		for chunk in host_chunks {
+		let queue = Arc::new(Mutex::new(hosts));
+
+		debug!("[Scan] Threads: {}", threads);
+		for _ in 0..threads {
+			let mutex = Arc::clone(&queue);
 			let handle = thread::spawn(move || {
-				trace!("[Scan] Thread {:?} started", thread::current().id());
+				debug!("[Scan] Thread {:?} started", thread::current().id());
 				let mut res: Vec<Host> = vec![];
-				for mut host in chunk {
-					traceroute(&mut host);
-					portscan(&mut host);
-					res.push(host.clone());
+				loop {
+					// Lock and free the mutex after taking the ownerhip of the last entry
+					let host = {
+						let mut hosts = mutex.lock().unwrap();
+						hosts.pop()
+					};
+					// Process the host or end the thread
+					match host {
+						Some(mut host) => {
+							debug!("[Scan] Thread {:?} Processing {:?}", thread::current().id(), host.ip);
+							traceroute(&mut host);
+							portscan(&mut host);
+							res.push(host.clone());
+						},
+						None => break
+					}
 				}
 				res
 			});
@@ -131,7 +140,7 @@ mod discover_impl {
 
 		// Join and wait till every thread is finished
 		for handle in handles {
-			trace!("[Scan] Thread joined: {:?}", &handle.thread().id());
+			debug!("[Scan] Thread joined: {:?}", &handle.thread().id());
 			handle.join().unwrap()
 				.iter_mut()
 				.for_each(|host| {
@@ -161,33 +170,37 @@ mod discover_impl {
 	/// enummerate_windows(&db, &config, hosts);
 	/// ```
 	pub(crate) fn enummerate_windows(db: &mut sqlite::Database, config: &AppConfig, hosts: Vec<Host>) {
-		let num_threads = config.num_threads as usize;
-		let mut host_chunks: Vec<Vec<Host>> = vec![];
-		for _ in 0..num_threads {
-			host_chunks.push(vec![]);
-		}
-		hosts.iter().enumerate()
-			.for_each(|(k, host)| host_chunks.get_mut(k % num_threads)
-				.unwrap()
-				.push(host.clone()));
-
-		// Start threads
-		trace!("[Windows] Threads: {}", num_threads);
+		let threads = config.num_threads as usize;
 		let mut handles = vec![];
-		for mut chunk in host_chunks {
+		let queue = Arc::new(Mutex::new(hosts));
+
+		debug!("[Windows] Threads: {}", threads);
+		for _ in 0..threads {
 			let conf = config.clone();
+			let mutex = Arc::clone(&queue);
 			let handle = thread::spawn(move || {
-				trace!("[Windows] Thread {:?} started", thread::current().id());
-				chunk.iter_mut()
-					.filter_map(|host| enumerate_windows_information(&conf, host))
-					.collect::<Vec<Host>>()
+				debug!("[Windows] Thread {:?} started", thread::current().id());
+				let mut res: Vec<Host> = vec![];
+				loop {
+					// Lock and free the mutex after taking the ownership of the last entry
+					let host = {
+						let mut hosts = mutex.lock().unwrap();
+						hosts.pop()
+					};
+					// Process the host or end the thread
+					match host {
+						Some(host) => { enumerate_windows_information(&conf, &host).map(|h| res.push(h.clone())); },
+						None => break
+					}
+				}
+				res
 			});
 			handles.push(handle);
 		}
 
 		// Join and wait till every thread is finished
 		for handle in handles {
-			trace!("[Windows] Thread joined: {:?}", &handle.thread().id());
+			debug!("[Windows] Thread joined: {:?}", &handle.thread().id());
 			handle.join().unwrap()
 				.iter()
 				.for_each(|host| host.save_windows_information(db) );
