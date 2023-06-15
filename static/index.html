@@ -88,6 +88,9 @@
 			width: 16px;
 			height: 16px;
 		}
+		.legend .legend-image {
+			border: none;
+		}
 		.scan-info {
 			margin: 1rem 0;
 		}
@@ -111,10 +114,12 @@
 		svg .fixed {
 			stroke: #990C39;
 		}
-		svg image.extended {
+		#legend-color-windows,
+		svg image.netbios {
 			filter: invert(.5) sepia(1) saturate(4) hue-rotate(180deg);
 		}
-		svg image.cve {
+		#legend-color-vulnerable,
+		svg image.vulnerable {
 			filter: invert(.4) sepia(1) saturate(4) hue-rotate(-30deg);
 		}
 		svg .node-label tspan {
@@ -399,6 +404,10 @@
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-removed"></div></div><div class="column legend-text">Removed</div>
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-changed"></div></div><div class="column legend-text">Changed</div>
 					</div>
+					<div class="columns is-desktop">
+						<div class="column is-narrow"><div class="legend-entry legend-image" id="legend-color-vulnerable"><img src="/static/assets/icon-os.svg" /></div></div><div class="column legend-text">Vulnerable</div>
+						<div class="column is-narrow"><div class="legend-entry legend-image" id="legend-color-windows"><img src="/static/assets/icon-os.svg" /></div></div><div class="column legend-text">NetBIOS</div>
+					</div>
 				</div>
 				<div class="area-hint is-size-7 has-text-grey-light">
 					Drag a node to move;<br/>Double-click to reset it's position;
@@ -649,8 +658,8 @@
 						.enter()
 						.append("image")
 						.attr("class", d => {
-							if (d.cve) return "cve";
-							if (d.extended) return "extended";
+							if (d.cve) return "vulnerable";
+							if (d.extended) return "netbios";
 							return "";
 						})
 						.attr("xlink:href", d => getNodeIcon(d.os))
