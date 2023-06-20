@@ -142,7 +142,8 @@
 				</div>
 
 				<div class="navbar-start">
-					<div class="navbar-item"><span class="tag is-warning" id="running-status">...</span></div>
+					<div class="navbar-item"><span class="tag is-warning" id="running-status">waiting</span></div>
+					<div class="navbar-item"><span class="tag is-success" id="release-version">up to date</span></div>
 				</div>
 
 				<div class="navbar-end">
@@ -973,16 +974,16 @@
 				;
 			});
 
-			// Check for the scan-status on the server
+			// Check for the scan-status every 5 seconds
 			window.setInterval(function() {
 				$.getJSON("/api/status", data => {
-					message = '...';
+					message = 'waiting';
 					if (data.running) {
 						message = "running";
 					} else if (data.paused) {
 						message = "paused";
 					} else if (data.triggered) {
-						message = "triggered...";
+						message = "started";
 					}
 					$('#running-status').addClass('is-warning');
 					$('#running-status').removeClass('is-danger');
@@ -994,6 +995,21 @@
 					$('#running-status').html('check failed...');
 				});
 			}, 5000);
+
+			// Check for an update every hour
+			window.setInterval(function() {
+				$.getJSON("/api/version", data => {
+					if (data.installed != data.latest) {
+						$('#release-version').addClass('is-danger');
+						$('#release-version').removeClass('is-success');
+						$('#release-version').html("New Version: " + data.update);
+					} else {
+						$('#release-version').addClass('is-success');
+						$('#release-version').removeClass('is-danger');
+						$('#release-version').html("Up to date");
+					}
+				});
+			}, 3600000);
 		});
 
 		// Show information about a specific host

@@ -22,6 +22,12 @@ struct ScanStatusResponse {
 	triggered: bool,
 }
 
+#[derive(Serialize)]
+struct VersionResponse {
+	installed: String,
+	latest: String,
+}
+
 enum ScanStatus {
 	Started,
 	Running,
@@ -186,6 +192,7 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 			.service(get_network)
 			.service(get_info)
 			.service(show_status)
+			.service(get_version)
 			.service(scan_start)
 			.service(export_scan)
 			.service(load_config)
@@ -375,6 +382,15 @@ fn map_network_db_results(db: &mut sqlite::Database, host: &db::Host, scan: &i64
 #[get("/api/status")]
 async fn show_status(_config: web::Data<config::AppConfig>, running: web::Data<Mutex<ScanStatusResponse>>) -> Result<impl Responder> {
 	let status = running.clone();
+	Ok(web::Json(status))
+}
+
+#[get("/api/version")]
+async fn get_version(_config: web::Data<config::AppConfig>) -> Result<impl Responder> {
+	let status = VersionResponse {
+		installed: "0.2.0".to_string(),
+		latest: "0.2.0".to_string(),
+	};
 	Ok(web::Json(status))
 }
 
