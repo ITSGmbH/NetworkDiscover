@@ -482,12 +482,17 @@ impl Pdf<'_> {
 				let mut even_line = true;
 				printers.iter()
 					.for_each(|printer| {
-						(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top - self.line_height, false);
-						even_line = self.draw_highlight_line(even_line, &start_top, &self.line_height, &20.0, &200.0, &page);
+						// Comments will be shown below the URI
+						let (line_height, line_offset) = if printer.description.is_empty() { (self.line_height, 0.0) } else { (2.0 * self.line_height, self.line_height) };
 
-						page.use_text(String::from(&printer.uri), self.font_size, Mm(25.0), Mm(start_top), &self.font_regular);
-						page.use_text(String::from(&printer.comment), self.font_size, Mm(50.0), Mm(start_top), &self.font_regular);
-						page.use_text(String::from(&printer.description), self.font_size, Mm(85.0), Mm(start_top), &self.font_regular);
+						(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top - line_height, false);
+						even_line = self.draw_highlight_line(even_line, &start_top, &line_height, &20.0, &200.0, &page);
+
+						page.use_text(String::from(&printer.uri), self.font_size, Mm(25.0), Mm(start_top + line_offset), &self.font_regular);
+						page.use_text(String::from(&printer.comment), self.font_size, Mm(85.0), Mm(start_top + line_offset), &self.font_regular);
+						if !printer.description.is_empty() {
+							page.use_text(String::from(&printer.description), self.font_size, Mm(25.0), Mm(start_top), &self.font_regular);
+						}
 				});
 				start_top -= self.header_space;
 			}
