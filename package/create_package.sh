@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 echo "Prepare and Build"
 CWD=`dirname $( realpath $0 )`
