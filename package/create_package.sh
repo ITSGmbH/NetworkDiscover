@@ -42,6 +42,12 @@ echo "Created $CWD/${ARCHIVE}"
 
 #### DEBIAN PACKAGE
 
+if [ ! -f /etc/debian_version ]; then
+  echo "No debian package created"
+  echo "run this in a debian system."
+  exit 0
+fi
+
 rm -Rf deb &>/dev/null
 mkdir -p deb &>/dev/null
 
