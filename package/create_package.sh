@@ -10,8 +10,9 @@ cd - &>/dev/null
 
 PACKAGE="network_discover"
 VERSION=$( grep "^version" ../Cargo.toml | cut -d'"' -f2 )
-ARCHIVE="${PACKAGE}-${VERSION}.tar.xz"
-DEBIAN="${PACKAGE}-${VERSION}.deb"
+ARCH=$( uname -m )
+ARCHIVE="${PACKAGE}-${VERSION}_${ARCH}.tar.xz"
+DEBIAN="${PACKAGE}-${VERSION}_${ARCH}.deb"
 
 
 #### PREPARE THE PACKAGE
