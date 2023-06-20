@@ -1,18 +1,23 @@
-//use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-
 mod core;
 use crate::core::logger;
+use log::info;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
 	logger::init();
 	
-	logger::info!("Starting network_discover...!");
+	info!("Starting network_discover");
+	loop {
+		let config: config::AppConfig = config::get();
+		config::save(&config);
 
-	let config: config::AppConfig = config::get("network_discover".to_string());
-	config::save(&config);
-	let _res = web::run(config).await;
+		let res = web::run(config).await;
+		if res.is_ok() || res.err().unwrap().kind() != std::io::ErrorKind::ConnectionReset {
+			break;
+		}
+		info!("Restarting network_discover");
+	}
+	info!("Ended network_discover");
 
-	logger::info!("Ended network_discover...!");
 	Ok(())
 }

@@ -20,16 +20,18 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 * Checks every running service for known Vulnerabilities (via vulners)
 * Scans can run manually or automatically every given timespan
 * CSV Export of a single scan
+* PDF Reporting
+* Shows a diff between two (or more?) scans
 
 ### Planned Features
 
 * Detect new Hosts based on DHCP and SLAAC messages
-* Shows a diff between two (or more?) scans
 * Scan Windows Systems for NetBios and other vulnerabilities (enum4linux?)
 * SNMP information gathering and display
-* Better Network Map visualization ( https://d3js.org/ / https://observablehq.com/@d3/force-directed-tree )
-* PDF Reporting
+* Better Network Map visualization ( https://d3js.org/ / https://observablehq.com/@d3/force-directed-tree / https://mermaid.js.org/ )
 * Scan a host individually (predefined nmap params or individual?)
+* ARM-Packages and installation images
+* Enterprise-Vulners API with `vulners_enterprise.nse` and a custom API-Key
 * ...
 
 ### Maybe Features
@@ -38,10 +40,51 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 * Split it up into Server part and a library to be usable as WASM maybe
 * ...
 
+## Run
+
+To be able to sniff the network for DHCP and other packages, the binary must run as root or have set capabilities for `net_raw` and `net_admin`:
+
+```bash
+$ sudo setcap cap_net_raw,cap_net_admin+eip target/release/network_discover
+```
+
+There are two environment variables available:
+
+* **CONFIG_FILE** *(./config.toml)* Path and name of the config file.
+* **DATA_DIR** *(./)* Path where to store the database/sqlite if not configured.
+
+### Run it locally from source:
+
+```bash
+$ cargo run
+# or
+$ cargo build --release
+$ target/release/network_discover
+```
+
+### Run it in a container:
+
+```bash
+$ podman build -t its-nwd:0.0.1 -f Dockerfile .
+$ podman run -v /tmp/nwd:/data  -p 9191:9090 --network podman --name its-nwd --replace localhost/its-nwd:0.0.1
+```
+
+Use the Volume */data* to persist the database.
+Or configure it via *--env DATA_DIR="/some/other/path"* for the database and *--env CONFIG_FILE="/some/other/path/config.toml"* for the configuration.
+
+### Run it on an embed device:
+
+**For now:** Clone the repository on a RaspberryPi, BananaPi or wherever, install rust and compile it.
+Then use the *package/network_discover.service* file to start it via systemd.
+Add the `Environment="DATA_PATH=/data CONFIG_FILE=/data/config.toml"` to the `[Service]` section.
+Build *Network Discover* via `cargo build --release` and copy the binary `target/release/network_discover` and the folder `static` to `/opt/network_discover/` or change the path in the service-file. Download the *vulners.nse* scripts from [github.com/vulnersCom/nmap-vulners/](https://github.com/vulnersCom/nmap-vulners/raw/master/vulners.nse) and install them manually in */usr/share/nmap/scripts/*.
+
+**Future:** A special image will be provided in the releases for direct install and update.
+
 
 ## Configuration
 
-The Configuration is created automaticall on first start. I is stored under `/.config/network_discover/network_discover.toml`
+The Configuration is created automaticall on first start. I is stored under `./config.toml`
 
 ```toml
 name = 'LocalNet'
@@ -98,3 +141,5 @@ protocol = 'UDP'
 * **mask** _(int32)_: Netmask as CIDR for the above network address
 * **port** _(int32)_: Port to use for check if a host is alive
 * **protocol** _(string)_: Protocol (TCP, UDP) to use for check if a host is alive
+
+

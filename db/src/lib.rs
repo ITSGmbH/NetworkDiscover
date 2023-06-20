@@ -31,6 +31,7 @@ pub struct Scan {
 	pub scan: i64,
 	pub start_time: NaiveDateTime,
 	pub end_time: NaiveDateTime,
+	pub changed: bool,
 }
 impl Default for Scan {
 	fn default() -> Self {
@@ -38,6 +39,7 @@ impl Default for Scan {
 			scan: 0,
 			start_time: chrono::Utc::now().naive_utc(),
 			end_time: NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap(),
+			changed: true,
 		}
 	}
 }
@@ -56,14 +58,19 @@ impl Scan {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Scan>("SELECT * FROM scans WHERE scan=?")
+			let query = query_as::<_, Scan>("SELECT *,false AS changed FROM scans WHERE scan=?")
 				.bind(id)
 				.fetch_one(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				return Some(result.ok().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'Scan'; Load failed: {}", err);
+						return None;
+					}
+				}
 			}
-			log::error!("[DB] Entity: 'Scan'; Load failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -88,7 +95,7 @@ impl Scan {
 			// naive::MIN_DATETIME, naive::MAX_DATETIME does not work :(
 			let param_start = if start.is_none() { NaiveDate::from_ymd_opt(1900, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap() } else { start.unwrap() };
 			let param_end = if end.is_none() { NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap() } else { end.unwrap() };
-			let query = query_as::<_, Scan>("SELECT DISTINCT s.* FROM scans AS s,hosts AS h,hosts_history AS hist WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ?")
+			let query = query_as::<_, Scan>("SELECT DISTINCT s.*,true AS changed FROM scans AS s,hosts AS h,hosts_history AS hist WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ?")
 				.bind(network)
 				.bind(&param_start)
 				.bind(&param_end)
@@ -99,6 +106,25 @@ impl Scan {
 			} else {
 				log::error!("[DB] Entity: 'Scan'; List from Network Failed: {}", result.err().unwrap());
 			}
+
+			// Check if there is a change between the scans
+			let mut first = true;
+			list.iter_mut().for_each(|mut scan| {
+				let mut changed = false;
+				let pool1 = con.unwrap();
+				let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? AND h.id NOT IN ( SELECT h1.id FROM hosts AS h1,hosts_history AS hist1 WHERE hist1.scan = ? AND hist1.host_id=h1.id AND h1.network = ? )")
+					.bind(scan.scan - 1)
+					.bind(network)
+					.bind(scan.scan)
+					.bind(network)
+					.fetch_all(pool1);
+				let result = futures::executor::block_on(query);
+				if result.is_ok() {
+					changed = result.ok().unwrap().len() > 0;
+				}
+				scan.changed = first || changed;
+				first = false;
+			});
 		}
 		return list;
 	}
@@ -115,25 +141,56 @@ impl Scan {
 	///
 	/// A List with instances in the given range
 	pub fn list(db: &mut sqlite::Database, start: Option<NaiveDateTime>, end: Option<NaiveDateTime>) -> Vec<Scan> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
 			// naive::MIN_DATETIME, naive::MAX_DATETIME does not work :(
 			let param_start = if start.is_none() { NaiveDate::from_ymd_opt(1900, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap() } else { start.unwrap() };
 			let param_end = if end.is_none() { NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap() } else { end.unwrap() };
-			let query = query_as::<_, Scan>("SELECT * FROM scans WHERE start_time >= ? AND end_time <= ?")
+			let query = query_as::<_, Scan>("SELECT *,false AS changed FROM scans WHERE start_time >= ? AND end_time <= ?")
 				.bind(&param_start)
 				.bind(&param_end)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'Scan'; List failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'Scan'; List failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		return list;
+		return vec![];
+	}
+
+	/// Loads the last scan instance
+	///
+	/// # Arguments:
+	///
+	/// * `db` - Mutable reference to the database connection object
+	///
+	/// # Returns
+	///
+	/// Option to the latest scan
+	pub fn last(db: &mut sqlite::Database) -> Option<Scan> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, Scan>("SELECT *,false AS changed FROM scans ORDER BY scan DESC LIMIT 1").fetch_one(pool);
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'Scan'; Load Last failed: {}", err);
+						return None;
+					}
+				}
+			}
+		}
+		None
 	}
 
 	/// Saves the instance
@@ -182,7 +239,7 @@ impl Scan {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Log {
 	pub log_time: NaiveDateTime,
 	pub scan: i64,
@@ -219,7 +276,7 @@ impl Log {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Host {
 	pub id: i64,
 	pub hist_id: i64,
@@ -228,19 +285,6 @@ pub struct Host {
 	pub os: String,
 	pub ignore: bool,
 	pub comment: String,
-}
-impl Default for Host {
-	fn default() -> Self {
-		Host {
-			id: 0,
-			hist_id: 0,
-			network: "".to_string(),
-			ip: "".to_string(),
-			os: "".to_string(),
-			ignore: false,
-			comment: "".to_string(),
-		}
-	}
 }
 impl Host {
 	/// Loads an instance from the Database.
@@ -260,11 +304,16 @@ impl Host {
 			let query = query_as::<_, Host>("SELECT *, 0 AS hist_id,'' AS os FROM hosts WHERE id=?")
 				.bind(id)
 				.fetch_one(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				return Some(result.ok().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'Host'; Load failed: {}", err);
+						return None;
+					}
+				}
 			}
-			log::error!("[DB] Entity: 'Host'; Load failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -286,11 +335,16 @@ impl Host {
 			let query = query_as::<_, Host>("SELECT *, 0 AS hist_id,'' AS os FROM hosts WHERE ip=?")
 				.bind(ip)
 				.fetch_one(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				return Some(result.ok().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'Host'; Load by IP failed: {}", err);
+						return None;
+					}
+				}
 			}
-			log::error!("[DB] Entity: 'Host'; Load by IP failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -357,7 +411,7 @@ impl Host {
 	pub fn find_last_change(db: &mut sqlite::Database, ip: &str, scan: &i64) -> Option<HostHistory> {
 		let con = db.connection();
 		con.map(|pool| {
-			let query = query_as::<_, HostHistory>("SELECT hist.* FROM hosts AS h,hosts_history AS hist WHERE h.ip = ? AND hist.host_id=h.id AND hist.scan < ? ORDER BY hist.scan DESC")
+			let query = query_as::<_, HostHistory>("SELECT hist.* FROM hosts AS h,hosts_history AS hist WHERE h.ip = ? AND hist.host_id=h.id AND hist.scan <= ? ORDER BY hist.scan DESC")
 				.bind(ip)
 				.bind(scan)
 				.fetch_all(pool);
@@ -387,7 +441,6 @@ impl Host {
 	///
 	/// A vector of Hosts.
 	pub fn list_from_network(db: &mut sqlite::Database, network: &str, scan: &i64) -> Vec<Host> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
@@ -395,14 +448,18 @@ impl Host {
 				.bind(scan)
 				.bind(network)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'Host'; Load from network failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'Host'; Load from Network failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		return list;
+		return vec![];
 	}
 
 	/// Loads all instances not found anymore in a scan since last time
@@ -417,7 +474,6 @@ impl Host {
 	///
 	/// A vector of Hosts.
 	pub fn list_removed_from_network(db: &mut sqlite::Database, network: &str, scan: &i64) -> Vec<Host> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
@@ -427,14 +483,18 @@ impl Host {
 				.bind(scan)
 				.bind(network)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'Host'; Load from network failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'host'; Load Removed from Network failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		return list;
+		return vec![];
 	}
 
 	/// Loads the gateway the requested Host is connected to
@@ -502,7 +562,7 @@ impl Host {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct HostHistory {
 	pub id: i64,
 	pub host_id: i64,
@@ -527,11 +587,16 @@ impl HostHistory {
 			let query = query_as::<_, HostHistory>("SELECT * FROM hosts_history WHERE id=?")
 				.bind(id)
 				.fetch_one(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				return Some(result.ok().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'HostHistory'; Load failed: {}", err);
+						return None;
+					}
+				}
 			}
-			log::error!("[DB] Entity: 'HostHistory'; Load failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -547,21 +612,24 @@ impl HostHistory {
 	///
 	/// List with all scans in which the host appeared.
 	pub fn scan_history(db: &mut sqlite::Database, id: &i64) -> Vec<Scan> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Scan>("SELECT s.* FROM scans AS s, hosts_history AS hist WHERE hist.scan=s.scan AND hist.host_id IN ( SELECT host_id FROM hosts_history WHERE id = ? )")
+			let query = query_as::<_, Scan>("SELECT s.*,false AS changed FROM scans AS s, hosts_history AS hist WHERE hist.scan=s.scan AND hist.host_id IN ( SELECT host_id FROM hosts_history WHERE id = ? )")
 				.bind(id)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'HostHistory'; Load of Scan-History failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'HostHistory'; List Scan-History failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		list
+		return vec![];
 	}
 
 	/// Loads an instance from the Database.
@@ -583,11 +651,16 @@ impl HostHistory {
 				.bind(scan)
 				.bind(ip)
 				.fetch_one(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				return Some(result.ok().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'hostHistory'; Load from Scan failed: {}", err);
+						return None;
+					}
+				}
 			}
-			log::error!("[DB] Entity: 'HostHistory'; Load from Scan and Host failed: {}", result.err().unwrap());
 		}
 		None
 	}
@@ -604,7 +677,6 @@ impl HostHistory {
 	///
 	/// A List of host information
 	pub fn list(db: &mut sqlite::Database, scan: Option<i64>, host: Option<i64>) -> Vec<HostHistory> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
@@ -615,14 +687,18 @@ impl HostHistory {
 				}
 				.bind(host.unwrap_or( scan.unwrap_or(0) ))
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'HostHistory'; List failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'HostHistory'; List failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		list
+		return vec![];
 	}
 
 	/// Saves the instance
@@ -662,7 +738,7 @@ impl HostHistory {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Routing {
 	pub scan: i64,
 	pub left: i64,
@@ -713,7 +789,6 @@ impl Routing {
 	///
 	/// A list with instances
 	fn load(db: &mut sqlite::Database, host: &i64, scan: &i64, left: bool) -> Vec<Routing> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
@@ -721,14 +796,18 @@ impl Routing {
 				.bind(host)
 				.bind(scan)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'Routing'; Load failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'Routing'; List failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		return list;
+		return vec![];
 	}
 
 	/// Saves the instance
@@ -758,7 +837,7 @@ impl Routing {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Port {
 	pub host_history_id: i64,
 	pub port: i32,
@@ -780,21 +859,24 @@ impl Port {
 	///
 	/// An Optional instance or None in case it could not be loaded.
 	pub fn load(db: &mut sqlite::Database, hist_id: &i64) -> Vec<Port> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
 			let query = query_as::<_, Port>("SELECT * FROM ports WHERE host_history_id = ?")
 				.bind(hist_id)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'Port'; Load failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'Port'; List failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		return list;
+		return vec![];
 	}
 
 	/// Saves the instance
@@ -827,7 +909,7 @@ impl Port {
 }
 
 
-#[derive(FromRow, Debug)]
+#[derive(FromRow, Default, Debug)]
 pub struct Cve {
 	pub host_history_id: i64,
 	pub port: i32,
@@ -852,7 +934,6 @@ impl Cve {
 	///
 	/// A List with all CVEs
 	pub fn load(db: &mut sqlite::Database, hist_id: &i64, port: &i32) -> Vec<Cve> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
@@ -860,14 +941,18 @@ impl Cve {
 				.bind(hist_id)
 				.bind(port)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'CVE'; Load failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'Cve'; List failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		return list;
+		return vec![];
 	}
 
 	/// Loads a list of all CVEs which are referenced to a host in a scan.
@@ -881,21 +966,24 @@ impl Cve {
 	///
 	/// A List with all CVEs
 	pub fn from_host_hist(db: &mut sqlite::Database, hist_id: &i64) -> Vec<Cve> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
 			let query = query_as::<_, Cve>("SELECT * FROM cves WHERE host_history_id = ? ORDER BY cvss DESC, port ASC")
 				.bind(hist_id)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'CVE'; Load from HostHist failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'Cve'; List from HostHistory failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		return list;
+		return vec![];
 	}
 
 	/// Loads a list of all CVEs which are found in a given scan.
@@ -909,21 +997,24 @@ impl Cve {
 	///
 	/// A List with all CVEs
 	pub fn from_scan(db: &mut sqlite::Database, scan: &i64) -> Vec<Cve> {
-		let mut list = vec![];
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
 			let query = query_as::<_, Cve>("SELECT * FROM cves WHERE scan = ?")
 				.bind(scan)
 				.fetch_all(pool);
-			let result = futures::executor::block_on(query);
-			if result.is_ok() {
-				list.append(&mut result.ok().unwrap());
-			} else {
-				log::error!("[DB] Entity: 'CVE'; Load from Scan failed: {}", result.err().unwrap());
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'Cve'; List from Scan failed: {}", err); }
+					}
+					return vec![];
+				}
 			}
 		}
-		return list;
+		return vec![];
 	}
 
 	/// Saves the instance
@@ -956,3 +1047,356 @@ impl Cve {
 	}
 }
 
+#[derive(FromRow, Default, Debug)]
+pub struct Windows {
+	pub id: i64,
+	pub scan: i64,
+	pub hist_id: i64,
+}
+impl Windows {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&mut self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			if self.id <= 0 {
+				self.id = next_id(pool, "id", "windows");
+				let query = query("INSERT INTO windows (id,scan,hist_id) VALUES(?,?,?)")
+					.bind(self.id)
+					.bind(self.scan)
+					.bind(self.hist_id)
+					.execute(pool);
+				return futures::executor::block_on(query)
+					.map_or_else(
+						|err| Err(format!("[DB] Entity: 'Windows'; Save failed: {}", err)),
+						|_|  Ok(())
+					);
+			}
+			return Err(format!("[DB] Entity: 'Windows' can not be changed."));
+		}
+		Err(format!("[DB] Entity: 'Windows'; No Connection available."))
+	}
+
+	/// Loads all windows scan information from a host and scan (defined by the Host-History ID)
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `hist_id` - Host-History-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// Windows-Scan Information if any
+	pub fn load(db: &mut sqlite::Database, hist_id: &i64) -> Option<Windows> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, Windows>("SELECT * FROM windows WHERE hist_id=?")
+				.bind(hist_id)
+				.fetch_one(pool);
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'Windows'; Load failed: {}", err);
+						return None;
+					}
+				}
+			}
+		}
+		None
+	}
+}
+
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsInfo {
+	pub windows_id: i64,
+	pub native_lan_manager: String,
+	pub native_os: String,
+	pub os_name: String,
+	pub os_build: String,
+	pub os_release: String,
+	pub os_version: String,
+	pub platform: String,
+	pub server_type: String,
+	pub server_string: String,
+}
+impl WindowsInfo {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO windows_info (windows_id,native_lan_manager,native_os,os_name,os_build,os_release,os_version,platform,server_type,server_string) VALUES(?,?,?,?,?,?,?,?,?,?)")
+				.bind(self.windows_id)
+				.bind(&self.native_lan_manager)
+				.bind(&self.native_os)
+				.bind(&self.os_name)
+				.bind(&self.os_build)
+				.bind(&self.os_release)
+				.bind(&self.os_version)
+				.bind(&self.platform)
+				.bind(&self.server_type)
+				.bind(&self.server_string)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'WindowsInfo'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'WindowsInfo'; No Connection available."))
+	}
+
+	/// Returns teh Windows-Scan Information from the given Windows-Scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `win_id` - Windows-Scan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// All collected Windows-Information if any
+	pub fn load(db: &mut sqlite::Database, win_id: &i64) -> Option<WindowsInfo> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, WindowsInfo>("SELECT * FROM windows_info WHERE windows_id=?")
+				.bind(win_id)
+				.fetch_one(pool);
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'WindowsInfo'; Load failed: {}", err);
+						return None;
+					}
+				}
+			}
+		}
+		None
+	}
+}
+
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsDomain {
+	pub windows_id: i64,
+	pub domain: String,
+	pub dns_domain: String,
+	pub derived_domain: String,
+	pub derived_membership: String,
+	pub fqdn: String,
+	pub netbios_name: String,
+	pub netbios_domain: String,
+}
+impl WindowsDomain {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO windows_domain (windows_id,domain,fqdn,dns_domain,derived_domain,derived_membership,netbios_name,netbios_domain) VALUES(?,?,?,?,?,?,?,?)")
+				.bind(self.windows_id)
+				.bind(&self.domain)
+				.bind(&self.dns_domain)
+				.bind(&self.derived_domain)
+				.bind(&self.derived_membership)
+				.bind(&self.fqdn)
+				.bind(&self.netbios_name)
+				.bind(&self.netbios_domain)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'WindowsDomain'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'WindowsDomain'; No Connection available."))
+	}
+
+	/// Returns teh Windows-Scan DomainData from the given Windows-Scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `win_id` - Windows-Scan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// All collected Windows-DomainData if any
+	pub fn load(db: &mut sqlite::Database, win_id: &i64) -> Option<WindowsDomain> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, WindowsDomain>("SELECT * FROM windows_domain WHERE windows_id=?")
+				.bind(win_id)
+				.fetch_one(pool);
+			return match futures::executor::block_on(query) {
+				Ok(result) => Some(result),
+				Err(err) => match err {
+					sqlx::Error::RowNotFound => None,
+					_ => {
+						log::error!("[DB] Entity: 'WindowsDomain'; Load failed: {}", err);
+						return None;
+					}
+				}
+			}
+		}
+		None
+	}
+}
+
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsShare {
+	pub windows_id: i64,
+	pub name: String,
+	pub comment: String,
+	#[sqlx(rename = "type")]
+	pub share_type: String,
+}
+impl WindowsShare {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO windows_share (windows_id,name,type,comment) VALUES(?,?,?,?)")
+				.bind(self.windows_id)
+				.bind(&self.name)
+				.bind(&self.share_type)
+				.bind(&self.comment)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'WindowsShare'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'WindowsShare'; No Connection available."))
+	}
+
+	/// Loads a list of all shares found during a windows scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `win_id` - Windows Scan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// A List with windows share information
+	pub fn load(db: &mut sqlite::Database, win_id: &i64) -> Vec<WindowsShare> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, WindowsShare>("SELECT * FROM windows_share WHERE windows_id = ?")
+				.bind(win_id)
+				.fetch_all(pool);
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'WindowsShare'; Load failed: {}", err); }
+					}
+					return vec![];
+				}
+			}
+		}
+		return vec![];
+	}
+}
+
+
+#[derive(FromRow, Default, Debug)]
+pub struct WindowsPrinter {
+	pub windows_id: i64,
+	pub uri: String,
+	pub comment: String,
+	pub description: String,
+	pub flags: String,
+}
+impl WindowsPrinter {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO windows_printer (windows_id,uri,flags,description,comment) VALUES(?,?,?,?,?)")
+				.bind(self.windows_id)
+				.bind(&self.uri)
+				.bind(&self.flags)
+				.bind(&self.description)
+				.bind(&self.comment)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'WindowsPrinter'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'WindowsPrinter'; No Connection available."))
+	}
+
+	/// Loads a list of all printers found during a windows scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `win_id` - Windows Scan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// A List with windows prinetr information
+	pub fn load(db: &mut sqlite::Database, win_id: &i64) -> Vec<WindowsPrinter> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, WindowsPrinter>("SELECT * FROM windows_printer WHERE windows_id = ?")
+				.bind(win_id)
+				.fetch_all(pool);
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'WindowsPrinter'; Load failed: {}", err); }
+					}
+					return vec![];
+				}
+			}
+		}
+		return vec![];
+	}
+}

@@ -1,10 +1,16 @@
 
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::collections::HashMap;
 use std::fmt::{Display, Formatter, Result};
 
-#[derive(Debug,Clone)]
-pub enum Protocol { UNKNOWN, TCP, UDP }
+#[derive(Debug, Default, Clone)]
+pub enum Protocol {
+	#[default]
+	UNKNOWN,
+	TCP,
+	UDP
+}
 impl Display for Protocol {
 	fn fmt(&self, f: &mut Formatter) -> Result {
 		match self {
@@ -26,8 +32,14 @@ impl FromStr for Protocol {
 	}
 }
 
-#[derive(Debug,Clone)]
-pub enum State { UNKNOWN, OPEN, FILTER, CLOSE }
+#[derive(Debug, Default, Clone)]
+pub enum State {
+	#[default]
+	UNKNOWN,
+	OPEN,
+	FILTER,
+	CLOSE
+}
 impl Display for State {
 	fn fmt(&self, f: &mut Formatter) -> Result {
 		match self {
@@ -52,30 +64,17 @@ impl FromStr for State {
 }
 
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Host {
 	pub network: String,
 	pub ip: Option<IpAddr>,
 	pub hops: Vec<IpAddr>,
 	pub services: Vec<Service>,
 	pub os: Option<String>,
+	pub windows: Option<Windows>,
 	pub extended_scan: bool,
 	db_id: i64,
 	db_hist_id: i64,
-}
-impl Default for Host {
-	fn default() -> Self {
-		Host {
-			network: "".to_string(),
-			ip: None,
-			hops: vec![],
-			services: vec![],
-			os: None,
-			extended_scan: false,
-			db_id: 0,
-			db_hist_id: 0,
-		}
-	}
 }
 impl Host {
 	/// Save this host-information to the database and stores some internal IDs.
@@ -230,9 +229,117 @@ impl Host {
 			}
 		}
 	}
+
+	pub(crate) fn save_windows_information(&self, db: &mut sqlite::Database) {
+		if self.db_hist_id > 0 && self.windows.is_some() {
+			let windows = self.windows.as_ref().unwrap();
+			let mut win = db::Windows {
+				id: 0,
+				scan: db.current_scan_id,
+				hist_id: self.db_hist_id,
+			};
+			let _ = win.save(db);
+
+			if let Some(info) = &windows.info {
+				let db_info = db::WindowsInfo {
+					windows_id: win.id,
+					native_lan_manager: String::from(info.native_lan_manager.as_ref().unwrap_or(&String::from(""))),
+					native_os: String::from(info.native_os.as_ref().unwrap_or(&String::from(""))),
+					os_name: String::from(info.os_name.as_ref().unwrap_or(&String::from(""))),
+					os_build: String::from(info.os_build.as_ref().unwrap_or(&String::from(""))),
+					os_release: String::from(info.os_release.as_ref().unwrap_or(&String::from(""))),
+					os_version: String::from(info.os_version.as_ref().unwrap_or(&String::from(""))),
+					platform: String::from(info.platform.as_ref().unwrap_or(&String::from(""))),
+					server_type: String::from(info.server_type.as_ref().unwrap_or(&String::from(""))),
+					server_string: String::from(info.server_string.as_ref().unwrap_or(&String::from(""))),
+				};
+				let _ = db_info.save(db);
+			}
+
+			if let Some(domain) = &windows.domain {
+				let db_domain = db::WindowsDomain {
+					windows_id: win.id,
+					domain: String::from(domain.domain.as_ref().unwrap_or(&String::from(""))),
+					dns_domain: String::from(domain.dns_domain.as_ref().unwrap_or(&String::from(""))),
+					derived_domain: String::from(domain.derived_domain.as_ref().unwrap_or(&String::from(""))),
+					derived_membership: String::from(domain.derived_membership.as_ref().unwrap_or(&String::from(""))),
+					fqdn: String::from(domain.fqdn.as_ref().unwrap_or(&String::from(""))),
+					netbios_name: String::from(domain.netbios_name.as_ref().unwrap_or(&String::from(""))),
+					netbios_domain: String::from(domain.netbios_domain.as_ref().unwrap_or(&String::from(""))),
+				};
+				let _ = db_domain.save(db);
+			}
+
+			windows.shares.iter().for_each(|share| {
+				let db_share = db::WindowsShare {
+					windows_id: win.id,
+					name: String::from(share.name.as_ref().unwrap_or(&String::from(""))),
+					comment: String::from(share.comment.as_ref().unwrap_or(&String::from(""))),
+					share_type: String::from(share.share_type.as_ref().unwrap_or(&String::from(""))),
+				};
+				let _ = db_share.save(db);
+			});
+
+			windows.printers.iter().for_each(|printer| {
+				let db_printer = db::WindowsPrinter {
+					windows_id: win.id,
+					uri: String::from(printer.uri.as_ref().unwrap_or(&String::from(""))),
+					comment: String::from(printer.comment.as_ref().unwrap_or(&String::from(""))),
+					description: String::from(printer.description.as_ref().unwrap_or(&String::from(""))),
+					flags: String::from(printer.flags.as_ref().unwrap_or(&String::from(""))),
+				};
+				let _ = db_printer.save(db);
+			});
+		}
+	}
 }
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Default, Clone)]
+pub struct Windows {
+	pub info: Option<WindowsInfo>,
+	pub domain: Option<WindowsDomain>,
+	pub shares: Vec<WindowsShare>,
+	pub printers: Vec<WindowsPrinter>,
+}
+#[derive(Debug, Default, Clone)]
+pub struct WindowsInfo {
+	pub native_lan_manager: Option<String>,
+	pub native_os: Option<String>,
+	pub os_name: Option<String>,
+	pub os_build: Option<String>,
+	pub os_release: Option<String>,
+	pub os_version: Option<String>,
+	pub platform: Option<String>,
+	pub server_type: Option<String>,
+	pub server_string: Option<String>,
+}
+#[derive(Debug, Default, Clone)]
+pub struct WindowsDomain {
+	pub domain: Option<String>,
+	pub dns_domain: Option<String>,
+	pub derived_domain: Option<String>,
+	pub derived_membership: Option<String>,
+	pub fqdn: Option<String>,
+	pub netbios_name: Option<String>,
+	pub netbios_domain: Option<String>,
+}
+#[derive(Debug, Default, Clone)]
+pub struct WindowsShare {
+	pub name: Option<String>,
+	pub comment: Option<String>,
+	pub share_type: Option<String>,
+	pub access: HashMap<String, String>,
+}
+#[derive(Debug, Default, Clone)]
+pub struct WindowsPrinter {
+	pub uri: Option<String>,
+	pub comment: Option<String>,
+	pub description: Option<String>,
+	pub flags: Option<String>,
+}
+
+
+#[derive(Debug, Default, Clone)]
 pub struct Service {
 	pub port: u16,
 	pub protocol: Protocol,
@@ -242,34 +349,11 @@ pub struct Service {
 	pub version: String,
 	pub vulns: Vec<Vulnerability>,
 }
-impl Default for Service {
-	fn default() -> Self {
-		Service {
-			port: 0,
-			protocol: Protocol::UNKNOWN,
-			state: State::UNKNOWN,
-			name: String::from(""),
-			product: String::from(""),
-			version: String::from(""),
-			vulns: vec![],
-		}
-	}
-}
 
-#[derive(Debug,Clone)]
+#[derive(Debug, Default, Clone)]
 pub struct Vulnerability {
 	pub database: String,
 	pub id: String,
 	pub cvss: f32,
 	pub exploit: bool,
-}
-impl Default for Vulnerability {
-	fn default() -> Self {
-		Vulnerability {
-			database: String::from(""),
-			id: String::from(""),
-			cvss: 0.0,
-			exploit: false,
-		}
-	}
 }

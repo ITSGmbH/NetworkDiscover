@@ -13,7 +13,7 @@ static DB_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
 pub struct Database {
 	pub current_scan_id: i64,
-	pub(crate) db_file: String,
+	pub(crate) db_file: Option<String>,
 	pub(crate) db_url: Option<String>,
 	pool: Option<Pool<Sqlite>>,
 }
@@ -23,14 +23,15 @@ pub fn new(conf: &AppConfig) -> Database {
 	if db_conf.is_some() {
 		Database {
 			current_scan_id: 0,
-			db_file: String::from(&db_conf.unwrap().file),
-			db_url: if db_conf.unwrap().url.is_empty() { None } else { Some(String::from(&db_conf.unwrap().url)) },
+			db_file: db_conf.unwrap().file.as_ref().map_or_else(|| None, |s| if s.is_empty() { None } else { Some(String::from(s)) } ),
+			db_url: db_conf.unwrap().url.as_ref().map_or_else(|| None, |s| if s.is_empty() { None } else { Some(String::from(s)) } ),
 			pool: None,
 		}
 	} else {
+		let std_conf = ::config::DbStruct::default();
 		Database {
 			current_scan_id: 0,
-			db_file: "scan.sqlite".to_string(),
+			db_file: std_conf.file,
 			db_url: None,
 			pool: None,
 		}
@@ -41,7 +42,11 @@ impl Database {
 	pub fn connect(&mut self) {
 		if self.pool.is_none() {
 			let connect_timeout = Duration::from_secs(60);
-			let db_url = if self.db_url.is_some() { String::from(self.db_url.as_ref().unwrap()) } else { format!("sqlite://{}", self.db_file) };
+			let db_url = if self.db_url.is_some() {
+				String::from(self.db_url.as_ref().unwrap())
+			} else {
+				format!("sqlite://{}", self.db_file.as_ref().unwrap())
+			};
 			let connect_options = SqliteConnectOptions::from_str(&db_url)
 				.unwrap()
 				.create_if_missing(true)

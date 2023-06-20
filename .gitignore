@@ -1,11 +1,14 @@
 # Running
+config.toml
 *.log
 *.csv
 *.pdf
 
 # Packaging
 package/pkg
+package/deb
 package/*.tar.*
+package/*.deb
 
 # Rust
 target

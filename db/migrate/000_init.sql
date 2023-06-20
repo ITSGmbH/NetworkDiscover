@@ -66,7 +66,7 @@ CREATE TABLE IF NOT EXISTS cves (
 	port INTEGER,
 	type NVARCHAR(20) DEFAULT "",
 	type_id NVARCHAR(20) DEFAULT "",
-	cvss DECIMAL(8,2) DEFAULT 0,
+	cvss REAL DEFAULT 0,
 	is_exploit NVARCHAR(5) DEFAULT "false",
 	scan INTEGER DEFAULT 0,
 	comment TEXT DEFAULT ""

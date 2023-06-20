@@ -4,15 +4,24 @@
 	<title>Network</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta charset="utf-8">
-	<script type="text/javascript" src="/static/js/jquery.min.js"></script>
-	<script type="text/javascript" src="/static/js/vis_network.min.js"></script>
+	<script src="/static/js/jquery.min.js"></script>
+	<script src="/static/js/d3.v7.min.js"></script>
 	<link rel="stylesheet" href="/static/css/bulma.min.css">
+	<link rel="stylesheet" href="/static/css/fa-all.min.css">
 	<link rel="icon" type="image/png" href="/static/img/its_logo.png">
 	<style type="text/css">
 		#networkarea {
-			width: 100%;
-			height: 85vh;
+			position: fixed;
 			border: 1px solid lightgray;
+			top: 60px;
+			left: 0;
+			right: 33.3333333%;
+			bottom: 70px;
+		}
+		footer {
+			position: fixed;
+			bottom: 0;
+			width: 100vw;
 		}
 		#scan-now-modal .modal-card-body {
 			color: black;
@@ -20,17 +29,105 @@
 		#host-info-box {
 			margin-bottom: 0.75rem;
 		}
+		#modal-hosts-history .modal-card { width: 80vw; }
+		#config .input.full-width { width: 18rem; }
+		#config .input.double-big { width: 13rem; }
+		#config .input.double-small { width: 5rem; }
 		.mouse-pointer {
 			cursor: pointer;
+		}
+		#config-container,
+		#scans-list,
+		#networks-list,
+		#windows-information {
+			max-height: 90vh;
+			overflow-y: scroll;
+			min-height: 2.75em;
+		}
+
+		.search {
+			position: fixed;
+			z-index: 20;
+			top: 60px;
+			right: 33.333333%;
+			padding: 0.6rem;
+		}
+		.area-hint {
+			width: 50%;
+			position: fixed;
+			bottom: 80px;
+			left: 33.333333%;
+			margin-left: -25%;
+			text-align: center;
+		}
+
+		.legend {
+			position: fixed;
+			z-index: 2;
+			top: 60px;
+			left: 0px;
+			border: 1px solid lightgray;
+			background: white;
+			padding: 0.6rem;
+			padding-bottom: 0;
+			font-size: 0.75rem;
 		}
 		.legend .columns {
 			margin-bottom: 0;
 		}
+		.legend .column {
+			padding: 0.6rem;
+		}
+		.legend .legend-text {
+			white-space: nowrap;
+			width: 6vw;
+		}
 		.legend .legend-entry {
 			border: 1px solid #2B7CE9;
 			border-radius: 50%;
-			width: 24px;
-			height: 24px;
+			width: 16px;
+			height: 16px;
+		}
+		.legend .legend-image {
+			border: none;
+		}
+		.scan-info {
+			margin: 1rem 0;
+		}
+
+		tbody.info-table th {
+			text-transform: capitalize;
+		}
+		tbody.info-table tr {
+			background-color: #d7e6f5;
+		}
+		tbody.info-table tr:nth-child(2n) {
+			background-color: #eff5fb;
+		}
+
+		svg .hidden {
+			display: none;
+		}
+		svg .selected {
+			stroke: #14990D !important;
+		}
+		svg .fixed {
+			stroke: #990C39;
+		}
+		#legend-color-windows,
+		svg image.netbios {
+			filter: invert(.5) sepia(1) saturate(4) hue-rotate(180deg);
+		}
+		#legend-color-vulnerable,
+		svg image.vulnerable {
+			filter: invert(.4) sepia(1) saturate(4) hue-rotate(-30deg);
+		}
+		svg .node-label tspan {
+			fill-opacity: 0.4;
+		}
+		svg .node-label tspan:first-child {
+			fill-opacity: 1;
+			font-weight: bold;
 		}
 	</style>
 	</style>
@@ -49,38 +146,287 @@
 				</div>
 
 				<div class="navbar-end">
+
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Config</span>
-						<fieldset class="navbar-dropdown" id="config"></fieldset>
+						<fieldset class="navbar-dropdown is-right" id="config">
+
+							<div id="config-container">
+								<div class="navbar-item">
+									<div class="box">
+										<p class="subtitle is-6">System</p>
+										<div class="field">
+											<label class="label is-small">Scan every (hours)</label>
+											<input class="input is-small full-width" placeholder="24" type="number" name="repeat" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Threads to scan</label>
+											<input class="input is-small full-width" placeholder="10" type="number" name="threads" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Device name for auto config</label>
+											<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
+										</div>
+									</div>
+								</div>
+
+								<div class="navbar-item">
+									<div class="box">
+										<p class="subtitle is-6">Configuration</p>
+										<div class="field">
+											<label class="label is-small">Configuration name</label>
+											<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Web-Listener</label>
+											<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
+											<input class="input is-small double-small" type="number" placeholder="9090" name="listen-port" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Database-Path</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="db-path" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Database-URL</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="db-url" value="" />
+										</div>
+									</div>
+								</div>
+
+								<div class="navbar-item">
+									<div class="box" id="config-network">
+										<p class="subtitle is-6">Networks</p>
+
+										<div class="block tabs is-centered">
+											<ul>
+												<li class="is-active" id="config-network-1-tab"><a>#1</a></li>
+												<li id="config-network-2-tab"><a>#2</a></li>
+												<li id="config-network-3-tab"><a>#3</a></li>
+												<li id="config-network-4-tab"><a>#4</a></li>
+												<li id="config-network-5-tab"><a>#5</a></li>
+											</ul>
+										</div>
+
+										<div class="block tabs-block" id="config-network-1">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-1-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-1-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-1-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-1-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-1-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-1-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-1-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-1-winpass" value="" />
+												</div>
+											</div>
+										</div>
+										<div class="block tabs-block is-hidden" id="config-network-2">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-2-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-2-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-2-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-2-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-2-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-2-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-2-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-2-winpass" value="" />
+												</div>
+											</div>
+										</div>
+										<div class="block tabs-block is-hidden" id="config-network-3">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-3-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-3-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-3-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-3-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-3-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-3-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-3-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-3-winpass" value="" />
+												</div>
+											</div>
+										</div>
+										<div class="block tabs-block is-hidden" id="config-network-4">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-4-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-4-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-4-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-4-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-4-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-4-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-4-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-4-winpass" value="" />
+												</div>
+											</div>
+										</div>
+										<div class="block tabs-block is-hidden" id="config-network-5">
+											<div class="field">
+												<label class="label is-small">Name</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-5-name" value="" />
+											</div>
+											<div class="field">
+												<label class="label is-small">Network/mask</label>
+												<input class="input is-small full-width" placeholder="" type="text" name="target-5-network" value="" />
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-5-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-5-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
+											</div>
+											<div id="target-5-windows-container">
+												<div class="field">
+													<label class="label is-small">Windows Domain</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-5-windom" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Windows Domain User</label>
+													<input class="input is-small full-width" placeholder="" type="text" name="target-5-winuser" value="" />
+												</div>
+												<div class="field">
+													<label class="label is-small">Password</label>
+													<input class="input is-small full-width" placeholder="" type="password" name="target-5-winpass" value="" />
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+
+							<div class="navbar-item">
+								<button class="button is-primary" id="config-save">Save</button>
+							</div>
+						</fieldset>
 					</div>
+
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
-						<span class="navbar-link">Network</span>
-						<div class="navbar-dropdown" id="networks"></div>
+						<span class="navbar-link">Networks</span>
+						<div class="navbar-dropdown is-right" id="networks">
+							<div class="navbar-item field"><p class="control has-icons-left"><input id="networks-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>
+							<div id="networks-list"></div>
+						</div>
 					</div>
+
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
-						<span class="navbar-link">Scan</span>
-						<div class="navbar-dropdown is-right" id="scans"></div>
+						<span class="navbar-link">Scans</span>
+						<div class="navbar-dropdown is-right" id="scans">
+							<a class="navbar-item" id="scan-now">Scan now</a>
+							<div class="navbar-item field m-0"><p class="control has-icons-left"><input id="scans-search" type="text" class="input is-info is-small" placeholder="Search..." /><span class="icon is-small is-left"><i class="fas fa-search"></i></span></p></div>
+							<div class="navbar-item field m-0">
+								<label class="checkbox"><input type="checkbox" id="scans-changed-only" /> Only changed</label>
+							</div>
+							<hr class="navbar-divider">
+							<div id="scans-list"></div>
+						</div>
 					</div>
 				</div>
 			</div>
 		</nav>
 	</section>
 
-	<section class="">
+	<section>
 		<div class="columns">
 			<div class="column is-two-thirds">
-				<div id="networkarea"></div>
-			</div>
-			<div class="column">
 				<div class="legend">
 					<div class="columns is-desktop">
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-normal"></div></div><div class="column legend-text">Normal</div>
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-first"></div></div><div class="column legend-text">First seen</div>
 					</div>
 					<div class="columns is-desktop">
-						<div class="column is-narrow"><div class="legend-entry" id="legend-color-changed"></div></div><div class="column legend-text">Changed</div>
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-removed"></div></div><div class="column legend-text">Removed</div>
+						<div class="column is-narrow"><div class="legend-entry" id="legend-color-changed"></div></div><div class="column legend-text">Changed</div>
 					</div>
+					<div class="columns is-desktop">
+						<div class="column is-narrow"><div class="legend-entry legend-image" id="legend-color-vulnerable"><img src="/static/assets/icon-os.svg" /></div></div><div class="column legend-text">Vulnerable</div>
+						<div class="column is-narrow"><div class="legend-entry legend-image" id="legend-color-windows"><img src="/static/assets/icon-os.svg" /></div></div><div class="column legend-text">NetBIOS</div>
+					</div>
+				</div>
+				<div class="area-hint is-size-7 has-text-grey-light">
+					Drag a node to move;<br/>Double-click to reset it's position;
+				</div>
+				<div class="search">
+					<div class="field">
+						<p class="control has-icons-left">
+							<input id="hosts-filter" type="text" placeholder="Search for hosts..." class="input" />
+							<span class="icon is-small is-left">
+								<i class="fas fa-search"></i>
+							</span>
+						</p>
+					</div>
+				</div>
+				<div id="networkarea"></div>
+			</div>
+			<div class="column">
+				<div class="scan-info">
+					<p><span class="title is-5" id="selected-network"></span> [ <span id="selected-scan"></span> ]</p>
 				</div>
 				<div class="host-info" id="host-info-box"></div>
 				<div class="buttons">
@@ -89,6 +435,58 @@
 				</div>
 			</div>
 		</div>
+
+		<div id="scan-now-modal" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">Scan triggered</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body">A new scan is triggered and will start shortly.</section>
+				<footer class="modal-card-foot"><button class="button is-info">Close</button></footer>
+			</div>
+		</div>
+
+		<div id="modal-hosts-history" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">History of: ?</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body">
+					<div class="columns">
+						<div class="column col-left"><div class="message-body">left</div></div>
+						<div class="column col-right"><div class="message-body">right</div></div>
+					</div>
+				</section>
+				<footer class="modal-card-foot"><button class="button">Close</button></footer>
+			</div>
+		</div>
+
+		<div id="modal-windows-data" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">Extended Windows-Scan</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body" id="windows-information">
+					<p class="subtitle is-5 windows-info">General Information</p>
+					<article class="message is-info windows-info">
+						<div class="message-body table-container">
+							<table class="table is-fullwidth"><tbody class="info-table"></tbody></table>
+						</div>
+					</article>
+					<p class="subtitle is-5 windows-shares">Shares</p>
+					<article class="message windows-shares">
+						<div class="message-body table-container">
+							<table class="table is-striped is-fullwidth"><tbody class="shares-list"></tbody></table>
+						</div>
+					</article>
+					<p class="subtitle is-5 windows-printers">Printer</p>
+					<article class="message windows-printers">
+						<div class="message-body table-container">
+							<table class="table is-striped is-fullwidth"><tbody class="printer-list"></tbody></table>
+						</div>
+					</article>
+				</section>
+				<footer class="modal-card-foot"><button class="button">Close</button></footer>
+			</div>
+		</div>
+
 	</section>
 
 	<footer class="footer p-2">
@@ -102,62 +500,250 @@
 	</footer>
 
 	<script type="text/javascript">
-		var container = document.getElementById("networkarea");
 		var colors = {
 			normal: '#d2e5ff',
 			first: '#91d782',
-			changed: '#f5ce35',
-			removed: '#eaafa2'
+			removed: '#eaafa2',
+			changed: '#f5ce35'
 		};
 
-		// Legend
-		document.getElementById("legend-color-normal").style.backgroundColor = colors.normal;
-		document.getElementById("legend-color-first").style.backgroundColor = colors.first;
-		document.getElementById("legend-color-changed").style.backgroundColor = colors.changed;
-		document.getElementById("legend-color-removed").style.backgroundColor = colors.removed;
+		function getNodeGroup(os) {
+			os = os.toLowerCase().replace("microsoft", "");
+			if (os.indexOf("android") >= 0) return "mobile";
+			if (os.indexOf("ios") >= 0) return "mobile";
+			if (os.indexOf("linux") >= 0) return "linux";
+			if (os.indexOf("bsd") >= 0) return "bsd";
+			if (os.indexOf("windows server") >= 0) return "server";
+			if (os.indexOf("windows") >= 0) return "windows";
+			if (os.indexOf("unknown") >= 0) return "unknown";
+			return "different";
+		}
 
-		// VIS-Network documentation: https://visjs.github.io/vis-network/docs/network/
-		var nodes = new vis.DataSet();
-		var edges = new vis.DataSet();
-		var data = {
-			nodes: nodes,
-			edges: edges,
-		};
-		var options = {
-			layout: { hierarchical: { enabled: true, sortMethod: 'directed', shakeTowards: 'roots', direction: 'DU', }, },
-			edges: { smooth: true, },
-			nodes: { shadow: true, widthConstraint: { maximum: 90, }, font: { size: 11, }, shape: 'dot', },
-			interaction: { dragNodes: true, dragView: true, },
-			physics: { enabled: false },
-		};
-		var network = new vis.Network(container, data, options);
+		function getNodeIcon(os) {
+			os = os.toLowerCase();
+			if (os.indexOf("android") >= 0 || os.indexOf("ios") >= 0) { return "/static/assets/device-mobile.svg"; }
+			if (os.indexOf("linux") >= 0) { return "/static/assets/device-linux.svg"; }
+			if (os.indexOf("macos") >= 0) { return "/static/assets/device-apple.svg"; }
+			if (os.indexOf("bsd") >= 0) { return "/static/assets/device-bsd.svg"; }
+			if (os.indexOf("microsoft") >= 0) { return "/static/assets/device-windows.svg"; }
+			if (os.indexOf("juniper") >= 0) { return "/static/assets/device-firewall.svg"; }
+			return "/static/assets/device-network.svg";
+		}
+
+		function prepareGraph(data, scan) {
+			const graph = { nodes: [], edges: [], node_ids: [], root_node: "root" };
+			Object.entries(data).forEach(entry => {
+				const [k, v] = entry;
+				var color = colors.normal;
+				if (v.first_scan > 1 && v.first_scan == scan) { color = colors.first; }
+				if (v.is_removed) { color = colors.removed; }
+				if (v.changed_scan > 1 && v.changed_scan == scan - 1) { color = colors.changed; }
+
+				graph.node_ids.push(v.id);
+				graph.nodes.push({
+					id: v.id,
+					label: v.ip + "\n" + v.os.replace('(', '\n('),
+					os: v.os,
+					background: color,
+					highlight: color,
+					removed: v.is_removed,
+					group: v.is_removed ? "delete" : getNodeGroup(v.os),
+					extended: v.extended,
+					cve: v.has_cve,
+				});
+				if (v.nodes.length == 0) { graph.root_node = v.id; }
+				v.nodes.forEach(val => {
+					graph.edges.push({
+						source: v.id,
+						target: parseInt(val)
+					});
+				});
+			});
+			graph.edges.forEach(val => {
+				if (!graph.node_ids.includes(val.target)) {
+					val.target = graph.root_node;
+				}
+			});
+			if (graph.root_node == "root") {
+				graph.nodes.push({
+					id: "root",
+					label: "",
+					background: "#fd8",
+					highlight: "#d81",
+					removed: true
+				});
+			}
+			delete graph.node_ids;
+			return graph;
+		}
+
+		var width  = $("#networkarea").width(),
+		    height = $("#networkarea").width(),
+		    radius = 20,
+		    labelsize = 12;
 
 		var load_network = ev => {
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
-				var _nodes = [];
-				var _edges = [];
-				Object.entries(data).forEach(entry => {
-					const [k, v] = entry;
-					var color = colors.normal;
-					if (v.first_scan > 1 && v.first_scan == ev.data.scan) { color = colors.first; }
-					if (v.changed_scan > 1 && v.changed_scan == ev.data.scan - 1) { color = colors.changed; }
-					if (v.is_removed) { color = colors.removed; }
-					_nodes.push({
-						id: v.id,
-						label: v.ip + '\n' + v.os,
-						color: { background: color, highlight: { background: color } }
-					});
-					v.nodes.forEach(val => {
-						_edges.push({
-							from: v.id,
-							to: parseInt(val)
-						});
-					})
-				});
-				nodes.clear();
-				edges.clear()
-				nodes.add(_nodes);
-				edges.add(_edges);
+
+				d3.selectAll("#networkarea > *").remove();
+				const svg = d3.select("#networkarea")
+					.append('svg')
+					.attr("viewBox", [ 0, 0, width, height ])
+					.attr("style", "max-width: 100%; height: 100%;")
+					.call(d3.zoom()
+						.scaleExtent([0.1, 5])
+						.on("zoom", ev => d3.selectAll('svg g').attr('transform', ev.transform)))
+					.on("dblclick.zoom", null);
+
+				// Centric-Force based visualization
+				const graph = prepareGraph(data, ev.data.scan);
+				const simulation = d3.forceSimulation()
+					.force("link", d3.forceLink().id(d => d.id).distance(200))
+					.force("cluster", forceCluster())
+					.force("charge", d3.forceManyBody().strength(-1000))
+					.force("collision", d3.forceCollide().radius(radius * 1.5))
+					.force("center", d3.forceCenter(width/2, height/2));
+
+				// Labels in lowest layer
+				const labels = svg.append("g")
+					.attr("class", "node-labels")
+					.selectAll("text")
+						.data(graph.nodes)
+						.enter()
+						.append("text")
+						.attr("class", "node-label")
+						.attr("font-size", labelsize + "px")
+						.attr("fill", "black");
+
+				const label_lines = labels
+					.selectAll("tspan")
+					.data(d => d.label.split('\n'))
+					.enter()
+						.append("tspan")
+						.text(d => d)
+						.attr("text-anchor", "middle")
+						.attr("x", 0)
+						.attr("dy", labelsize * 1.2);
+
+				// Links behind Nodes
+				const links = svg.append("g")
+						.attr("class", "links")
+						.attr("stroke", "#996666")
+						.attr("stroke-width", 1.5)
+					.selectAll("line")
+						.data(graph.edges)
+						.enter()
+						.append("line")
+						.attr("class", "link");
+
+				// Nodes in front
+				const nodes = svg.append("g")
+					.attr("class", "nodes")
+					.attr("stroke-width", "2")
+					.attr("stroke-dasharray", "5,5")
+					.selectAll("circle")
+						.data(graph.nodes)
+						.enter()
+						.append("circle")
+						.attr("class", "node")
+						.attr("fill", d => d.background)
+						.attr("r", radius)
+						.attr("id", d => "node-" + d.id);
+
+				// Icon on top of the node
+				const icons = svg.append("g")
+					.attr("class", "icons")
+					.selectAll("image")
+						.data(graph.nodes)
+						.enter()
+						.append("image")
+						.attr("class", d => {
+							if (d.cve) return "vulnerable";
+							if (d.extended) return "netbios";
+							return "";
+						})
+						.attr("xlink:href", d => getNodeIcon(d.os))
+						.attr("width", radius)
+						.attr("height", radius)
+					.call(
+						d3.drag()
+							.on("start", dragstarted)
+							.on("drag", dragged)
+							.on("end", dragended)
+					)
+					.on("dblclick", unfix);
+
+				simulation.nodes(graph.nodes).on("tick", updateGraph);
+				simulation.force("link").links(graph.edges);
+
+				function centroid(nodes) {
+					let x = 0;
+					let y = 0;
+					let z = 0;
+					for (const d of nodes) {
+						let k = radius ** 2;
+						x += d.x * k;
+						y += d.y * k;
+						z += k;
+					}
+					return {x: x / z, y: y / z};
+				}
+
+				function forceCluster() {
+					let nodes;
+					function force(alpha) {
+						const centroids = d3.rollup(nodes, centroid, d => d.group);
+						const l = alpha * 0.8;
+						for (const d of nodes) {
+							const { x: cx, y: cy } = centroids.get(d.group);
+							d.vx -= (d.x - (cx || 1)) * l;
+							d.vy -= (d.y - (cy || 1)) * l;
+						}
+					}
+					force.initialize = n => nodes = n;
+					return force;
+				}
+
+				function updateGraph() {
+					links
+						.attr("x1", d => d.source.x)
+						.attr("y1", d => d.source.y)
+						.attr("x2", d => d.target.x)
+						.attr("y2", d => d.target.y);
+
+					nodes
+						.attr("cx", d => d.x)
+						.attr("cy", d => d.y);
+					labels
+						.attr("transform", d => "translate(" + (d.x) + "," + (d.y + radius) + ")");
+					icons
+						.attr("x", d => d.x - (0.5*radius))
+						.attr("y", d => d.y - (0.5*radius));
+				}
+
+				function unfix(ev, d) {
+					delete d.fx,
+					delete d.fy,
+					d3.select("#node-" + d.id).classed("fixed", false);
+					simulation.alphaTarget(0).restart();
+				}
+
+				function dragstarted(ev, d) {
+					selectNode([ d.id ])
+					nodes.classed("selected", false);
+					d3.select("#node-" + d.id).classed("selected", true);
+				}
+
+				function dragged(ev, d) {
+					d.fx = ev.x;
+					d.fy = ev.y;
+					d3.select("#node-" + d.id).classed("fixed", true);
+				}
+
+				function dragended(ev, d) {
+					simulation.alphaTarget(0.1).restart();
+				}
+
 				$('#host-info-box').empty();
 				$('#networkarea').data('network', ev.data.network)
 				$('#networkarea').data('scan', ev.data.scan)
@@ -168,25 +754,20 @@
 		}
 
 		var load_scans = ev => {
+			let changed = $('#scans-changed-only').prop("checked");
 			$.getJSON("/api/scans?network=" + ev.data.network, scans => {
-				$('#scans').empty();
-				
-				$('#scans').append('<a class="navbar-item" id="scan-now">Scan now</a>');
-				$('#scan-now').on('click', { id: 'now'}, trigger_scan);
-
-				$('#scans').append('<div id="scan-now-modal" class="modal"><div class="modal-background"></div><div class="modal-card"></div></div>')
-				var header = $('<header class="modal-card-head"><p class="modal-card-title">Scan triggered</p><button class="delete" aria-label="close"></button></header>');
-				var content = $('<section class="modal-card-body">A new scan is triggered and will start shortly.</section>');
-				var footer = $('<footer class="modal-card-foot"><button class="button is-info">Close</button></footer>');
-				$('#scan-now-modal .modal-card').append(header);
-				$('#scan-now-modal .modal-card').append(content);
-				$('#scan-now-modal .modal-card').append(footer);
-				$('#scan-now-modal button.delete').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
-				$('#scan-now-modal button.is-info').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
-
+				$('#scans-list').empty();
 				scans.forEach((v, k) => {
-					$('#scans').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
-					$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan }, load_network);
+					if (!changed || v.changed == undefined || (v.changed && changed)) {
+						$('#scans-list').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
+						$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan, time: v.start }, click_ev => {
+							$('#scans .navbar-item').removeClass('is-active');
+							$('#scan-' + click_ev.data.id).addClass('is-active');
+							$('#selected-scan').empty();
+							$('#selected-scan').append(click_ev.data.time);
+							load_network(click_ev);
+						});
+					}
 				});
 				$('#scan-' + (scans.length - 1)).trigger('click');
 			});
@@ -199,11 +780,62 @@
 		}
 
 		$(document).ready(function() {
+			// Legend
+			$("#legend-color-normal").css("background-color", colors.normal);
+			$("#legend-color-first").css("background-color", colors.first);
+			$("#legend-color-removed").css("background-color", colors.removed);
+			$("#legend-color-changed").css("background-color", colors.changed);
+
+			// Modal dialogs
+			$('#scan-now-modal button.delete').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
+			$('#scan-now-modal button.is-info').on('click', _ev => { $('#scan-now-modal').toggleClass('is-active'); });
+			$('#modal-hosts-history button.delete').on('click', _ev => { $('#modal-hosts-history').toggleClass('is-active'); });
+			$('#modal-hosts-history button.is-info').on('click', _ev => { $('#modal-hosts-history').toggleClass('is-active'); });
+			$('#modal-windows-data button.delete').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
+			$('#modal-windows-data button.button').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
+
+			// search events
+			$('#scan-now').on('click', { id: 'now'}, trigger_scan);
+			$('#scans-search').on('keyup', ev => {
+				let val = $('#scans-search').val().toLowerCase();
+				if (val == '') {
+					$('#scans a.navbar-item').removeClass("is-hidden");
+				} else {
+					$('#scans a.navbar-item').each((_, elem) => {
+						if (elem.innerText.toLowerCase().indexOf(val) == -1) { $(elem).addClass("is-hidden"); }
+						else { $(elem).removeClass("is-hidden"); }
+					});
+				}
+			});
+			$('#networks-search').on('keyup', ev => {
+				let val = $('#networks-search').val().toLowerCase();
+				if (val == '') {
+					$('#networks a.navbar-item').removeClass("is-hidden");
+				} else {
+					$('#networks a.navbar-item').each((_, elem) => {
+						if (elem.innerText.toLowerCase().indexOf(val) == -1) { $(elem).addClass("is-hidden"); }
+						else { $(elem).removeClass("is-hidden"); }
+					});
+				}
+			});
+			$('#scans-changed-only').change(ev => {
+				load_scans({ data: { network: $('#selected-network').data("network") } });
+			});
+
+			// Load all Networks
 			$.getJSON("/api/networks", data => {
+				$('#networks-list').empty();
 				data.forEach((v, k) => {
 					var name = v.name + ( v.name != "" ? " (" : "" ) + v.network + ( v.name != "" ? ")" : "" );
-					$('#networks').append('<a class="navbar-item" id="network-' + k + '">' + name + '</a>');
-					$('#network-' + k).on('click', { id: k, network: v.network }, load_scans);
+					$('#networks-list').append('<a class="navbar-item" id="network-' + k + '">' + name + '</a>');
+					$('#network-' + k).on('click', { id: k, network: v.network, name: name }, click_ev => {
+						$('#networks .navbar-item').removeClass('is-active');
+						$('#network-' + k).addClass('is-active');
+						$('#selected-network').empty();
+						$('#selected-network').append(click_ev.data.name);
+						$('#selected-network').data("network", click_ev.data.network);
+						load_scans(click_ev);
+					});
 					$('#network-' + k).data('network', v);
 				});
 				$('#network-0').trigger('click');
@@ -211,37 +843,105 @@
 				console.error("Error while loading Networks.");
 			});
 
-			$.getJSON("/config/load", data => {
-				$('#config').empty();
-				$.each(data.config, function(key, val) {
-					val = val == 'None' ? null : val;
-					val = val == 'true' ? true : val;
-					val = val == 'false' ? false : val;
-					
-					field = '<input class="input" type="text" value="' + (val == null ? '' : val) + '" placeholder="' + key + '" name="' + key + '" style="width:220px;"/>';
-					if (typeof(val) == 'boolean') {
-						field = '<input type="checkbox" value="true" name="' + key + '" ' + (val ? 'checked' : '') + '/>';
-					} else if (typeof(val) == 'number') {
-						field = '<input class="input" type="number" value="' + (val == null ? '0' : val) + '" placeholder="' + key + '" name="' + key + '" style="width:220px;"/>';
-					}
-
-					$('#config').append('<div class="navbar-item"><div class="field"><label class="label">' + key + '</label><div class="control">' + field + '</div></div></div>');
+			// Switch network-config tabs in Configuration
+			$('#config-network .tabs li').each(function(_, elem) {
+				elem = $(elem);
+				elem.on('click', ev => {
+					$('#config-network .tabs li').removeClass('is-active');
+					$('#config-network .tabs-block').removeClass('is-hidden').addClass('is-hidden');
+					elem.addClass('is-active');
+					$('#' + elem.attr('id').replace('-tab', '')).removeClass('is-hidden');
 				});
-				$('#config').append('<div class="navbar-item"><div class="field"><div class="control"><button class="button is-primary">Save</button></div></div></div>');
-				$('#config button').on('click', function() {
-					$('#config').attr('disabled', 'disabled');
-					save_data = {};
-					$('#config input').each(function(_, field) {
-						field = $(field);
-						if (field.attr('type') == 'checkbox') field.val(field.prop('checked'));
-						save_data[field.attr('name')] = field.val();
+			});
+
+			// Show Windows-config only when checked
+			$('#config-network .windows-config-selector').each(function(_, elem) {
+				elem = $(elem);
+				elem.on('click', ev => {
+					if (elem.prop('checked')) {
+						$('#' + elem.attr('name') + '-container').removeClass('is-hidden');
+					} else {
+						$('#' + elem.attr('name') + '-container').addClass('is-hidden');
+					}
+				});
+			});
+
+			// Load the Configuration
+			$.getJSON("/api/config", data => {
+				$('#config [name="repeat"]').prop('value', data.repeat);
+				$('#config [name="threads"]').prop('value', data.num_threads);
+				$('#config [name="interface"]').prop('value', data.device);
+				$('#config [name="name"]').prop('value', data.name);
+				if (data.listen) {
+					$('#config [name="listen-ip"]').prop('value', data.listen.ip);
+					$('#config [name="listen-port"]').prop('value', data.listen.port);
+				}
+				if (data.sqlite) {
+					$('#config [name="db-path"]').prop('value', data.sqlite.file);
+					$('#config [name="db-url"]').prop('value', data.sqlite.url);
+				}
+				if (data.targets && data.targets.forEach) {
+					data.targets.forEach((v, k) => {
+						idx = k + 1;
+						$('#config [name="target-' + idx + '-name"]').prop('value', v.target.name);
+						$('#config [name="target-' + idx + '-network"]').prop('value', v.target.ip + '/' + v.target.mask);
+						$('#config [name="target-' + idx + '-extended"]').prop('checked', v.extended);
+						if (v.windows) {
+							$('#config [name="target-' + idx + '-windows"]').prop('checked', true);
+							$('#config [name="target-' + idx + '-windom"]').prop('value', v.windows.domain);
+							$('#config [name="target-' + idx + '-winuser"]').prop('value', v.windows.domain_user);
+							$('#config [name="target-' + idx + '-winpass"]').prop('value', v.windows.password);
+						} else {
+							$('#target-' + idx + '-windows-container').addClass('is-hidden');
+						}
 					});
-					$.ajax("/config/save", {
+				}
+
+				$('#config-save').on('click', function() {
+					$('#config-save').attr('disabled', 'disabled');
+					config = {
+						name: $('#config [name="name"]').prop('value').trim() ? $('#config [name="name"]').prop('value').trim() : null,
+						repeat: $('#config [name="repeat"]').prop('value').trim() ? parseInt($('#config [name="repeat"]').prop('value')) : null,
+						num_threads: $('#config [name="threads"]').prop('value').trim() ? parseInt($('#config [name="threads"]').prop('value')) : null,
+						device: $('#config [name="interface"]').prop('value').trim() ? $('#config [name="interface"]').prop('value').trim() : null,
+						listen: $('#config [name="listen-ip"]').prop('value').trim() ? {
+						 ip: $('#config [name="listen-ip"]').prop('value').trim(),
+						 port: parseInt($('#config [name="listen-port"]').prop('value')),
+						} : null,
+						sqlite: $('#config [name="db-path"]').prop('value').trim() || $('#config [name="db-url"]').prop('value').trim() ? {
+						 file: $('#config [name="db-path"]').prop('value').trim() ? $('#config [name="db-path"]').prop('value').trim() : null,
+						 url: $('#config [name="db-url"]').prop('value').trim() ? $('#config [name="db-url"]').prop('value').trim() : null,
+						} : null,
+						targets: [],
+					};
+					[1,2,3,4,5].forEach(idx => {
+						var id = "target-" + idx;
+						if ($('#config [name="' + id + '-name"]').prop('value').trim()) {
+							var nw = $('#config [name="' + id + '-network"]').prop('value').trim().split("/");
+							config.targets[idx-1] = {
+								extended: $('#config [name="' + id + '-extended"]').prop('checked'),
+								target: {
+									name: $('#config [name="' + id + '-name"]').prop('value').trim(),
+									ip: nw[0].trim(),
+									mask: parseInt(nw[1]),
+								}
+							};
+							if ($('#config [name="' + id + '-windows"]').prop('checked')) {
+								config.targets[idx-1].windows = {
+									domain: $('#config [name="' + id + '-windom"]').prop('value').trim() ? $('#config [name="' + id + '-windom"]').prop('value').trim() : null,
+									domain_user: $('#config [name="' + id + '-winuser"]').prop('value').trim() ? $('#config [name="' + id + '-winuser"]').prop('value').trim() : null,
+									password: $('#config [name="' + id + '-winpass"]').prop('value').trim() ? $('#config [name="' + id + '-winpass"]').prop('value').trim() : null,
+								};
+							}
+						}
+					});
+
+					$.ajax("/api/config", {
 						type: 'POST',
 						contentType: 'application/json',
-						data: JSON.stringify(save_data),
+						data: JSON.stringify(config),
 						success: function(resp) {
-							setTimeout(function() {$('#config').removeAttr('disabled');}, 1500);
+							setTimeout(function() {$('#config-save').removeAttr('disabled');}, 1500);
 						},
 					});
 				});
@@ -249,6 +949,31 @@
 				console.error("Error while fetching configuration.");
 			});
 
+			// Setup the Hosts-Filter for D3
+			$('#hosts-filter').on('keyup', evt => {
+				let val = $('#hosts-filter').val().toLowerCase();
+
+				const svg = d3.select("#networkarea svg");
+				const nodes = svg.selectAll(".nodes circle");
+				const links = svg.selectAll(".links line");
+				const labels = svg.selectAll(".node-labels text");
+
+				links.attr("class", "link");
+				labels.attr("class", "node-label");
+
+				nodes.attr("class", "node")
+					.filter(node => (node.label.toLowerCase().indexOf(val) == -1))
+					.attr("class", "node hidden")
+					.each(node => {
+						links.filter(link => link.source.id == node.id || link.target.id == node.id)
+							.attr("class", "link hidden");
+						labels.filter(label => label.id == node.id)
+							.attr("class", "node-label hidden");
+					})
+				;
+			});
+
+			// Check for the scan-status on the server
 			window.setInterval(function() {
 				$.getJSON("/api/status", data => {
 					message = '...';
@@ -271,17 +996,60 @@
 			}, 5000);
 		});
 
+		// Show information about a specific host
 		function fill_host_info_box(cont, data, with_hist) {
-			console.debug(cont);
 			if (with_hist) {
-				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu"><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
-				$('.message-body', cont).append('<div id="modal-hosts-history"></div>');
+				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-date.svg" /></figure><span class="pl-2">' + (new Date(data.scan_timestamp)).toUTCString() + '</span></div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
 			} else {
-				$('.message-body', cont).append('<div><strong>Scan from:</strong> ' + (new Date(data.scan_timestamp)).toUTCString() + '</div>');
+				$('.message-body', cont).append('<div style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">' + (new Date(data.scan_timestamp)).toUTCString() + '</span></div>');
 			}
-			$('.message-body', cont).append('<div style="padding-top:0.2rem;"><strong>OS:</strong> ' + data.os + '</div>');
-			$('.message-body', cont).append('<hr size="1" />');
+			$('.message-body', cont).append('<div class="pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-os.svg" /></figure><span class="pl-2">' + data.os + '</span></div>');
 
+			// Windows Data
+			if (data.windows && with_hist) {
+				$('.message-body', cont)
+					.append('<div id="extended-windows-scan-button" class="mouse-pointer pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">Extended Windows-Information</span></div>');
+				$('#extended-windows-scan-button', cont).on('click', ev => {
+					$('#modal-windows-data').toggleClass('is-active');
+				});
+
+				// General information
+				var win_info = $('#modal-windows-data .windows-info');
+				var table_info = $('#modal-windows-data .info-table');
+				table_info.empty();
+				for (key in data.windows.info) {
+					var val = data.windows.info[key];
+					table_info.append('<tr><th>' + key.replaceAll('_', ' ') + '</th><td>' + (val == null ? "" : val) + '</td></tr>');
+				}
+				for (key in data.windows.domain) {
+					var val = data.windows.domain[key];
+					table_info.append('<tr><th>' + key.replaceAll('_', ' ') + '</th><td>' + (val == null ? "" : val) + '</td></tr>');
+				}
+
+				// Shares
+				var win_shares = $('#modal-windows-data .windows-shares');
+				var table_shares = $('#modal-windows-data .shares-list');
+				table_shares.empty();
+				win_shares.removeClass("is-hidden");
+				if (data.windows.shares.length == 0) { win_shares.addClass("is-hidden"); }
+				for (key in data.windows.shares) {
+					var share = data.windows.shares[key];
+					table_shares.append('<tr><th>' + share.name + '</th><td><em>' + share.share_type + '</em></td><td>' + share.comment + '</td></tr>');
+				}
+
+				// Printers
+				var win_printers = $('#modal-windows-data .windows-printers');
+				var table_printers = $('#modal-windows-data .printer-list');
+				table_printers.empty();
+				win_printers.removeClass("is-hidden");
+				if (data.windows.printers.length == 0) { win_printers.addClass("is-hidden"); }
+				for (key in data.windows.printers) {
+					var printer = data.windows.printers[key];
+					table_printers.append('<tr><th>' + printer.uri + '</th><td><em>' + printer.description + '</em></td><td>' + printer.comment + '</td></tr>');
+				}
+			}
+
+			// Ports and CVEs
 			var table = $('.message-body', cont).append('<div class="mt-4 table-container"><table class="table is-striped is-fullwidth"><tbody class="mainbody"></tbody></table></div>');
 			data.ports.forEach(port => {
 				var id = 'cve_' + data.ip.replace(/\./gi, '_') + '-' + port.port + '_' + port.protocol;
@@ -316,37 +1084,40 @@
 			});
 		}
 
-		network.on('selectNode', ev => {
-			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + ev.nodes.join(';'), data => {
+		// Load data from a selected node and display it on success
+		function selectNode(nodes) {
+			// TODO: Unselect selected nodes if clicked again
+			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + nodes.join(';'), data => {
 				$('#host-info-box').empty();
 
 				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
 				fill_host_info_box(cont, data, true);
 
-				// Modal: Hosts History
-				$('#modal-hosts-history', cont).append('<div class="modal"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">History of: ?</p><button class="delete" aria-label="close"></button></header><section class="modal-card-body"><div class="columns"><div class="column col-left"><div class="message-body">left</div></div><div class="column col-right"><div class="message-body">right</div></div></div></section><footer class="modal-card-foot"><button class="button">Close</button></footer></div></div>');
 				data.scan_history.forEach(hist => {
 					$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + (new Date(hist.start)).toUTCString() + '</div>');
 				});
-				$('#modal-hosts-history .modal button', cont).on('click', _ev => {
-					$('#modal-hosts-history .modal', cont).toggleClass('is-active');
+				$('#host-scan-host-list .mouse-pointer', cont).on('mouseover', ev => {
+					$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
+				});
+				$('#host-scan-host-list .mouse-pointer', cont).on('mouseout', ev => {
+					$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
 				});
 
 				// Fill Hosts-History
 				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
-					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&info=" + ev.nodes.join(';'), hist_data => {
-						$('#modal-hosts-history .modal-card .message-body', cont).empty();
-						$('#modal-hosts-history .modal-card-title', cont).empty();
-						$('#modal-hosts-history .modal-card-title', cont).append('History of: ' + hist_data.ip);
-						fill_host_info_box($('#modal-hosts-history .modal-card .col-left', cont), hist_data, false);
-						fill_host_info_box($('#modal-hosts-history .modal-card .col-right', cont), data, false);
-						$('#modal-hosts-history .modal', cont).toggleClass('is-active');
+					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&info=" + nodes.join(';'), hist_data => {
+						$('#modal-hosts-history .modal-card .message-body').empty();
+						$('#modal-hosts-history .modal-card-title').empty();
+						$('#modal-hosts-history .modal-card-title').append('History of: ' + hist_data.ip);
+						fill_host_info_box($('#modal-hosts-history .modal-card .col-left'), hist_data, false);
+						fill_host_info_box($('#modal-hosts-history .modal-card .col-right'), data, false);
+						$('#modal-hosts-history').toggleClass('is-active');
 					});
 				});
 
 				$('#host-info-box').append(cont);
 			});
-		});
+		}
 
 
 	</script>
