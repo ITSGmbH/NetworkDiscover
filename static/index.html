@@ -1008,10 +1008,10 @@
 			// Windows Data
 			if (data.windows && with_hist) {
 				$('.message-body', cont)
-					.append('<div id="extended-windows-scan-button" class="mouse-pointer pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">Extended Windows-Information</span></div>')
-					.on('click', ev => {
-						$('#modal-windows-data').toggleClass('is-active');
-					});
+					.append('<div id="extended-windows-scan-button" class="mouse-pointer pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">Extended Windows-Information</span></div>');
+				$('#extended-windows-scan-button', cont).on('click', ev => {
+					$('#modal-windows-data').toggleClass('is-active');
+				});
 
 				// General information
 				var win_info = $('#modal-windows-data .windows-info');

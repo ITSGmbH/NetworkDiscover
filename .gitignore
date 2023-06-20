@@ -6,7 +6,9 @@ config.toml
 
 # Packaging
 package/pkg
+package/deb
 package/*.tar.*
+package/*.deb
 
 # Rust
 target
