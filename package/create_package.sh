@@ -117,6 +117,9 @@ exit 0
 EOF
 
 cat << EOF > deb/postinst
+setcap CAP_NET_BIND_SERVICE=+eip /opt/network_discover/network_discover
+touch /opt/network_discover/config.toml
+
 mkdir -p /etc/systemd/system/ &>/dev/null
 if [ ! -L /etc/systemd/system/${PACKAGE}.service ];
 then
