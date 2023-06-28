@@ -42,7 +42,7 @@ pub fn start(db: &mut sqlite::Database, local: &LocalNet, config: &AppConfig) {
 /// let scanned = scanned_hosts(&db, &config, grouped, 5);
 /// ```
 pub fn scan_hosts(db: &mut sqlite::Database, config: &AppConfig, hosts: Vec<Host>, threads: u32) -> Vec<Host> {
-	let scanned_hosts = discover_impl::scan_hosts(db, hosts, threads);
+	let scanned_hosts = discover_impl::scan_hosts(db, hosts, threads as usize);
 	discover_impl::enummerate_windows(db, &config, scanned_hosts.clone());
 	scanned_hosts
 }
@@ -105,13 +105,14 @@ mod discover_impl {
 	/// let hosts = find_hosts_chunked(lcoal, targest);
 	/// let hosts = scan_hosts(&db, hosts, 5);
 	/// ```
-	pub(crate) fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Host>, threads: u32) -> Vec<Host> {
+	pub(crate) fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Host>, threads: usize) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
+		let num_threads = if threads > hosts.len() { hosts.len() } else { threads };
 		let mut handles = vec![];
 		let queue = Arc::new(Mutex::new(hosts));
 
-		debug!("[Scan] Threads: {}", threads);
-		for _ in 0..threads {
+		debug!("[Scan] Threads: {}", num_threads);
+		for _ in 0..num_threads {
 			let mutex = Arc::clone(&queue);
 			let handle = thread::spawn(move || {
 				debug!("[Scan] Thread {:?} started", thread::current().id());
@@ -171,11 +172,12 @@ mod discover_impl {
 	/// ```
 	pub(crate) fn enummerate_windows(db: &mut sqlite::Database, config: &AppConfig, hosts: Vec<Host>) {
 		let threads = config.num_threads as usize;
+		let num_threads = if threads > hosts.len() { hosts.len() } else { threads };
 		let mut handles = vec![];
 		let queue = Arc::new(Mutex::new(hosts));
 
-		debug!("[Windows] Threads: {}", threads);
-		for _ in 0..threads {
+		debug!("[Windows] Threads: {}", num_threads);
+		for _ in 0..num_threads {
 			let conf = config.clone();
 			let mutex = Arc::clone(&queue);
 			let handle = thread::spawn(move || {
