@@ -1,7 +1,9 @@
-use actix_web::{get, post, web, App, HttpServer, Result, Responder, HttpResponse};
-use actix_files::{Files, NamedFile};
+use actix_web::{get, post, web, App, HttpServer, Result, Responder, HttpResponse, http::StatusCode};
+use actix_files::Files;
+
 use serde::{Serialize, Deserialize};
-use std::{path::PathBuf, thread, time, io};
+
+use std::{fs, io, thread, time};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -293,9 +295,32 @@ fn start_scan_thread(config: config::AppConfig, running: Arc<Mutex<ScanStatusRes
 }
 
 #[get("/")]
-async fn index() -> Result<NamedFile> {
-	let path: PathBuf = "./static/index.html".parse().unwrap();
-	Ok(NamedFile::open(path)?)
+async fn index(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
+
+	let logo = match &config.whitelabel {
+		Some(wl) if wl.logo_data.is_some() => String::from(wl.logo_data.clone().unwrap()),
+		_ => String::from("/static/img/its_logo.png"),
+	};
+	let tagline = match &config.whitelabel {
+		Some(wl) if wl.tagline.is_some() => String::from(wl.tagline.clone().unwrap()),
+		_ => String::from("NetworkDiscover"),
+	};
+	let base_color = match &config.whitelabel {
+		Some(wl) if wl.color.is_some() => String::from(wl.color.clone().unwrap()),
+		_ => String::from("#3e8ed0"),
+	};
+
+	Ok(HttpResponse::build(StatusCode::OK)
+		.content_type("text/html; charset=utf-8")
+		.body(
+			fs::read_to_string("./static/index.html").unwrap_or(String::from("No index file found..."))
+				.replace("{logo}", &logo)
+				.replace("{tagline}", &tagline)
+				.replace("{base_color}", &base_color)
+				.replace("{base_color_r}", &u8::from_str_radix(&base_color[1..3], 16).unwrap_or(62).to_string())
+				.replace("{base_color_g}", &u8::from_str_radix(&base_color[3..5], 16).unwrap_or(142).to_string())
+				.replace("{base_color_b}", &u8::from_str_radix(&base_color[5..7], 16).unwrap_or(208).to_string())
+		))
 }
 
 #[get("/api/networks")]
@@ -387,6 +412,7 @@ async fn show_status(_config: web::Data<config::AppConfig>, running: web::Data<M
 
 #[get("/api/version")]
 async fn get_version(_config: web::Data<config::AppConfig>) -> Result<impl Responder> {
+	// TODO
 	let status = VersionResponse {
 		installed: "0.2.0".to_string(),
 		latest: "0.2.0".to_string(),
@@ -530,7 +556,23 @@ async fn load_config(config: web::Data<config::AppConfig>) -> Result<impl Respon
 #[post("/api/config")]
 async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::Data<StopHandle>) -> HttpResponse {
 	// TODO: Windows-Password security: Copy over from the original config if None
-	let conf = config::AppConfig::from(payload.0);
+	let mut conf = config::AppConfig::from(payload.0);
+
+	// The Logo will be submitted as a base64 image string: 'data:image/jpeg;base64,/9j/4AAQS...
+	// Only images are accepted (data:image/...;base64,)
+	if let Some(wl) = conf.whitelabel.as_mut() {
+		if let Some(logo) = &wl.logo_data {
+			if logo.len() > 11 && &logo[..11] != "data:image/" {
+				wl.logo_data = None;
+			}
+		}
+		if let Some(color) = &wl.color {
+			if color == "#000000" {
+				wl.color = None;
+			}
+		}
+	}
+
 	config::save(&conf);
 	stop_handle.stop(true);
 	HttpResponse::Ok().body("reload")
