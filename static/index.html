@@ -10,19 +10,42 @@
 	<link rel="stylesheet" href="/static/css/fa-all.min.css">
 	<link rel="icon" type="image/png" href="/static/img/its_logo.png">
 	<style type="text/css">
+		/* Bulma Overrides for theming */
+		:root {
+			--base-color: {base_color};
+			--base-color_rgb: {base_color_r}, {base_color_g}, {base_color_b};
+			--middle-color: rgba(var(--base-color_rgb), 0.25);
+			--lighter-color: rgba(var(--base-color_rgb), 0.1);
+		}
+		a { color: var(--base-color); }
+		.navbar.is-info { background: var(--base-color); }
+		.button.is-info.is-light { color: var(--base-color); background: var(--lighter-color); }
+		section tbody.info-table tr { background-color: var(--middle-color); }
+		section .message.is-info,
+		section tbody.info-table tr:nth-child(2n) { background-color: var(--lighter-color); }
+		section .message.is-info .message-body { border-color: var(--base-color); }
+
+		/* Custom Rules for the layout */
 		#networkarea {
 			position: fixed;
 			border: 1px solid lightgray;
 			top: 60px;
 			left: 0;
 			right: 33.3333333%;
-			bottom: 70px;
+			bottom: 41px;
 		}
-		footer {
+		footer.footer {
 			position: fixed;
 			bottom: 0;
+			height: 35px;
 			width: 100vw;
+			font-size: 0.8em;
+			overflow: hidden;
 		}
+		footer.footer small {
+			font-size: 0.8em;
+		}
+
 		#scan-now-modal .modal-card-body {
 			color: black;
 		}
@@ -137,8 +160,8 @@
 		<nav class="navbar is-info is-fixed-top" role="navigation" aria-label="dropdown navigation">
 			<div class="navbar-menu">
 				<div class="navbar-brand">
-					<span class="navbar-item"><img src="/static/img/its_logo.png" alt="IT-S" height="12" /></span>
-					<h1 class="navbar-item title is-4">NetworkDiscovery</h1>
+					<span class="navbar-item"><img src="{logo}" alt="{tagline} Logo" height="12" /></span>
+					<h1 class="navbar-item title is-4">{tagline}</h1>
 				</div>
 
 				<div class="navbar-start">
@@ -151,8 +174,8 @@
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Config</span>
 						<fieldset class="navbar-dropdown is-right" id="config">
-
 							<div id="config-container">
+
 								<div class="navbar-item">
 									<div class="box">
 										<p class="subtitle is-6">System</p>
@@ -173,23 +196,31 @@
 
 								<div class="navbar-item">
 									<div class="box">
-										<p class="subtitle is-6">Configuration</p>
+										<p class="subtitle is-6">White-Labeling <small><a href="#" id="clear-white-label">(clear)</a></small></p>
 										<div class="field">
-											<label class="label is-small">Configuration name</label>
-											<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
+											<label class="label is-small">Logo</label>
+											<div id="file-js-logo" class="file has-name is-small">
+												<label class="file-label">
+													<input class="file-input" type="file" name="logo" accept="image/png, image/jpeg, image/gif, image/svg+xml" />
+													<span class="file-cta">
+														<span class="file-icon"><i class="fas fa-upload"></i></span>
+														<span class="file-label">Choose a file...</span>
+													</span>
+													<span class="file-name">No file uploaded</span>
+												</label>
+											</div>
 										</div>
 										<div class="field">
-											<label class="label is-small">Web-Listener</label>
-											<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
-											<input class="input is-small double-small" type="number" placeholder="9090" name="listen-port" value="" />
+											<label class="label is-small">Tagline/Slogan</label>
+											<input class="input is-small full-width" placeholder="NetworkDiscover" type="text" name="tagline" value="" />
 										</div>
 										<div class="field">
-											<label class="label is-small">Database-Path</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="db-path" value="" />
+											<label class="label is-small">Color</label>
+											<input class="input is-small full-width" type="color" name="color" value="" />
 										</div>
 										<div class="field">
-											<label class="label is-small">Database-URL</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="db-url" value="" />
+											<label class="label is-small">Update Check URL</label>
+											<input class="input is-small full-width" placeholder="https://api.github.com/repos/ITSGmbH/NetworkDiscover/releases/latest" type="text" name="update_check" value="" />
 										</div>
 									</div>
 								</div>
@@ -360,8 +391,31 @@
 										</div>
 									</div>
 								</div>
-							</div>
 
+								<div class="navbar-item">
+									<div class="box">
+										<p class="subtitle is-6">Configuration</p>
+										<div class="field">
+											<label class="label is-small">Configuration name</label>
+											<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Web-Listener</label>
+											<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
+											<input class="input is-small double-small" type="number" placeholder="9090" name="listen-port" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Database-Path</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="db-path" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Database-URL</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="db-url" value="" />
+										</div>
+									</div>
+								</div>
+
+							</div>
 							<div class="navbar-item">
 								<button class="button is-primary" id="config-save">Save</button>
 							</div>
@@ -492,11 +546,8 @@
 
 	<footer class="footer p-2">
 		<div class="content has-text-centered">
-			<p>
-				<a href="https://github.com/ITSGmbH/NetworkDiscover">NetworkDiscovery</a>, provided by <a href="https://www.it-s.ch/">IT-S GmbH</a>
-				<br/>
-				<small>&copy; 2021 by Lukas Zurschmiede</small>
-			</p>
+			<a href="https://github.com/ITSGmbH/NetworkDiscover">NetworkDiscovery</a> provided by <a href="https://www.it-s.ch/">IT-S GmbH</a>,
+			<small>&copy; 2021 by Lukas Zurschmiede</small>
 		</div>
 	</footer>
 
@@ -867,20 +918,47 @@
 				});
 			});
 
+			// File Input Form in configuration for the Logo
+			$('#config [name="logo"]').on("change", ev => {
+				if (ev.target.files.length > 0) {
+					$('#file-js-logo .file-name').html(ev.target.files[0].name);
+				}
+			});
+			$('#clear-white-label').on('click', ev => {
+				ev.stopPropagation();
+				$('#config [name="logo"]').prop('value', '');
+				$('#file-js-logo .file-name').html('');
+				$('#config [name="color"]').prop('value', '');
+				$('#config [name="tagline"]').prop('value', '');
+				$('#config [name="update_check"]').prop('value', '');
+			});
+
 			// Load the Configuration
 			$.getJSON("/api/config", data => {
 				$('#config [name="repeat"]').prop('value', data.repeat);
 				$('#config [name="threads"]').prop('value', data.num_threads);
 				$('#config [name="interface"]').prop('value', data.device);
 				$('#config [name="name"]').prop('value', data.name);
+
+				if (data.whitelabel) {
+					$('#file-js-logo .file-name').html(data.whitelabel.logo);
+					$('#config [name="color"]').prop('value', data.whitelabel.color);
+					$('#config [name="tagline"]').prop('value', data.whitelabel.tagline);
+					$('#config [name="update_check"]').prop('value', data.whitelabel.update_check);
+				} else {
+					$('#config [name="color"]').prop('value', '');
+				}
+
 				if (data.listen) {
 					$('#config [name="listen-ip"]').prop('value', data.listen.ip);
 					$('#config [name="listen-port"]').prop('value', data.listen.port);
 				}
+
 				if (data.sqlite) {
 					$('#config [name="db-path"]').prop('value', data.sqlite.file);
 					$('#config [name="db-url"]').prop('value', data.sqlite.url);
 				}
+
 				if (data.targets && data.targets.forEach) {
 					data.targets.forEach((v, k) => {
 						idx = k + 1;
@@ -914,7 +992,15 @@
 						 url: $('#config [name="db-url"]').prop('value').trim() ? $('#config [name="db-url"]').prop('value').trim() : null,
 						} : null,
 						targets: [],
+						whitelabel: {
+							logo: ($('#config [name="logo"]').prop('files').length > 0) ? $('#config [name="logo"]')[0].files[0].name : null,
+							logo_data: null,
+							color: $('#config [name="color"]').prop('value').trim() ? $('#config [name="color"]').prop('value').trim() : null,
+							tagline: $('#config [name="tagline"]').prop('value').trim() ? $('#config [name="tagline"]').prop('value').trim() : null,
+							update_check: $('#config [name="update_check"]').prop('value').trim() ? $('#config [name="update_check"]').prop('value').trim() : null,
+						},
 					};
+
 					[1,2,3,4,5].forEach(idx => {
 						var id = "target-" + idx;
 						if ($('#config [name="' + id + '-name"]').prop('value').trim()) {
@@ -937,14 +1023,33 @@
 						}
 					});
 
-					$.ajax("/api/config", {
-						type: 'POST',
-						contentType: 'application/json',
-						data: JSON.stringify(config),
-						success: function(resp) {
-							setTimeout(function() {$('#config-save').removeAttr('disabled');}, 1500);
-						},
-					});
+					// Save-Config function
+					var save_config = config => {
+						$.ajax("/api/config", {
+							type: 'POST',
+							contentType: 'application/json',
+							data: JSON.stringify(config),
+							success: function(resp) {
+								setTimeout(function() {$('#config-save').removeAttr('disabled');}, 1500);
+							},
+						});
+					};
+
+					// Encode the logo as base64 before saveing
+					if ($('#config [name="logo"]').prop('files').length > 0) {
+						const reader = new FileReader();
+						reader.addEventListener('load', evt => {
+							config.whitelabel.logo_data = evt.target.result;
+							save_config(config);
+						});
+						reader.readAsDataURL($('#config [name="logo"]').prop('files')[0]);
+
+					} else {
+						if (!config.whitelabel.color && !config.whitelabel.tagline && !config.whitelabel.update_check) {
+							config.whitelabel = null;
+						}
+						save_config(config);
+					}
 				});
 			}).fail(function() {
 				console.error("Error while fetching configuration.");

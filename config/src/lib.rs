@@ -14,6 +14,7 @@ pub struct SaveConfig {
 	pub listen: Option<ConnectionStruct>,
 	pub sqlite: Option<DbStruct>,
 	pub targets: Option<Vec<DiscoverStruct>>,
+	pub whitelabel: Option<WhiteLabel>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -25,6 +26,7 @@ pub struct AppConfig {
 	pub listen: Option<ConnectionStruct>,
 	pub sqlite: Option<DbStruct>,
 	pub targets: Vec<DiscoverStruct>,
+	pub whitelabel: Option<WhiteLabel>,
 }
 impl Default for AppConfig {
 	fn default() -> Self {
@@ -36,6 +38,7 @@ impl Default for AppConfig {
 			listen: Default::default(),
 			sqlite: Default::default(),
 			targets: vec![],
+			whitelabel: None,
 		}
 	}
 }
@@ -49,6 +52,27 @@ impl From<SaveConfig> for AppConfig {
 			listen: item.listen,
 			sqlite: item.sqlite,
 			targets: item.targets.unwrap_or_default(),
+			whitelabel: item.whitelabel,
+		}
+	}
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WhiteLabel {
+	pub logo: Option<String>,
+	pub logo_data: Option<String>,
+	pub color: Option<String>,
+	pub tagline: Option<String>,
+	pub update_check: Option<String>,
+}
+impl Default for WhiteLabel {
+	fn default() -> Self {
+		WhiteLabel {
+			logo: None,
+			logo_data: None,
+			color: None,
+			tagline: None,
+			update_check: None,
 		}
 	}
 }

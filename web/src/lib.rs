@@ -558,14 +558,15 @@ async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::D
 	// TODO: Windows-Password security: Copy over from the original config if None
 	let mut conf = config::AppConfig::from(payload.0);
 
-	// The Logo will be submitted as a base64 image string: 'data:image/jpeg;base64,/9j/4AAQS...
-	// Only images are accepted (data:image/...;base64,)
 	if let Some(wl) = conf.whitelabel.as_mut() {
+		// The Logo is submitted as a base64 image string: 'data:image/jpeg;base64,/9j/4AAQS...
+		// Only images are accepted (data:image/...;base64,)
 		if let Some(logo) = &wl.logo_data {
 			if logo.len() > 11 && &logo[..11] != "data:image/" {
 				wl.logo_data = None;
 			}
 		}
+		// Color-Picker have black as default
 		if let Some(color) = &wl.color {
 			if color == "#000000" {
 				wl.color = None;
