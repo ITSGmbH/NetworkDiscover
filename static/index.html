@@ -1101,20 +1101,18 @@
 				});
 			}, 5000);
 
-			// Check for an update every hour
-			window.setInterval(function() {
-				$.getJSON("/api/version", data => {
-					if (data.installed != data.latest) {
-						$('#release-version').addClass('is-danger');
-						$('#release-version').removeClass('is-success');
-						$('#release-version').html("New Version: " + data.update);
-					} else {
-						$('#release-version').addClass('is-success');
-						$('#release-version').removeClass('is-danger');
-						$('#release-version').html("Up to date");
-					}
-				});
-			}, 3600000);
+			// Check for an update on every reload
+			$.getJSON("/api/version", data => {
+				if (data.installed != data.latest) {
+					$('#release-version').addClass('is-danger');
+					$('#release-version').removeClass('is-success');
+					$('#release-version').html("New Version: " + data.update);
+				} else {
+					$('#release-version').addClass('is-success');
+					$('#release-version').removeClass('is-danger');
+					$('#release-version').html("Up to date");
+				}
+			});
 		});
 
 		// Show information about a specific host
