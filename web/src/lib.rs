@@ -2,12 +2,13 @@ use actix_web::{get, post, web, App, HttpServer, Result, Responder, HttpResponse
 use actix_files::Files;
 
 use serde::{Serialize, Deserialize};
+use minreq;
 
 use std::{fs, io, thread, time};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use log::info;
+use log::{info, error};
 use network::{scan, capture};
 use export::{pdf::Pdf, csv::Csv, unknown_export};
 
@@ -411,11 +412,43 @@ async fn show_status(_config: web::Data<config::AppConfig>, running: web::Data<M
 }
 
 #[get("/api/version")]
-async fn get_version(_config: web::Data<config::AppConfig>) -> Result<impl Responder> {
-	// TODO
+async fn get_version(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
+	let mut latest = env!("CARGO_PKG_VERSION").to_string();
+
+	let mut url = "https://api.github.com/repos/ITSGmbH/NetworkDiscover/releases/latest";
+	if let Some(wl) = config.whitelabel.as_ref() {
+		if let Some(check) = wl.update_check.as_ref() {
+			url = &check;
+		}
+	}
+	info!("Check for update: {}", url);
+
+	match minreq::get(url)
+		.with_header("User-Agent", "NetworkDiscover")
+		.send() {
+			Ok(resp) => {
+				let response = resp.as_str().unwrap_or_default();
+				let mut version = "";
+				if let Some(pos) = response.find("tag_name") {
+					version = &response[(pos+11)..(pos+30)];
+					if let Some(pos) = version.find('"') {
+						version = &version[..pos];
+					}
+				}
+				match version.chars().next() {
+					Some(v) if v == 'v' => {
+						info!("Latest Version: {}", version);
+						latest = String::from(&version[1..]);
+					},
+					_ => error!("Could not fetch latest version from: {}", url)
+				}
+			},
+			Err(e) => error!("{}", e),
+	}
+
 	let status = VersionResponse {
-		installed: "0.2.0".to_string(),
-		latest: "0.2.0".to_string(),
+		installed: env!("CARGO_PKG_VERSION").to_string(),
+		latest: latest.to_string(),
 	};
 	Ok(web::Json(status))
 }
