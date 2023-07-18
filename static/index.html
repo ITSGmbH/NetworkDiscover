@@ -152,6 +152,18 @@
 			fill-opacity: 1;
 			font-weight: bold;
 		}
+
+		#modal-nse-scripts .modal-card {
+			width: calc(100vw - 80px);
+		}
+		.scripts-list { padding-bottom: 20px; }
+		.scripts-list li { padding: 3px 0; }
+		.script-name { text-decoration: underline; }
+		.message-body code.script {
+			background: none;: 3px 0;
+			white-space: pre-line;
+			padding: 0;
+		}
 	</style>
 	</style>
 </head>
@@ -190,6 +202,10 @@
 										<div class="field">
 											<label class="label is-small">Device name for auto config</label>
 											<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Scan-Scripts</label>
+											<a id="btn-nse" class="button is-info is-light is-fullwidth is-small">Manage Scan-Scripts</a>
 										</div>
 									</div>
 								</div>
@@ -542,6 +558,45 @@
 			</div>
 		</div>
 
+		<div id="modal-nse-scripts" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">Scan-Scripts Management</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body">
+					<div class="columns">
+						<div class="column is-one-third">
+							<ul class="container scripts-list"></ul>
+							<div class="columns">
+								<div class="column file has-name is-small">
+									<label class="file-label">
+										<input type="file" class="file-input" name="nse-script" accept=".nse" />
+										<span class="file-cta"><span class="file-icon"><i class="fas fa-upload"></i></span><span class="file-label">Choose Script...</span></span>
+										<span class="file-name"></span>
+									</label>
+								</div>
+								<div class="column is-narrow">
+									<a class="button is-small is-primary" id="nse-script-upload-btn"><span class="icon"><i class="fas fa-upload"></i></span><span>Upload</span></a>
+								</div>
+							</div>
+						</div>
+						<div class="column">
+							<article class="message">
+								<div class="message-body">
+									<span class="script-name">Loading...</span><br/>
+									<code class="script is-family-monospace">Loading...</code>
+									<span class="script-functions has-text-right" style="width:100%;display:inline-block;">
+										<a class="button is-small is-warning is-light active"><span class="icon"><i class="fas fa-flag"></i></span></a>
+										<a class="button is-small is-danger is-light remove"><span class="icon"><i class="fas fa-trash"></i></span></a>
+									</span>
+								</div>
+							</article>
+						</div>
+					</div>
+				</section>
+				<footer class="modal-card-foot"><button class="button">Close</button></footer>
+			</div>
+		</div>
+
 	</section>
 
 	<footer class="footer p-2">
@@ -845,6 +900,8 @@
 			$('#modal-hosts-history button.is-info').on('click', _ev => { $('#modal-hosts-history').toggleClass('is-active'); });
 			$('#modal-windows-data button.delete').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
 			$('#modal-windows-data button.button').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
+			$('#modal-nse-scripts button.delete').on('click', _ev => { $('#modal-nse-scripts').toggleClass('is-active'); });
+			$('#modal-nse-scripts button.button').on('click', _ev => { $('#modal-nse-scripts').toggleClass('is-active'); });
 
 			// search events
 			$('#scan-now').on('click', { id: 'now'}, trigger_scan);
@@ -916,6 +973,78 @@
 						$('#' + elem.attr('name') + '-container').addClass('is-hidden');
 					}
 				});
+			});
+
+
+			// NSE Script Management
+			var selected_script = '';
+			var set_script_content = (script, content, active) => {
+				$('#modal-nse-scripts .script-name').html(script);
+				$('#modal-nse-scripts .script').html(content);
+			};
+			var add_script_elem = (script) => {
+				var elem = $('<li><a class="script-list-name"><span class="icon"><i class="fas fa-file-text"></i></span><span>' + script + '</span></a></li>')
+					.on('click', { script: script }, ev => {
+						selected_script = ev.data.script;
+						$.getJSON("/api/script/load", { script: selected_script }, data => set_script_content(data.script, data.content, data.active) );
+					});
+				$('#modal-nse-scripts .scripts-list').append(elem);
+			};
+			$('#btn-nse').on('click', () => {
+				$('#modal-nse-scripts').toggleClass('is-active');
+				selected_script = '';
+				$.getJSON("/api/script/list", data => {
+					$('#modal-nse-scripts .script').empty();
+					$('#modal-nse-scripts .script-name').empty();
+					$('#modal-nse-scripts .scripts-list').empty();
+					$(data).each((_, script) => add_script_elem(script));
+				});
+			});
+			$('#modal-nse-scripts .script-functions .active').on('click', ev => {
+				$.getJSON("/api/script/activate", { script: selected_script }, data => {
+					console.debug("(De-)Activated: ", data);
+				});
+			});
+			$('#modal-nse-scripts .script-functions .remove').on('click', ev => {
+				$.getJSON("/api/script/delete", { script: selected_script }, data => {
+					$('#modal-nse-scripts .scripts-list li').each((_, elem) => {
+						if ($(elem.firstChild).html() == selected_script) {
+							$(elem).remove();
+						}
+					});
+					$('#modal-nse-scripts .script').empty();
+					$('#modal-nse-scripts .script-name').empty();
+					selected_script = '';
+				});
+			});
+			$('#modal-nse-scripts input[name="nse-script"]').on("change", ev => {
+				if (ev.target.files.length > 0) {
+					$('#modal-nse-scripts .file-name').html(ev.target.files[0].name);
+				}
+			});
+			$('#nse-script-upload-btn').on('click', () => {
+				var input = $('#modal-nse-scripts input[name="nse-script"]').prop('files');
+				if (input.length > 0) {
+					const reader = new FileReader();
+					reader.addEventListener('load', evt => {
+						$.ajax("/api/script/upload", {
+							type: 'POST',
+							contentType: 'application/json',
+							data: JSON.stringify({
+								script: input[0].name,
+								content: evt.target.result
+							}),
+							success: resp => {
+								$('#modal-nse-scripts .file-name').empty();
+								$('#modal-nse-scripts input[name="nse-script"]').val(null);
+								selected_script = resp.script;
+								add_script_elem(resp.script);
+								set_script_content(resp.script, resp.content, resp.active);
+							},
+						});
+					});
+					reader.readAsDataURL(input[0]);
+				}
 			});
 
 			// File Input Form in configuration for the Logo
@@ -1206,7 +1335,7 @@
 		// Load data from a selected node and display it on success
 		function selectNode(nodes) {
 			// TODO: Unselect selected nodes if clicked again
-			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + nodes.join(';'), data => {
+			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&host=" + nodes.join(';'), data => {
 				$('#host-info-box').empty();
 
 				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
@@ -1224,7 +1353,7 @@
 
 				// Fill Hosts-History
 				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
-					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&info=" + nodes.join(';'), hist_data => {
+					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&host=" + nodes.join(';'), hist_data => {
 						$('#modal-hosts-history .modal-card .message-body').empty();
 						$('#modal-hosts-history .modal-card-title').empty();
 						$('#modal-hosts-history .modal-card-title').append('History of: ' + hist_data.ip);

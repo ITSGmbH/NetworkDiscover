@@ -3,8 +3,9 @@ use actix_files::Files;
 
 use serde::{Serialize, Deserialize};
 use minreq;
+use base64::Engine;
 
-use std::{fs, io, thread, time};
+use std::{fs, path, io::{self, Write}, thread, time};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -12,12 +13,7 @@ use log::{info, error};
 use network::{scan, capture};
 use export::{pdf::Pdf, csv::Csv, unknown_export};
 
-#[derive(Serialize)]
-struct StateResponse {
-	network: String,
-	state: String,
-}
-
+/// Holds the status of the current scan status
 #[derive(Serialize,Clone,Copy)]
 struct ScanStatusResponse {
 	running: bool,
@@ -25,12 +21,14 @@ struct ScanStatusResponse {
 	triggered: bool,
 }
 
+/// Structure to response for a version check
 #[derive(Serialize)]
 struct VersionResponse {
 	installed: String,
 	latest: String,
 }
 
+/// Representaiton of the current scan status
 enum ScanStatus {
 	Started,
 	Running,
@@ -46,17 +44,20 @@ impl From<ScanStatus> for String {
 	}
 }
 
+/// Slim representation of a network
 #[derive(Serialize)]
 struct SimpleNetwork {
 	network: String,
 	name: String,
 }
 
+/// Request scan information from a network
 #[derive(Deserialize)]
 struct ScanRequest {
 	network: String,
 }
 
+/// Represents a scan with it's most important data
 #[derive(Serialize)]
 struct ScanResponse {
 	network: String,
@@ -66,12 +67,14 @@ struct ScanResponse {
 	end: String,
 }
 
+/// Request to get information about a network and a scan
 #[derive(Deserialize)]
 struct NetworkRequest {
 	network: String,
 	scan: i64,
 }
 
+/// Detailed information about a network
 #[derive(Serialize)]
 struct NetworkResponse {
 	id: i64,
@@ -87,13 +90,15 @@ struct NetworkResponse {
 	has_cve: bool,
 }
 
+/// Request detailed information about a host
 #[derive(Deserialize)]
 struct InfoRequest {
 	network: String,
 	scan: i64,
-	info: i64,
+	host: i64,
 }
 
+/// Detailed information about a host
 #[derive(Serialize)]
 struct HostInfoResponse {
 	id: i64,
@@ -105,6 +110,7 @@ struct HostInfoResponse {
 	windows: Option<WindowsResponse>,
 }
 
+/// Detailed information about one specisic port
 #[derive(Serialize)]
 struct PortInfoResponse {
 	port: i32,
@@ -114,6 +120,7 @@ struct PortInfoResponse {
 	cves: Vec<CveInfoResponse>,
 }
 
+/// Detailed information about a windows scan
 #[derive(Serialize)]
 struct WindowsResponse {
 	info: Option<WindowsInfoResponse>,
@@ -121,6 +128,8 @@ struct WindowsResponse {
 	shares: Vec<WindowsShareResponse>,
 	printers: Vec<WindowsPrinterResponse>,
 }
+
+/// Windows Data about a host
 #[derive(Serialize)]
 struct WindowsInfoResponse {
 	native_lan_manager: Option<String>,
@@ -133,6 +142,8 @@ struct WindowsInfoResponse {
 	server_type: Option<String>,
 	server_string: Option<String>,
 }
+
+/// Windows Domain Information
 #[derive(Serialize)]
 struct WindowsDomainResponse {
 	domain: Option<String>,
@@ -143,12 +154,16 @@ struct WindowsDomainResponse {
 	netbios_name: Option<String>,
 	netbios_domain: Option<String>,
 }
+
+/// Windows Shares
 #[derive(Serialize)]
 struct WindowsShareResponse {
 	name: Option<String>,
 	comment: Option<String>,
 	share_type: Option<String>,
 }
+
+/// Windows Printers
 #[derive(Serialize)]
 struct WindowsPrinterResponse {
 	uri: Option<String>,
@@ -157,6 +172,7 @@ struct WindowsPrinterResponse {
 	flags: Option<String>,
 }
 
+/// CVE Information about a host and a Port/Service
 #[derive(Serialize)]
 struct CveInfoResponse {
 	id: String,
@@ -165,6 +181,13 @@ struct CveInfoResponse {
 	exploit: bool,
 }
 
+/// This is the main function to start the Webserver and additional listeners
+///
+/// This is a blocking function which returns as soon as all web listeners and others are stopped.
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration to use
 pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	let running = web::Data::new(Mutex::new(ScanStatusResponse {
 		running: false,
@@ -200,6 +223,11 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 			.service(export_scan)
 			.service(load_config)
 			.service(save_config)
+			.service(load_scripts)
+			.service(upload_script)
+			.service(load_script_content)
+			.service(activate_script)
+			.service(delete_script)
 	})
 	.workers(4)
 	.bind(( ip.to_owned(), port.to_owned() ))?
@@ -292,12 +320,22 @@ fn start_scan_thread(config: config::AppConfig, running: Arc<Mutex<ScanStatusRes
 			ScanStatus::Started
 		}
 	};
-	res
+	return res;
 }
 
+/// Handles requests for the root
+/// The main html page is parsed and some variables are replaced for white labeling
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+///
+/// # Result
+///
+/// An HTML HttpResponse
 #[get("/")]
 async fn index(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
-
 	let logo = match &config.whitelabel {
 		Some(wl) if wl.logo_data.is_some() => String::from(wl.logo_data.clone().unwrap()),
 		_ => String::from("/static/img/its_logo.png"),
@@ -314,7 +352,8 @@ async fn index(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 	Ok(HttpResponse::build(StatusCode::OK)
 		.content_type("text/html; charset=utf-8")
 		.body(
-			fs::read_to_string("./static/index.html").unwrap_or(String::from("No index file found..."))
+			fs::read_to_string("./static/index.html")
+				.unwrap_or(String::from("No index file found..."))
 				.replace("{logo}", &logo)
 				.replace("{tagline}", &tagline)
 				.replace("{base_color}", &base_color)
@@ -324,6 +363,16 @@ async fn index(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 		))
 }
 
+/// Handles requests to get all networks.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[get("/api/networks")]
 async fn get_networks(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 	let conf = config.clone();
@@ -345,6 +394,17 @@ async fn get_networks(config: web::Data<config::AppConfig>) -> Result<impl Respo
 	Ok(web::Json(targets))
 }
 
+/// Handles requests to get all scans from a network.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `args` - ScanRequest Request Arguments
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[get("/api/scans")]
 async fn get_scans(config: web::Data<config::AppConfig>, args: web::Query<ScanRequest>) -> Result<impl Responder> {
 	let conf = config.clone();
@@ -363,6 +423,17 @@ async fn get_scans(config: web::Data<config::AppConfig>, args: web::Query<ScanRe
 	Ok(web::Json(response))
 }
 
+/// Handles requests to get information about a single network.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `args` - NetworkRequest Request Arguments
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[get("/api/network")]
 async fn get_network(config: web::Data<config::AppConfig>, args: web::Query<NetworkRequest>) -> Result<impl Responder> {
 	let conf = config.clone();
@@ -405,16 +476,55 @@ fn map_network_db_results(db: &mut sqlite::Database, host: &db::Host, scan: &i64
 	}
 }
 
+/// Handles requests to get the current status of the server.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration, not used
+/// * `running` - A globally mutex of the ScanStatusResponse
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[get("/api/status")]
 async fn show_status(_config: web::Data<config::AppConfig>, running: web::Data<Mutex<ScanStatusResponse>>) -> Result<impl Responder> {
 	let status = running.clone();
 	Ok(web::Json(status))
 }
 
+/// Handles requests to initiate a new scan.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `running` - A globally mutex of the ScanStatusResponse
+///
+/// # Result
+///
+/// An JSON HttpResponse
+#[get("/api/scan_now")]
+async fn scan_start(config: web::Data<config::AppConfig>, running: web::Data<Mutex<ScanStatusResponse>>) -> Result<impl Responder> {
+	let res = start_scan_thread(config.get_ref().clone(), running.clone().into_inner());
+	let status = running.clone();
+	info!("Scan triggered: {}", String::from(res));
+	Ok(web::Json(status))
+}
+
+/// Handles requests to check for a new version on github or any other configured URI.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[get("/api/version")]
 async fn get_version(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 	let mut latest = env!("CARGO_PKG_VERSION").to_string();
-
 	let mut url = "https://api.github.com/repos/ITSGmbH/NetworkDiscover/releases/latest";
 	if let Some(wl) = config.whitelabel.as_ref() {
 		if let Some(check) = wl.update_check.as_ref() {
@@ -453,22 +563,33 @@ async fn get_version(config: web::Data<config::AppConfig>) -> Result<impl Respon
 	Ok(web::Json(status))
 }
 
+/// Handles requests to get information about a given Host.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `args` - InfoRequest Request Arguments
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[get("/api/info")]
 async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoRequest>) -> Result<impl Responder> {
 	let conf = config.clone();
 	let mut db = sqlite::new(&conf);
 
 	let scan = db::Scan::load(&mut db, &args.scan).unwrap_or_default();
-	let scan_hist = db::HostHistory::scan_history(&mut db, &args.info);
-	let host = db::HostHistory::load(&mut db, &args.info)
+	let scan_hist = db::HostHistory::scan_history(&mut db, &args.host);
+	let host = db::HostHistory::load(&mut db, &args.host)
 		.map(|info| {
 			let mut host = db::Host::load(&mut db, &info.host_id).unwrap_or_default();
 			host.os = info.os;
 			host.hist_id = info.id;
 			host
 		});
-	let ports = db::Port::load(&mut db, &args.info);
-	let windows = db::Windows::load(&mut db, &args.info)
+	let ports = db::Port::load(&mut db, &args.host);
+	let windows = db::Windows::load(&mut db, &args.host)
 		.map(|win| {
 			WindowsResponse {
 				info: db::WindowsInfo::load(&mut db, &win.id).map(|info| WindowsInfoResponse {
@@ -521,7 +642,7 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 		}).collect(),
 		ports: ports.iter()
 			.map(|port| {
-				let cves = db::Cve::load(&mut db, &args.info, &port.port);
+				let cves = db::Cve::load(&mut db, &args.host, &port.port);
 				PortInfoResponse {
 					port: port.port.clone(),
 					protocol: port.protocol.clone(),
@@ -543,33 +664,27 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 	Ok(web::Json(result))
 }
 
-#[get("/api/scan_now")]
-async fn scan_start(config: web::Data<config::AppConfig>, running: web::Data<Mutex<ScanStatusResponse>>) -> Result<impl Responder> {
-	let res = start_scan_thread(config.get_ref().clone(), running.into_inner());
-	let res = String::from(res);
-	info!("Scan triggered: {}", String::from(&res));
-
-	Ok(web::Json(StateResponse {
-		network: String::from(&config.name),
-		state: res,
-	}))
-}
-
+/// Handles requests to export and download information about a scan.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `export` - Export type (PDF or CSV)
+/// * `args` - InfoRequest Request Arguments
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[get("/export/{export}")]
 async fn export_scan(config: web::Data<config::AppConfig>, export: web::Path<String>, args: web::Query<NetworkRequest>) -> Result<impl Responder> {
 	let conf = config.clone();
 	let mut db = sqlite::new(&conf);
 	let export_type = export.into_inner().to_lowercase();
 	let content = match export_type.as_ref() {
-		"pdf" => {
-			Pdf::export(&mut db, String::from(&args.network), args.scan)
-		},
-		"csv" => {
-			Csv::export(&mut db, String::from(&args.network), args.scan)
-		},
-		_ => {
-			unknown_export()
-		},
+		"pdf" => Pdf::export(&mut db, String::from(&args.network), args.scan),
+		"csv" => Csv::export(&mut db, String::from(&args.network), args.scan),
+		_ => unknown_export(),
 	};
 
 	let result = HttpResponse::Ok()
@@ -578,7 +693,16 @@ async fn export_scan(config: web::Data<config::AppConfig>, export: web::Path<Str
 	Ok(result)
 }
 
-
+/// Handles requests to get the system configuration.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[get("/api/config")]
 async fn load_config(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 	let conf = config.clone();
@@ -586,6 +710,19 @@ async fn load_config(config: web::Data<config::AppConfig>) -> Result<impl Respon
 	Ok(web::Json(conf))
 }
 
+/// Handles requests to save a new configuration.
+/// This function has to be registered in the main HttpServer App
+///
+/// After this call, the network-discover will restart.
+///
+/// # Arguments:
+///
+/// * `payload` - The new configuration to save
+/// * `stop_handle` - Global registered listener to restart the NetworkDiscover
+///
+/// # Result
+///
+/// An JSON HttpResponse
 #[post("/api/config")]
 async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::Data<StopHandle>) -> HttpResponse {
 	// TODO: Windows-Password security: Copy over from the original config if None
@@ -633,3 +770,145 @@ impl StopHandle {
 	}
 }
 
+/// Handles requests to get a list of all NSE-Scripts.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+///
+/// # Result
+///
+/// An JSON HttpResponse
+#[get("/api/script/list")]
+async fn load_scripts(_config: web::Data<config::AppConfig>) -> Result<impl Responder> {
+	let list: Vec<&str> = vec!["vulners.nse", "MS-Exchange-Version.nse"];
+	Ok(web::Json(list))
+}
+
+/// Handles requests to load and return the content of an NSE-Script..
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `args` - ScriptRequest Request Arguments
+///
+/// # Result
+///
+/// An JSON HttpResponse
+#[get("/api/script/load")]
+async fn load_script_content(_config: web::Data<config::AppConfig>, args: web::Query<ScriptRequest>) -> Result<impl Responder> {
+	let script = ScriptResponse {
+		script: String::from(&args.script),
+		content: Some(String::from("This is \nsome Content\nfoo = bar")),
+		active: true,
+	};
+	Ok(web::Json(script))
+}
+
+/// Handles requests to upload a new NSE-Script
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `args` - ScriptRequest Request Arguments
+///
+/// # Result
+///
+/// An JSON HttpResponse
+#[post("/api/script/upload")]
+async fn upload_script(_config: web::Data<config::AppConfig>, args: web::Json<ScriptRequest>) -> Result<impl Responder> {
+	let mut script = ScriptResponse {
+		script: String::from(&args.0.script),
+		content: None,
+		active: false,
+	};
+
+	let file_path = "./scripts/";
+	match fs::create_dir(file_path) {
+		Err(e) => error!("Could not create Directory for scripts: {}", e),
+		_ => {
+			// The script is submitted as a base64 string: 'data:application/octet-stream;base64,/9j/4AAQS...
+			// First get the optional content, subtract the prefix, base64-decode it and convert it to a string
+			if let Some(content) = args.0.content {
+				if let Some(pos) = content.find(',') {
+					if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(&content[pos+1..]) {
+						if let Ok(content) = String::from_utf8(decoded) {
+							script.content = Some(content);
+							script.active = true;
+						}
+					}
+				}
+			}
+		},
+	};
+
+	// Write the file
+	if script.active {
+		let file_path = path::PathBuf::from(file_path).join(&script.script);
+		if let Ok(mut file) = fs::File::create(file_path) {
+			match file.write_all(script.content.clone().unwrap_or_default().as_bytes()) {
+				Err(e) => error!("Could not write to file: {}", e),
+				_ => {}
+			}
+		}
+	}
+
+	Ok(web::Json(script))
+}
+
+/// Handles requests to Activate/Deactivate a script from being used during an extended scan.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `args` - ScriptRequest Request Arguments
+///
+/// # Result
+///
+/// An JSON HttpResponse
+#[get("/api/script/activate")]
+async fn activate_script(_config: web::Data<config::AppConfig>, args: web::Query<ScriptRequest>) -> Result<impl Responder> {
+	let status = true;
+	// TODO: Implement
+	Ok(web::Json(status))
+}
+
+
+/// Handles requests to Delete a NSE-Script.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Arguments:
+///
+/// * `config` - The main Application Configuration
+/// * `args` - ScriptRequest Request Arguments
+///
+/// # Result
+///
+/// An JSON HttpResponse
+#[get("/api/script/delete")]
+async fn delete_script(_config: web::Data<config::AppConfig>, args: web::Query<ScriptRequest>) -> Result<impl Responder> {
+	let status = false;
+	// TODO: Implement
+	Ok(web::Json(status))
+}
+
+/// Data format for requesting something for/from a script.
+/// Also used to upload a new script.
+#[derive(Deserialize)]
+struct ScriptRequest {
+	script: String,
+	content: Option<String>,
+}
+
+/// Response to any kind of a script request.
+/// The Content is optinal to not send too much data anytime.
+#[derive(Serialize)]
+struct ScriptResponse {
+	script: String,
+	content: Option<String>,
+	active: bool,
+}

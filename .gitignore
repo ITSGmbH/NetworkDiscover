@@ -1,4 +1,5 @@
 # Running
+scripts/
 config.toml
 *.log
 *.csv
