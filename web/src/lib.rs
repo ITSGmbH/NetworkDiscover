@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use minreq;
 use base64::Engine;
 
-use std::{fs, path, io::{self, Write}, thread, time};
+use std::{fs, path, io::{self, Write}, ffi::OsStr, thread, time};
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -798,6 +798,20 @@ async fn load_scripts(_config: web::Data<config::AppConfig>) -> Result<impl Resp
 	Ok(web::Json(list))
 }
 
+
+/// Clean up a file name from any kind of path traversal stuff
+///
+/// # Arguments:
+///
+/// * `file_name` - The filename to clean up
+///
+/// # Return
+///
+/// The file name only from the given string
+fn clean_script_name(file_name: &str) -> &str {
+	path::Path::new(file_name).file_name().unwrap_or(OsStr::new("unknown.nse")).to_str().unwrap_or("unknown.nse")
+}
+
 /// Handles requests to load and return the content of an NSE-Script..
 /// This function has to be registered in the main HttpServer App
 ///
@@ -812,14 +826,14 @@ async fn load_scripts(_config: web::Data<config::AppConfig>) -> Result<impl Resp
 #[get("/api/script/load")]
 async fn load_script_content(_config: web::Data<config::AppConfig>, args: web::Query<ScriptRequest>) -> Result<impl Responder> {
 	let mut script = ScriptResponse {
-		script: String::from(&args.script),
+		script: String::from(clean_script_name(&args.script)),
 		content: None,
 		active: true,
 	};
 
 	let mut file_path = path::PathBuf::new();
 	file_path.push("scripts");
-	file_path.push(args.script.as_str());
+	file_path.push(&script.script);
 
 	if let Ok(content) = fs::read_to_string(file_path) {
 		script.content = Some(content);
@@ -842,7 +856,7 @@ async fn load_script_content(_config: web::Data<config::AppConfig>, args: web::Q
 #[post("/api/script/upload")]
 async fn upload_script(_config: web::Data<config::AppConfig>, args: web::Json<ScriptRequest>) -> Result<impl Responder> {
 	let mut script = ScriptResponse {
-		script: String::from(&args.0.script),
+		script: String::from(clean_script_name(&args.script)),
 		content: None,
 		active: false,
 	};
@@ -855,7 +869,7 @@ async fn upload_script(_config: web::Data<config::AppConfig>, args: web::Json<Sc
 		_ => {
 			// The script is submitted as a base64 string: 'data:application/octet-stream;base64,/9j/4AAQS...
 			// First get the optional content, subtract the prefix, base64-decode it and convert it to a string
-			if let Some(content) = args.0.content {
+			if let Some(content) = &args.content {
 				if let Some(pos) = content.find(',') {
 					if let Ok(decoded) = base64::engine::general_purpose::STANDARD.decode(&content[pos+1..]) {
 						if let Ok(content) = String::from_utf8(decoded) {
@@ -898,6 +912,7 @@ async fn upload_script(_config: web::Data<config::AppConfig>, args: web::Json<Sc
 async fn activate_script(_config: web::Data<config::AppConfig>, args: web::Query<ScriptRequest>) -> Result<impl Responder> {
 	let status = true;
 	// TODO: Implement
+	let _script_file = clean_script_name(&args.script);
 	Ok(web::Json(status))
 }
 
@@ -917,7 +932,7 @@ async fn activate_script(_config: web::Data<config::AppConfig>, args: web::Query
 async fn delete_script(_config: web::Data<config::AppConfig>, args: web::Query<ScriptRequest>) -> Result<impl Responder> {
 	let mut file_path = path::PathBuf::new();
 	file_path.push("scripts");
-	file_path.push(&args.script);
+	file_path.push(clean_script_name(&args.script));
 
 	Ok(web::Json(
 		match fs::remove_file(file_path) {
