@@ -782,7 +782,19 @@ impl StopHandle {
 /// An JSON HttpResponse
 #[get("/api/script/list")]
 async fn load_scripts(_config: web::Data<config::AppConfig>) -> Result<impl Responder> {
-	let list: Vec<&str> = vec!["vulners.nse", "MS-Exchange-Version.nse"];
+	let mut list: Vec<String> = vec![];
+
+	let mut file_path = path::PathBuf::new();
+	file_path.push("scripts");
+
+	if let Ok(dir) = fs::read_dir(file_path) {
+		dir.filter(|entry| entry.is_ok())
+			.map(|entry| entry.unwrap().path())
+			.map(|entry| String::from(entry.file_name().unwrap_or_default().to_str().unwrap_or_default()))
+			.filter(|name| name.len() > 4 && &name[(name.len()-4)..] == ".nse")
+			.for_each(|file| list.push(file));
+	}
+
 	Ok(web::Json(list))
 }
 
@@ -799,11 +811,20 @@ async fn load_scripts(_config: web::Data<config::AppConfig>) -> Result<impl Resp
 /// An JSON HttpResponse
 #[get("/api/script/load")]
 async fn load_script_content(_config: web::Data<config::AppConfig>, args: web::Query<ScriptRequest>) -> Result<impl Responder> {
-	let script = ScriptResponse {
+	let mut script = ScriptResponse {
 		script: String::from(&args.script),
-		content: Some(String::from("This is \nsome Content\nfoo = bar")),
+		content: None,
 		active: true,
 	};
+
+	let mut file_path = path::PathBuf::new();
+	file_path.push("scripts");
+	file_path.push(args.script.as_str());
+
+	if let Ok(content) = fs::read_to_string(file_path) {
+		script.content = Some(content);
+	}
+
 	Ok(web::Json(script))
 }
 
@@ -826,8 +847,10 @@ async fn upload_script(_config: web::Data<config::AppConfig>, args: web::Json<Sc
 		active: false,
 	};
 
-	let file_path = "./scripts/";
-	match fs::create_dir(file_path) {
+	let mut file_path = path::PathBuf::new();
+	file_path.push("scripts");
+
+	match fs::create_dir_all(&file_path) {
 		Err(e) => error!("Could not create Directory for scripts: {}", e),
 		_ => {
 			// The script is submitted as a base64 string: 'data:application/octet-stream;base64,/9j/4AAQS...
@@ -847,8 +870,9 @@ async fn upload_script(_config: web::Data<config::AppConfig>, args: web::Json<Sc
 
 	// Write the file
 	if script.active {
-		let file_path = path::PathBuf::from(file_path).join(&script.script);
-		if let Ok(mut file) = fs::File::create(file_path) {
+		let mut script_file = path::PathBuf::from(file_path);
+		script_file.push(String::from(&script.script));
+		if let Ok(mut file) = fs::File::create(script_file) {
 			match file.write_all(script.content.clone().unwrap_or_default().as_bytes()) {
 				Err(e) => error!("Could not write to file: {}", e),
 				_ => {}

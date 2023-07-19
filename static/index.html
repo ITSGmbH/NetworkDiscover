@@ -979,10 +979,17 @@
 			// NSE Script Management
 			var selected_script = '';
 			var set_script_content = (script, content, active) => {
+				let code = content
+					.replace(/\</g, '&lt;')
+					.replace(/\>/g, '&gt;')
+					.replace(/  |\t/g, '&nbsp;&nbsp;');
 				$('#modal-nse-scripts .script-name').html(script);
-				$('#modal-nse-scripts .script').html(content);
+				$('#modal-nse-scripts .script').html(code);
 			};
 			var add_script_elem = (script) => {
+				if ($('#modal-nse-scripts .scripts-list li a span').filter((_, elem) => $(elem).text().trim() == script.trim()).length > 0) {
+					return;
+				}
 				var elem = $('<li><a class="script-list-name"><span class="icon"><i class="fas fa-file-text"></i></span><span>' + script + '</span></a></li>')
 					.on('click', { script: script }, ev => {
 						selected_script = ev.data.script;
