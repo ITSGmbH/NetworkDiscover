@@ -1015,7 +1015,7 @@
 			$('#modal-nse-scripts .script-functions .remove').on('click', ev => {
 				$.getJSON("/api/script/delete", { script: selected_script }, data => {
 					$('#modal-nse-scripts .scripts-list li').each((_, elem) => {
-						if ($(elem.firstChild).html() == selected_script) {
+						if ($("a span", elem).filter((_, elem) => $(elem).text().trim() == selected_script.trim()).length > 0) {
 							$(elem).remove();
 						}
 					});

@@ -915,9 +915,16 @@ async fn activate_script(_config: web::Data<config::AppConfig>, args: web::Query
 /// An JSON HttpResponse
 #[get("/api/script/delete")]
 async fn delete_script(_config: web::Data<config::AppConfig>, args: web::Query<ScriptRequest>) -> Result<impl Responder> {
-	let status = false;
-	// TODO: Implement
-	Ok(web::Json(status))
+	let mut file_path = path::PathBuf::new();
+	file_path.push("scripts");
+	file_path.push(&args.script);
+
+	Ok(web::Json(
+		match fs::remove_file(file_path) {
+			Ok(_) => true,
+			_ => false,
+		}
+	))
 }
 
 /// Data format for requesting something for/from a script.
