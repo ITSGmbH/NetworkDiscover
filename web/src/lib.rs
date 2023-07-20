@@ -108,6 +108,7 @@ struct HostInfoResponse {
 	scan_history: Vec<ScanResponse>,
 	ports: Vec<PortInfoResponse>,
 	windows: Option<WindowsResponse>,
+	scripts: Vec<ScriptsResponse>,
 }
 
 /// Detailed information about one specisic port
@@ -118,6 +119,20 @@ struct PortInfoResponse {
 	service: String,
 	product: String,
 	cves: Vec<CveInfoResponse>,
+}
+
+/// Data Container for a Script-Scan Response
+#[derive(Serialize)]
+struct ScriptsResponse {
+	name: Option<String>,
+	data: Vec<ScriptDataResponse>,
+}
+
+/// Data Entry from a Script-Scan
+#[derive(Serialize)]
+struct ScriptDataResponse {
+	key: String,
+	value: String,
 }
 
 /// Detailed information about a windows scan
@@ -626,6 +641,15 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 			}
 		});
 
+	let scripts = db::ScriptScan::load(&mut db, &args.host).iter()
+		.map(|script| ScriptsResponse {
+			name: if script.script_id.is_empty() { None } else { Some(String::from(&script.script_id)) },
+			data: db::ScriptResult::load(&mut db, &script.id).iter().map(|res| ScriptDataResponse {
+				key: String::from(&res.key),
+				value: String::from(&res.value),
+			}).collect()
+		}).collect();
+
 	let result = host.map_or(None, |host| Some(HostInfoResponse {
 		id: host.id,
 		ip: host.ip,
@@ -660,6 +684,7 @@ async fn get_info(config: web::Data<config::AppConfig>, args: web::Query<InfoReq
 			})
 			.collect(),
 		windows,
+		scripts,
 	}));
 	Ok(web::Json(result))
 }

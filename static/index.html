@@ -578,6 +578,15 @@
 			</div>
 		</div>
 
+		<div id="modal-scripts-data" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">Script-Scans</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body"></section>
+				<footer class="modal-card-foot"><button class="button">Close</button></footer>
+			</div>
+		</div>
+
 		<div id="modal-nse-scripts" class="modal">
 			<div class="modal-background"></div>
 			<div class="modal-card">
@@ -922,6 +931,8 @@
 			$('#modal-windows-data button.button').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
 			$('#modal-nse-scripts button.delete').on('click', _ev => { $('#modal-nse-scripts').toggleClass('is-active'); });
 			$('#modal-nse-scripts button.button').on('click', _ev => { $('#modal-nse-scripts').toggleClass('is-active'); });
+			$('#modal-scripts-data button.delete').on('click', _ev => { $('#modal-scripts-data').toggleClass('is-active'); });
+			$('#modal-scripts-data button.button').on('click', _ev => { $('#modal-scripts-data').toggleClass('is-active'); });
 
 			// search events
 			$('#scan-now').on('click', { id: 'now'}, trigger_scan);
@@ -1327,6 +1338,31 @@
 				for (key in data.windows.printers) {
 					var printer = data.windows.printers[key];
 					table_printers.append('<tr><th>' + printer.uri + '</th><td><em>' + printer.description + '</em></td><td>' + printer.comment + '</td></tr>');
+				}
+			}
+
+			// Script-Scan
+			if (data.scripts.length > 0 && with_hist) {
+				$('.message-body', cont)
+					.append('<div id="script-scan-button" class="mouse-pointer pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-script.svg" /></figure><span class="pl-2">Script-Scan Data</span></div>');
+				$('#script-scan-button', cont).on('click', ev => {
+					$('#modal-scripts-data').toggleClass('is-active');
+				});
+
+				// Script-Scan-Data
+				var scripts_container = $('#modal-scripts-data .modal-card-body');
+				scripts_container.empty();
+
+				for (key in data.scripts) {
+					let script = data.scripts[key];
+					var script_container = $('<p class="subtitle is-5 script-title">' + script.name + '</p><article class="message"><div class="message-body table-container"><table class="table is-striped is-fullwidth"><tbody class="script-data"></tbody></table></div></article>');
+					scripts_container.append(script_container);
+					let data_table = $('.script-data', script_container);
+
+					for (k in script.data) {
+						var elem = script.data[k];
+						data_table.append('<tr><th>' + elem.key + '</th><td>' + elem.value + '</td></tr>');
+					}
 				}
 			}
 
