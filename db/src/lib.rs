@@ -1400,3 +1400,137 @@ impl WindowsPrinter {
 		return vec![];
 	}
 }
+
+
+#[derive(FromRow, Default, Debug)]
+pub struct ScriptScan {
+	pub id: i64,
+	pub scan: i64,
+	pub hist_id: i64,
+	pub script_id: String,
+}
+impl ScriptScan {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&mut self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			if self.id <= 0 {
+				self.id = next_id(pool, "id", "script_scan");
+				let query = query("INSERT INTO script_scan (id,scan,hist_id,script_id) VALUES(?,?,?,?)")
+					.bind(self.id)
+					.bind(self.scan)
+					.bind(self.hist_id)
+					.bind(&self.script_id)
+					.execute(pool);
+				return futures::executor::block_on(query)
+					.map_or_else(
+						|err| Err(format!("[DB] Entity: 'ScriptScan'; Save failed: {}", err)),
+						|_|  Ok(())
+					);
+			}
+			return Err(format!("[DB] Entity: 'ScriptScan' can not be changed."));
+		}
+		Err(format!("[DB] Entity: 'ScriptScan'; No Connection available."))
+	}
+
+	/// Loads a list of all scripts which where run during a scan and produced some output
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `hist_id` - Host-History-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// A List with scripts
+	pub fn load(db: &mut sqlite::Database, hist_id: &i64) -> Vec<ScriptScan> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, ScriptScan>("SELECT * FROM script_scan WHERE hist_id=? ORDER BY script_id ASC")
+				.bind(hist_id)
+				.fetch_all(pool);
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'ScriptScan'; Load failed: {}", err); }
+					}
+					return vec![];
+				}
+			}
+		}
+		return vec![];
+	}
+}
+
+
+#[derive(FromRow, Default, Debug)]
+pub struct ScriptResult {
+	pub script_id: i64,
+	pub key: String,
+	pub value: String,
+}
+impl ScriptResult {
+	/// Saves the instance
+	///
+	/// # Arguments
+	///
+	/// * `self` - Only callable on a reference, mutable
+	/// * `db` - Mutable reference to the database connection object
+	pub fn save(&self, db: &mut sqlite::Database) -> Result<(), String> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query("INSERT INTO script_result (script_id,key,value) VALUES(?,?,?)")
+				.bind(self.script_id)
+				.bind(&self.key)
+				.bind(&self.value)
+				.execute(pool);
+			return futures::executor::block_on(query)
+				.map_or_else(
+					|err| Err(format!("[DB] Entity: 'ScriptResult'; Save failed: {}", err)),
+					|_|  Ok(())
+				);
+		}
+		Err(format!("[DB] Entity: 'ScriptResult'; No Connection available."))
+	}
+
+	/// Loads a list of all script results found during a scan
+	///
+	/// # Arguments
+	///
+	/// * `db` - Mutable reference to the database connection object
+	/// * `script_scan_id` - ScriptScan-ID of the dataset to load
+	///
+	/// # Returns
+	///
+	/// A List with script results
+	pub fn load(db: &mut sqlite::Database, script_scan_id: &i64) -> Vec<ScriptResult> {
+		let con = db.connection();
+		if con.is_some() {
+			let pool = con.unwrap();
+			let query = query_as::<_, ScriptResult>("SELECT * FROM script_result WHERE script_id=? ORDER BY key ASC")
+				.bind(script_scan_id)
+				.fetch_all(pool);
+			return match futures::executor::block_on(query) {
+				Ok(result) => result.into_iter().collect(),
+				Err(err) => {
+					match err {
+						sqlx::Error::RowNotFound => {},
+						_ => { log::error!("[DB] Entity: 'ScriptResult'; Load failed: {}", err); }
+					}
+					return vec![];
+				}
+			}
+		}
+		return vec![];
+	}
+}
