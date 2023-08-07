@@ -58,7 +58,7 @@ mod discover_impl {
 	use std::str::FromStr;
 	use std::env::temp_dir;
 	use std::path::PathBuf;
-	use std::{fs::{self, File}, path};
+	use std::fs::File;
 	use std::thread;
 	use std::sync::{Arc, Mutex};
 	use std::io::{BufReader, prelude::*};
@@ -358,7 +358,7 @@ mod discover_impl {
 			let mut f = file.unwrap();
 			let mut lines = String::new();
 			f.read_to_string(&mut lines).unwrap();
-			std::fs::remove_file(path).unwrap_or_default();
+			let _ = std::fs::remove_file(path);
 			return lines;
 		}
 		String::new()
@@ -546,21 +546,6 @@ mod discover_impl {
 			debug!("  no route to: {:?}", host.ip);
 		}
 	}
-	
-	fn get_all_scripts() -> Vec<String> {
-		let mut list: Vec<String> = vec![];
-		let mut file_path = path::PathBuf::new();
-		file_path.push("scripts");
-
-		if let Ok(dir) = fs::read_dir(file_path) {
-			dir.filter(|entry| entry.is_ok())
-				.map(|entry| entry.unwrap().path())
-				.map(|entry| String::from(entry.file_name().unwrap_or_default().to_str().unwrap_or_default()))
-				.filter(|name| name.len() > 4 && &name[(name.len()-4)..] == ".nse")
-				.for_each(|file| list.push(file));
-		}
-		list
-	}
 
 	/// Scans a host for open ports and services.
 	///
@@ -593,17 +578,16 @@ mod discover_impl {
 			if host.version_check {
 				cmd.arg("-sV");
 			}
+			if !host.scan_arguments.is_empty() {
+				let mut sargs = String::from("--script-args=");
+				sargs.push_str(host.scan_arguments.as_str());
+				cmd.arg(sargs.as_str());
+			}
 			if host.extended_scan {
-				if !host.scan_arguments.is_empty() {
-					let mut sargs = String::from("--script-args=");
-					sargs.push_str(host.scan_arguments.as_str());
-					cmd.arg(sargs.as_str());
-				}
-				for script in get_all_scripts() {
-					let mut arg = String::from("--script=./scripts/");
-					arg.push_str(script.as_str());
-					cmd.arg(&arg);
-				}
+				cmd.arg("-sV");
+				cmd.arg("--script=vulners");
+			} else {
+				cmd.arg("--script=./scripts/");
 			}
 			cmd.arg("-oX")
 				.arg(&tmp_file)
