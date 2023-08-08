@@ -78,7 +78,7 @@
 		.area-hint {
 			width: 50%;
 			position: fixed;
-			bottom: 80px;
+			bottom: 50px;
 			left: 33.333333%;
 			margin-left: -25%;
 			text-align: center;
@@ -96,7 +96,7 @@
 			font-size: 0.75rem;
 		}
 		.legend .columns {
-			margin-bottom: 0;
+			margin-bottom: 0 !important;
 		}
 		.legend .column {
 			padding: 0.6rem;
@@ -196,7 +196,7 @@
 											<input class="input is-small full-width" placeholder="24" type="number" name="repeat" value="" />
 										</div>
 										<div class="field">
-											<label class="label is-small">Threads to scan</label>
+											<label class="label is-small">Parallel asset scans</label>
 											<input class="input is-small full-width" placeholder="10" type="number" name="threads" value="" />
 										</div>
 										<div class="field">
@@ -713,19 +713,19 @@
 			return graph;
 		}
 
-		var width  = $("#networkarea").width(),
-		    height = $("#networkarea").width(),
-		    radius = 20,
-		    labelsize = 12;
+		const width  = $("#networkarea").width(),
+		      height = $("#networkarea").width(),
+		      radius = 20,
+		      labelsize = 12;
+		var selection = { network: 0, scan: 0, nodes: 0 };
 
 		var load_network = ev => {
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
-
 				d3.selectAll("#networkarea > *").remove();
 				const svg = d3.select("#networkarea")
 					.append('svg')
 					.attr("viewBox", [ 0, 0, width, height ])
-					.attr("style", "max-width: 100%; height: 100%;")
+					.attr("style", "max-width: 100%; width: 100%; height: 100%;")
 					.call(d3.zoom()
 						.scaleExtent([0.1, 5])
 						.on("zoom", ev => d3.selectAll('svg g').attr('transform', ev.transform)))
@@ -798,7 +798,7 @@
 							if (d.extended) return "netbios";
 							return "";
 						})
-						.attr("xlink:href", d => getNodeIcon(d.os))
+						.attr("xlink:href", d => getNodeIcon(d.os ? d.os : 'unknown'))
 						.attr("width", radius)
 						.attr("height", radius)
 					.call(
@@ -865,9 +865,8 @@
 				}
 
 				function dragstarted(ev, d) {
-					selectNode([ d.id ])
 					nodes.classed("selected", false);
-					d3.select("#node-" + d.id).classed("selected", true);
+					selectNode(d.id)
 				}
 
 				function dragged(ev, d) {
@@ -881,8 +880,8 @@
 				}
 
 				$('#host-info-box').empty();
-				$('#networkarea').data('network', ev.data.network)
-				$('#networkarea').data('scan', ev.data.scan)
+				selection.network = ev.data.network;
+				selection.scan = ev.data.scan;
 
 				$('#btn-pdf').attr('href', '/export/pdf?network=' + ev.data.network + '&scan=' + ev.data.scan);
 				$('#btn-csv').attr('href', '/export/csv?network=' + ev.data.network + '&scan=' + ev.data.scan);
@@ -895,12 +894,12 @@
 				$('#scans-list').empty();
 				scans.forEach((v, k) => {
 					if (!changed || v.changed == undefined || (v.changed && changed)) {
-						$('#scans-list').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
+						$('#scans-list').append('<a class="navbar-item" id="scan-' + k + '">' + getDateString(v.start) + '</a>');
 						$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan, time: v.start }, click_ev => {
 							$('#scans .navbar-item').removeClass('is-active');
 							$('#scan-' + click_ev.data.id).addClass('is-active');
 							$('#selected-scan').empty();
-							$('#selected-scan').append(click_ev.data.time);
+							$('#selected-scan').append(getDateString(click_ev.data.time));
 							load_network(click_ev);
 						});
 					}
@@ -1005,7 +1004,6 @@
 					}
 				});
 			});
-
 
 			// NSE Script Management
 			var selected_script = '';
@@ -1236,9 +1234,11 @@
 				const nodes = svg.selectAll(".nodes circle");
 				const links = svg.selectAll(".links line");
 				const labels = svg.selectAll(".node-labels text");
+				const icons = svg.selectAll(".icons image");
 
 				links.attr("class", "link");
 				labels.attr("class", "node-label");
+				icons.attr("class", "");
 
 				nodes.attr("class", "node")
 					.filter(node => (node.label.toLowerCase().indexOf(val) == -1))
@@ -1248,8 +1248,9 @@
 							.attr("class", "link hidden");
 						labels.filter(label => label.id == node.id)
 							.attr("class", "node-label hidden");
-					})
-				;
+						icons.filter(label => label.id == node.id)
+							.attr("class", "hidden");
+					});
 			});
 
 			// Check for the scan-status every 5 seconds
@@ -1288,12 +1289,17 @@
 			});
 		});
 
+		// Returns a formatted date string based on the given timestamp
+		function getDateString(timestamp) {
+			return (new Date(timestamp)).toLocaleString();
+		}
+
 		// Show information about a specific host
 		function fill_host_info_box(cont, data, with_hist) {
 			if (with_hist) {
-				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-date.svg" /></figure><span class="pl-2">' + (new Date(data.scan_timestamp)).toUTCString() + '</span></div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
+				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-date.svg" /></figure><span class="pl-2">' + getDateString(data.scan_timestamp) + '</span></div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
 			} else {
-				$('.message-body', cont).append('<div style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">' + (new Date(data.scan_timestamp)).toUTCString() + '</span></div>');
+				$('.message-body', cont).append('<div style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">' + getDateString(data.scan_timestamp) + '</span></div>');
 			}
 			$('.message-body', cont).append('<div class="pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-os.svg" /></figure><span class="pl-2">' + data.os + '</span></div>');
 
@@ -1401,41 +1407,50 @@
 			});
 		}
 
-		// Load data from a selected node and display it on success
-		function selectNode(nodes) {
-			// TODO: Unselect selected nodes if clicked again
-			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&host=" + nodes.join(';'), data => {
-				$('#host-info-box').empty();
-
-				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
-				fill_host_info_box(cont, data, true);
-
-				data.scan_history.forEach(hist => {
-					$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + (new Date(hist.start)).toUTCString() + '</div>');
-				});
-				$('#host-scan-host-list .mouse-pointer', cont).on('mouseover', ev => {
-					$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
-				});
-				$('#host-scan-host-list .mouse-pointer', cont).on('mouseout', ev => {
-					$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
-				});
-
-				// Fill Hosts-History
-				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
-					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&host=" + nodes.join(';'), hist_data => {
-						$('#modal-hosts-history .modal-card .message-body').empty();
-						$('#modal-hosts-history .modal-card-title').empty();
-						$('#modal-hosts-history .modal-card-title').append('History of: ' + hist_data.ip);
-						fill_host_info_box($('#modal-hosts-history .modal-card .col-left'), hist_data, false);
-						fill_host_info_box($('#modal-hosts-history .modal-card .col-right'), data, false);
-						$('#modal-hosts-history').toggleClass('is-active');
-					});
-				});
-
-				$('#host-info-box').append(cont);
-			});
+		// Unselect a node
+		function unselectNode(node) {
+			var selected = (node == selection.nodes);
+			$('#host-info-box').empty();
+			selection.nodes = 0;
+			return selected;
 		}
 
+		// Load data from a selected node and display it on success
+		function selectNode(node) {
+			if (!unselectNode(node)) {
+				selection.nodes = node;
+				d3.select("#node-" + selection.nodes).classed("selected", true);
+
+				$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + selection.nodes, data => {
+					var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
+					fill_host_info_box(cont, data, true);
+
+					data.scan_history.forEach(hist => {
+						$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + getDateString(hist.start) + '</div>');
+					});
+					$('#host-scan-host-list .mouse-pointer', cont).on('mouseover', ev => {
+						$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
+					});
+					$('#host-scan-host-list .mouse-pointer', cont).on('mouseout', ev => {
+						$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
+					});
+
+					// Fill Hosts-History
+					$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
+						$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + selection.nodes, hist_data => {
+							$('#modal-hosts-history .modal-card .message-body').empty();
+							$('#modal-hosts-history .modal-card-title').empty();
+							$('#modal-hosts-history .modal-card-title').append('History of: ' + hist_data.ip);
+							fill_host_info_box($('#modal-hosts-history .modal-card .col-left'), hist_data, false);
+							fill_host_info_box($('#modal-hosts-history .modal-card .col-right'), data, false);
+							$('#modal-hosts-history').toggleClass('is-active');
+						});
+					});
+
+					$('#host-info-box').append(cont);
+				});
+			}
+		}
 
 	</script>
 </body>
