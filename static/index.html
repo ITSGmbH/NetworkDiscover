@@ -721,7 +721,6 @@
 
 		var load_network = ev => {
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
-
 				d3.selectAll("#networkarea > *").remove();
 				const svg = d3.select("#networkarea")
 					.append('svg')
@@ -895,12 +894,12 @@
 				$('#scans-list').empty();
 				scans.forEach((v, k) => {
 					if (!changed || v.changed == undefined || (v.changed && changed)) {
-						$('#scans-list').append('<a class="navbar-item" id="scan-' + k + '">' + v.start + '</a>');
+						$('#scans-list').append('<a class="navbar-item" id="scan-' + k + '">' + getDateString(v.start) + '</a>');
 						$('#scan-' + k).on('click', { id: k, network: v.network, scan: v.scan, time: v.start }, click_ev => {
 							$('#scans .navbar-item').removeClass('is-active');
 							$('#scan-' + click_ev.data.id).addClass('is-active');
 							$('#selected-scan').empty();
-							$('#selected-scan').append(click_ev.data.time);
+							$('#selected-scan').append(getDateString(click_ev.data.time));
 							load_network(click_ev);
 						});
 					}
@@ -1290,12 +1289,16 @@
 			});
 		});
 
+		function getDateString(timestamp) {
+			return (new Date(timestamp)).toLocaleString();
+		}
+
 		// Show information about a specific host
 		function fill_host_info_box(cont, data, with_hist) {
 			if (with_hist) {
-				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-date.svg" /></figure><span class="pl-2">' + (new Date(data.scan_timestamp)).toUTCString() + '</span></div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
+				$('.message-body', cont).append('<div class="dropdown is-hoverable"><div class="dropdown-trigger"><div class="mouse-pointer" aria-haspopup="true" aria-controls="dropdown-menu" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-date.svg" /></figure><span class="pl-2">' + getDateString(data.scan_timestamp) + '</span></div></div><div class="dropdown-menu" id="dropdown-menu" role="menu"><div class="dropdown-content" id="host-scan-host-list"></div></div></div>');
 			} else {
-				$('.message-body', cont).append('<div style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">' + (new Date(data.scan_timestamp)).toUTCString() + '</span></div>');
+				$('.message-body', cont).append('<div style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-windows.svg" /></figure><span class="pl-2">' + getDateString(data.scan_timestamp) + '</span></div>');
 			}
 			$('.message-body', cont).append('<div class="pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-os.svg" /></figure><span class="pl-2">' + data.os + '</span></div>');
 
@@ -1418,7 +1421,7 @@
 					fill_host_info_box(cont, data, true);
 
 					data.scan_history.forEach(hist => {
-						$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + (new Date(hist.start)).toUTCString() + '</div>');
+						$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + getDateString(hist.start) + '</div>');
 					});
 					$('#host-scan-host-list .mouse-pointer', cont).on('mouseover', ev => {
 						$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
