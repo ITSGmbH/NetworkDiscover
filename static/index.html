@@ -1289,6 +1289,7 @@
 			});
 		});
 
+		// Returns a formatted date string based on the given timestamp
 		function getDateString(timestamp) {
 			return (new Date(timestamp)).toLocaleString();
 		}
@@ -1406,17 +1407,21 @@
 			});
 		}
 
-		// Load data from a selected node and display it on success
-		function selectNode(nodes) {
+		// Unselect a node
+		function unselectNode(node) {
+			var selected = (node == selection.nodes);
 			$('#host-info-box').empty();
-			if (nodes == selection.nodes) {
-				selection.nodes = 0;
-			} else {
-				selection.nodes = nodes;
+			selection.nodes = 0;
+			return selected;
+		}
+
+		// Load data from a selected node and display it on success
+		function selectNode(node) {
+			if (!unselectNode(node)) {
+				selection.nodes = node;
 				d3.select("#node-" + selection.nodes).classed("selected", true);
 
 				$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + selection.nodes, data => {
-					selection.nodes = nodes;
 					var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
 					fill_host_info_box(cont, data, true);
 
