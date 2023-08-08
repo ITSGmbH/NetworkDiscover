@@ -78,7 +78,7 @@
 		.area-hint {
 			width: 50%;
 			position: fixed;
-			bottom: 80px;
+			bottom: 50px;
 			left: 33.333333%;
 			margin-left: -25%;
 			text-align: center;
@@ -196,7 +196,7 @@
 											<input class="input is-small full-width" placeholder="24" type="number" name="repeat" value="" />
 										</div>
 										<div class="field">
-											<label class="label is-small">Threads to scan</label>
+											<label class="label is-small">Parallel asset scans</label>
 											<input class="input is-small full-width" placeholder="10" type="number" name="threads" value="" />
 										</div>
 										<div class="field">
@@ -713,11 +713,11 @@
 			return graph;
 		}
 
-		var width  = $("#networkarea").width(),
-		    height = $("#networkarea").width(),
-		    radius = 20,
-		    labelsize = 12;
-
+		const width  = $("#networkarea").width(),
+		      height = $("#networkarea").width(),
+		      radius = 20,
+		      labelsize = 12;
+		var selection = { network: 0, scan: 0 };
 		var load_network = ev => {
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
 
@@ -725,7 +725,7 @@
 				const svg = d3.select("#networkarea")
 					.append('svg')
 					.attr("viewBox", [ 0, 0, width, height ])
-					.attr("style", "max-width: 100%; height: 100%;")
+					.attr("style", "max-width: 100%; width: 100%; height: 100%;")
 					.call(d3.zoom()
 						.scaleExtent([0.1, 5])
 						.on("zoom", ev => d3.selectAll('svg g').attr('transform', ev.transform)))
@@ -798,7 +798,7 @@
 							if (d.extended) return "netbios";
 							return "";
 						})
-						.attr("xlink:href", d => getNodeIcon(d.os))
+						.attr("xlink:href", d => getNodeIcon(d.os ? d.os : 'unknown'))
 						.attr("width", radius)
 						.attr("height", radius)
 					.call(
@@ -881,8 +881,8 @@
 				}
 
 				$('#host-info-box').empty();
-				$('#networkarea').data('network', ev.data.network)
-				$('#networkarea').data('scan', ev.data.scan)
+				selection.network = ev.data.network;
+				selection.scan = ev.data.scan;
 
 				$('#btn-pdf').attr('href', '/export/pdf?network=' + ev.data.network + '&scan=' + ev.data.scan);
 				$('#btn-csv').attr('href', '/export/csv?network=' + ev.data.network + '&scan=' + ev.data.scan);
@@ -1404,7 +1404,7 @@
 		// Load data from a selected node and display it on success
 		function selectNode(nodes) {
 			// TODO: Unselect selected nodes if clicked again
-			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&host=" + nodes.join(';'), data => {
+			$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + nodes.join(';'), data => {
 				$('#host-info-box').empty();
 
 				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
@@ -1422,7 +1422,7 @@
 
 				// Fill Hosts-History
 				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
-					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&host=" + nodes.join(';'), hist_data => {
+					$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + nodes.join(';'), hist_data => {
 						$('#modal-hosts-history .modal-card .message-body').empty();
 						$('#modal-hosts-history .modal-card-title').empty();
 						$('#modal-hosts-history .modal-card-title').append('History of: ' + hist_data.ip);
@@ -1435,7 +1435,6 @@
 				$('#host-info-box').append(cont);
 			});
 		}
-
 
 	</script>
 </body>
