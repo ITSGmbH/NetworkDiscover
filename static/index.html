@@ -96,7 +96,7 @@
 			font-size: 0.75rem;
 		}
 		.legend .columns {
-			margin-bottom: 0;
+			margin-bottom: 0 !important;
 		}
 		.legend .column {
 			padding: 0.6rem;
@@ -1236,9 +1236,11 @@
 				const nodes = svg.selectAll(".nodes circle");
 				const links = svg.selectAll(".links line");
 				const labels = svg.selectAll(".node-labels text");
+				const icons = svg.selectAll(".icons image");
 
 				links.attr("class", "link");
 				labels.attr("class", "node-label");
+				icons.attr("class", "");
 
 				nodes.attr("class", "node")
 					.filter(node => (node.label.toLowerCase().indexOf(val) == -1))
@@ -1248,6 +1250,8 @@
 							.attr("class", "link hidden");
 						labels.filter(label => label.id == node.id)
 							.attr("class", "node-label hidden");
+						icons.filter(label => label.id == node.id)
+							.attr("class", "hidden");
 					})
 				;
 			});
