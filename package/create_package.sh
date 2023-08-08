@@ -11,6 +11,9 @@ cd - &>/dev/null
 PACKAGE="network_discover"
 VERSION=$( grep "^version" ../Cargo.toml | cut -d'"' -f2 )
 ARCH=$( uname -m )
+if [ "${ARCH::3}" == "arm" ]; then
+	ARCH="armhf"
+fi
 ARCHIVE="${PACKAGE}-${VERSION}_${ARCH}.tar.xz"
 DEBIAN="${PACKAGE}-${VERSION}_${ARCH}.deb"
 
@@ -56,9 +59,9 @@ $( cd pkg; find . -type f | xargs md5sum | sed 's/.\///' > ../deb/md5sums )
 cat << EOF > deb/control
 Package: ${PACKAGE}
 Version: ${VERSION}-1
-Architecture: amd64
+Architecture: ${ARCH}
 Maintainer: Lukas LukyLuke Zurschmiede <${PACKAGE}@ranta.ch>
-Depends: nmap ( >= 7.91 )
+Depends: nmap ( >= 7.40 )
 Section: net
 Priority: optional
 Homepage: https://github.com/ITSGmbH/NetworkDiscover
@@ -107,11 +110,16 @@ EOF
 cat << EOF > deb/preinst
 #!/bin/sh
 set -e
-systemctl stop ${PACKAGE}
+if [ -f /lib/systemd/system/${PACKAGE}.service ]; then
+  systemctl stop ${PACKAGE}
+fi
 exit 0
 EOF
 
 cat << EOF > deb/postinst
+setcap CAP_NET_BIND_SERVICE=+eip /opt/network_discover/network_discover
+touch /opt/network_discover/config.toml
+
 mkdir -p /etc/systemd/system/ &>/dev/null
 if [ ! -L /etc/systemd/system/${PACKAGE}.service ];
 then

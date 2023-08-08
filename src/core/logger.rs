@@ -2,12 +2,13 @@
 use chrono::Local;
 use std::io::Write;
 use env_logger;
+use env_logger::Env;
 use log::LevelFilter;
 
 pub use log::{info, warn, debug, error, trace};
 
 pub fn init() {
-	env_logger::Builder::new()
+	env_logger::Builder::from_env(Env::default().default_filter_or("debug"))
 		.target(env_logger::Target::Stdout)
 		.format(|buf, record| {
 			writeln!(buf, 
@@ -17,7 +18,6 @@ pub fn init() {
 				record.args()
 			)
 		})
-		.filter(None, LevelFilter::Debug)
 		.filter(Some("sqlx"), LevelFilter::Error)
 		.init();
 }

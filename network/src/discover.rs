@@ -22,7 +22,7 @@ const MAX_TRACEROUTE_HOPS: u16 = 15;
 /// ```
 pub fn start(db: &mut sqlite::Database, local: &LocalNet, config: &AppConfig) {
 	info!("HostDiscovery: start");
-	scan_hosts(db, &config, discover_impl::find_hosts(local, &config.targets), config.num_threads);
+	scan_hosts(db, &config, discover_impl::find_hosts(local, &config.targets, config.script_args.clone().unwrap_or_default()), config.num_threads);
 	info!("HostDiscovery: ended");
 }
 
@@ -42,13 +42,13 @@ pub fn start(db: &mut sqlite::Database, local: &LocalNet, config: &AppConfig) {
 /// let scanned = scanned_hosts(&db, &config, grouped, 5);
 /// ```
 pub fn scan_hosts(db: &mut sqlite::Database, config: &AppConfig, hosts: Vec<Host>, threads: u32) -> Vec<Host> {
-	let scanned_hosts = discover_impl::scan_hosts(db, hosts, threads);
+	let scanned_hosts = discover_impl::scan_hosts(db, hosts, threads as usize);
 	discover_impl::enummerate_windows(db, &config, scanned_hosts.clone());
 	scanned_hosts
 }
 
 mod discover_impl {
-	use crate::hosts::{Host, Service, Vulnerability, Protocol, State, Windows, WindowsInfo, WindowsDomain, WindowsShare, WindowsPrinter};
+	use crate::hosts::{Host, Service, Vulnerability, Protocol, State, Windows, WindowsInfo, WindowsDomain, WindowsShare, WindowsPrinter, ScriptElement};
 	use local_net::LocalNet;
 	use config::AppConfig;
 	use log::{info, debug, trace};
@@ -73,6 +73,7 @@ mod discover_impl {
 	///
 	/// * `local` - Local network configuration
 	/// * `targets` - List of targets and/or Networks to find Hosts on and scan
+	/// * `scan_arguments` - Arguments to pass to the scanner
 	///
 	/// # Example
 	///
@@ -80,10 +81,10 @@ mod discover_impl {
 	/// let hosts = find_hosts_chunked(local, targest);
 	/// let hosts = scan_hosts(&db, hosts, 5);
 	/// ```
-	pub(crate) fn find_hosts(local: &LocalNet, targets: &Vec<config::DiscoverStruct>) -> Vec<Host> {
+	pub(crate) fn find_hosts(local: &LocalNet, targets: &Vec<config::DiscoverStruct>, scan_arguments: String) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
 		for target in targets {
-			for host in discover_network(local, &target) {
+			for host in discover_network(local, &target, scan_arguments.clone()) {
 				result.push(host);
 			}
 		}
@@ -105,13 +106,14 @@ mod discover_impl {
 	/// let hosts = find_hosts_chunked(lcoal, targest);
 	/// let hosts = scan_hosts(&db, hosts, 5);
 	/// ```
-	pub(crate) fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Host>, threads: u32) -> Vec<Host> {
+	pub(crate) fn scan_hosts(db: &mut sqlite::Database, hosts: Vec<Host>, threads: usize) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
+		let num_threads = if threads > hosts.len() { hosts.len() } else { threads };
 		let mut handles = vec![];
 		let queue = Arc::new(Mutex::new(hosts));
 
-		debug!("[Scan] Threads: {}", threads);
-		for _ in 0..threads {
+		debug!("[Scan] Threads: {}", num_threads);
+		for _ in 0..num_threads {
 			let mutex = Arc::clone(&queue);
 			let handle = thread::spawn(move || {
 				debug!("[Scan] Thread {:?} started", thread::current().id());
@@ -147,6 +149,7 @@ mod discover_impl {
 					host.save_to_db(db);
 					host.update_host_information(db);
 					host.save_services_to_db(db);
+					host.save_scripts_to_db(db);
 					result.push(host.clone());
 				});
 		}
@@ -171,11 +174,12 @@ mod discover_impl {
 	/// ```
 	pub(crate) fn enummerate_windows(db: &mut sqlite::Database, config: &AppConfig, hosts: Vec<Host>) {
 		let threads = config.num_threads as usize;
+		let num_threads = if threads > hosts.len() { hosts.len() } else { threads };
 		let mut handles = vec![];
 		let queue = Arc::new(Mutex::new(hosts));
 
-		debug!("[Windows] Threads: {}", threads);
-		for _ in 0..threads {
+		debug!("[Windows] Threads: {}", num_threads);
+		for _ in 0..num_threads {
 			let conf = config.clone();
 			let mutex = Arc::clone(&queue);
 			let handle = thread::spawn(move || {
@@ -308,7 +312,6 @@ mod discover_impl {
 					true => {
 						let mut windows_host = host.clone();
 						windows_host.windows = Some(Windows { info, domain, shares, printers });
-						debug!("Windows ({:?}): {:?}", windows_host.ip, &windows_host.windows);
 						Some(windows_host)
 					},
 					false => None
@@ -355,7 +358,7 @@ mod discover_impl {
 			let mut f = file.unwrap();
 			let mut lines = String::new();
 			f.read_to_string(&mut lines).unwrap();
-			std::fs::remove_file(path).unwrap_or_default();
+			let _ = std::fs::remove_file(path);
 			return lines;
 		}
 		String::new()
@@ -371,6 +374,7 @@ mod discover_impl {
 	///
 	/// * `local` - The local network configuration used to get routing information
 	/// * `target` - The target network to search all online hosts
+	/// * `scan_arguments` - Arguments to apss to the scanner
 	///
 	/// # Example
 	///
@@ -379,7 +383,7 @@ mod discover_impl {
 	///     info!("Found Host: {:?}", host);
 	/// }
 	/// ```
-	fn discover_network(local: &LocalNet, target: &config::DiscoverStruct) -> Vec<Host> {
+	fn discover_network(local: &LocalNet, target: &config::DiscoverStruct, scan_arguments: String) -> Vec<Host> {
 		let mut result: Vec<Host> = vec![];
 		let default_network = local.default_network()
 			.unwrap()
@@ -419,6 +423,8 @@ mod discover_impl {
 								let mut host = Host::default();
 								host.network = String::from(network);
 								host.extended_scan = target.extended.unwrap_or(true);
+								host.version_check = target.version_check.unwrap_or(true);
+								host.scan_arguments = scan_arguments.clone();
 								host.ip = Some(
 									attributes.iter()
 										.filter(|a| a.name.local_name == "addr")
@@ -540,7 +546,7 @@ mod discover_impl {
 			debug!("  no route to: {:?}", host.ip);
 		}
 	}
-	
+
 	/// Scans a host for open ports and services.
 	///
 	/// If the host is flagged as `extended_scan`, also a vulnerability scan is performed with the `vulners.nse` nmap script
@@ -568,10 +574,20 @@ mod discover_impl {
 			let mut cmd = Command::new("sudo");
 			cmd.arg("nmap")
 				.arg("-O")
-				.arg("-sT")
-				.arg("-sV");
+				.arg("-sT");
+			if host.version_check {
+				cmd.arg("-sV");
+			}
+			if !host.scan_arguments.is_empty() {
+				let mut sargs = String::from("--script-args=");
+				sargs.push_str(host.scan_arguments.as_str());
+				cmd.arg(sargs.as_str());
+			}
 			if host.extended_scan {
-				cmd.arg("--script=vulners.nse");
+				cmd.arg("-sV");
+				cmd.arg("--script=vulners");
+			} else {
+				cmd.arg("--script=./scripts/");
 			}
 			cmd.arg("-oX")
 				.arg(&tmp_file)
@@ -583,9 +599,10 @@ mod discover_impl {
 				let mut service = Service::default();
 				let mut vulners = Vulnerability::default();
 
-				let mut is_vulners = false;
-				let mut vulners_key = String::from("");
-				
+				let mut is_script = false;
+				let mut script_id = String::from("");
+				let mut script_elem_key = String::from("");
+
 				let lines = get_file_content_and_cleanup(&tmp_file);
 				let parser = EventReader::from_str(&lines);
 				for ev in parser {
@@ -594,8 +611,9 @@ mod discover_impl {
 							if name.local_name == "port" {
 								service.port = attributes.iter()
 									.filter(|a| a.name.local_name == "portid")
-									.map(|a| a.value.parse::<u16>().unwrap_or(0u16))
-									.take(1).next().unwrap_or(0u16);
+									.map(|a| a.value.parse::<u16>().unwrap_or_default())
+									.take(1).next()
+									.unwrap_or_default();
 								service.protocol = attributes.iter()
 									.filter(|a| a.name.local_name == "protocol")
 									.map(|a| {
@@ -603,7 +621,7 @@ mod discover_impl {
 										else if a.value == "udp" { return Protocol::UDP; }
 										Protocol::UNKNOWN
 									}).take(1).next().unwrap_or(Protocol::UNKNOWN);
-								
+
 							} else if name.local_name == "state" {
 								service.state = attributes.iter()
 									.filter(|a| a.name.local_name == "state")
@@ -613,54 +631,70 @@ mod discover_impl {
 										else if a.value == "close" { return State::CLOSE; }
 										State::UNKNOWN
 									}).take(1).next().unwrap_or(State::UNKNOWN);
-								
+
 							} else if name.local_name == "service" {
 								service.name = attributes.iter()
 									.filter(|a| a.name.local_name == "name")
 									.map(|a| String::from(&a.value))
-									.take(1).next().unwrap_or(String::from(""));
-									
+									.take(1).next()
+									.unwrap_or_default();
+
 								service.product = attributes.iter()
 									.filter(|a| a.name.local_name == "product")
 									.map(|a| String::from(&a.value))
-									.take(1).next().unwrap_or(String::from(""));
-									
+									.take(1).next()
+									.unwrap_or_default();
+
 								service.version = attributes.iter()
 									.filter(|a| a.name.local_name == "version")
 									.map(|a| String::from(&a.value))
-									.take(1).next().unwrap_or(String::from(""));
-								
+									.take(1).next()
+									.unwrap_or_default();
+
 							} else if name.local_name == "osmatch" {
 								host.os = attributes.iter()
 									.filter(|a| a.name.local_name == "name")
 									.map(|a| String::from(&a.value))
 									.take(1).next();
-									
-							} else if name.local_name == "script"
-								&& attributes.iter()
-									.filter(|a| a.name.local_name == "id")
-									.map(|a| String::from(&a.value))
-									.take(1).next().unwrap_or(String::from("")) == "vulners" {
-									is_vulners = true;
-									
-							} else if is_vulners && name.local_name == "elem" {
-								vulners_key = attributes.iter()
+
+							} else if name.local_name == "script" {
+									is_script = true;
+									script_id =  attributes.iter()
+										.filter(|a| a.name.local_name == "id")
+										.map(|a| String::from(&a.value))
+										.take(1).next()
+										.unwrap_or_default();
+
+							} else if name.local_name == "elem" {
+								script_elem_key = attributes.iter()
 									.map(|a| String::from(&a.value))
 									.take(1).next()
-									.unwrap_or(String::from(""));
+									.unwrap_or_default();
 							}
 						},
 
-						Ok(XmlEvent::Characters(value)) => {
-							if is_vulners && !vulners_key.is_empty() {
-								match vulners_key.as_str() {
+						Ok(XmlEvent::Characters(value)) if is_script => {
+							match script_id.as_str() {
+								"vulners" => match script_elem_key.as_str() {
 									"id" => vulners.id = value,
 									"type" => vulners.database = value,
 									"is_exploit" => vulners.exploit = value.parse::<bool>().unwrap_or(false),
-									"cvss" => vulners.cvss = value.parse::<f32>().unwrap_or(0f32),
+									"cvss" => vulners.cvss = value.parse::<f32>().unwrap_or_default(),
 									_ => {}
-								};
-							}
+								},
+								_ if !script_elem_key.is_empty() => {
+									if !host.scripts.contains_key(&script_id) {
+										host.scripts.insert(script_id.clone(), vec![]);
+									}
+									if let Some(entry) = host.scripts.get_mut(&script_id) {
+										entry.push(ScriptElement {
+											key: script_elem_key.clone(),
+											value: value.clone(),
+										});
+									}
+								},
+								_ => {}
+							};
 						},
 
 						Ok(XmlEvent::EndElement { name }) => {
@@ -669,12 +703,12 @@ mod discover_impl {
 								host.services.push(service);
 								service = Service::default();
 
-							} else if is_vulners && name.local_name == "table" && !vulners.id.is_empty() {
+							} else if is_script && name.local_name == "table" && !vulners.id.is_empty() {
 								service.vulns.push(vulners.clone());
 								vulners = Vulnerability::default();
 
-							} else if is_vulners && name.local_name == "script" {
-								is_vulners = false;
+							} else if is_script && name.local_name == "script" {
+								is_script = false;
 							}
 						},
 						_ => {}

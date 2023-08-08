@@ -10,19 +10,42 @@
 	<link rel="stylesheet" href="/static/css/fa-all.min.css">
 	<link rel="icon" type="image/png" href="/static/img/its_logo.png">
 	<style type="text/css">
+		/* Bulma Overrides for theming */
+		:root {
+			--base-color: {base_color};
+			--base-color_rgb: {base_color_r}, {base_color_g}, {base_color_b};
+			--middle-color: rgba(var(--base-color_rgb), 0.25);
+			--lighter-color: rgba(var(--base-color_rgb), 0.1);
+		}
+		a { color: var(--base-color); }
+		.navbar.is-info { background: var(--base-color); }
+		.button.is-info.is-light { color: var(--base-color); background: var(--lighter-color); }
+		section tbody.info-table tr { background-color: var(--middle-color); }
+		section .message.is-info,
+		section tbody.info-table tr:nth-child(2n) { background-color: var(--lighter-color); }
+		section .message.is-info .message-body { border-color: var(--base-color); }
+
+		/* Custom Rules for the layout */
 		#networkarea {
 			position: fixed;
 			border: 1px solid lightgray;
 			top: 60px;
 			left: 0;
 			right: 33.3333333%;
-			bottom: 70px;
+			bottom: 41px;
 		}
-		footer {
+		footer.footer {
 			position: fixed;
 			bottom: 0;
+			height: 35px;
 			width: 100vw;
+			font-size: 0.8em;
+			overflow: hidden;
 		}
+		footer.footer small {
+			font-size: 0.8em;
+		}
+
 		#scan-now-modal .modal-card-body {
 			color: black;
 		}
@@ -129,6 +152,18 @@
 			fill-opacity: 1;
 			font-weight: bold;
 		}
+
+		#modal-nse-scripts .modal-card {
+			width: calc(100vw - 80px);
+		}
+		.scripts-list { padding-bottom: 20px; }
+		.scripts-list li { padding: 3px 0; }
+		.script-name { text-decoration: underline; }
+		.message-body code.script {
+			background: none;: 3px 0;
+			white-space: pre-line;
+			padding: 0;
+		}
 	</style>
 	</style>
 </head>
@@ -137,12 +172,13 @@
 		<nav class="navbar is-info is-fixed-top" role="navigation" aria-label="dropdown navigation">
 			<div class="navbar-menu">
 				<div class="navbar-brand">
-					<span class="navbar-item"><img src="/static/img/its_logo.png" alt="IT-S" height="12" /></span>
-					<h1 class="navbar-item title is-4">NetworkDiscovery</h1>
+					<span class="navbar-item"><img src="{logo}" alt="{tagline} Logo" height="12" /></span>
+					<h1 class="navbar-item title is-4">{tagline}</h1>
 				</div>
 
 				<div class="navbar-start">
-					<div class="navbar-item"><span class="tag is-warning" id="running-status">...</span></div>
+					<div class="navbar-item"><span class="tag is-warning" id="running-status">waiting</span></div>
+					<div class="navbar-item"><span class="tag is-success" id="release-version">up to date</span></div>
 				</div>
 
 				<div class="navbar-end">
@@ -150,8 +186,8 @@
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Config</span>
 						<fieldset class="navbar-dropdown is-right" id="config">
-
 							<div id="config-container">
+
 								<div class="navbar-item">
 									<div class="box">
 										<p class="subtitle is-6">System</p>
@@ -164,31 +200,13 @@
 											<input class="input is-small full-width" placeholder="10" type="number" name="threads" value="" />
 										</div>
 										<div class="field">
-											<label class="label is-small">Device name for auto config</label>
-											<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
-										</div>
-									</div>
-								</div>
-
-								<div class="navbar-item">
-									<div class="box">
-										<p class="subtitle is-6">Configuration</p>
-										<div class="field">
-											<label class="label is-small">Configuration name</label>
-											<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
+											<label class="label is-small">Scan-Scripts</label>
+											<a id="btn-nse" class="button is-info is-light is-fullwidth is-small">Manage Scan-Scripts</a>
 										</div>
 										<div class="field">
-											<label class="label is-small">Web-Listener</label>
-											<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
-											<input class="input is-small double-small" type="number" placeholder="9090" name="listen-port" value="" />
-										</div>
-										<div class="field">
-											<label class="label is-small">Database-Path</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="db-path" value="" />
-										</div>
-										<div class="field">
-											<label class="label is-small">Database-URL</label>
-											<input class="input is-small full-width" placeholder="" type="text" name="db-url" value="" />
+											<label class="label is-small">Scan-Scripts Arguments</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="script-arguments" value="" />
+											<p class="help">These arguments are passed to nmap via<br/><code>--script-args=VALUE</code></p>
 										</div>
 									</div>
 								</div>
@@ -218,6 +236,9 @@
 											</div>
 											<div class="field">
 												<label class="checkbox"><input type="checkbox" name="target-1-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-1-version" value="true" /> Try to determine Service Version/Info</label>
 											</div>
 											<div class="field">
 												<label class="checkbox"><input type="checkbox" name="target-1-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
@@ -250,6 +271,9 @@
 												<label class="checkbox"><input type="checkbox" name="target-2-extended" value="true" /> Vulnerability Scan</label>
 											</div>
 											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-2-version" value="true" /> Try to determine Service Version/Info</label>
+											</div>
+											<div class="field">
 												<label class="checkbox"><input type="checkbox" name="target-2-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
 											</div>
 											<div id="target-2-windows-container">
@@ -278,6 +302,9 @@
 											</div>
 											<div class="field">
 												<label class="checkbox"><input type="checkbox" name="target-3-extended" value="true" /> Vulnerability Scan</label>
+											</div>
+											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-3-version" value="true" /> Try to determine Service Version/Info</label>
 											</div>
 											<div class="field">
 												<label class="checkbox"><input type="checkbox" name="target-3-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
@@ -310,6 +337,9 @@
 												<label class="checkbox"><input type="checkbox" name="target-4-extended" value="true" /> Vulnerability Scan</label>
 											</div>
 											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-4-version" value="true" /> Try to determine Service Version/Info</label>
+											</div>
+											<div class="field">
 												<label class="checkbox"><input type="checkbox" name="target-4-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
 											</div>
 											<div id="target-4-windows-container">
@@ -340,6 +370,9 @@
 												<label class="checkbox"><input type="checkbox" name="target-5-extended" value="true" /> Vulnerability Scan</label>
 											</div>
 											<div class="field">
+												<label class="checkbox"><input type="checkbox" name="target-5-version" value="true" /> Try to determine Service Version/Info</label>
+											</div>
+											<div class="field">
 												<label class="checkbox"><input type="checkbox" name="target-5-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
 											</div>
 											<div id="target-5-windows-container">
@@ -359,8 +392,66 @@
 										</div>
 									</div>
 								</div>
-							</div>
 
+								<div class="navbar-item">
+									<div class="box">
+										<p class="subtitle is-6">White-Labeling <small><a href="#" id="clear-white-label">(clear)</a></small></p>
+										<div class="field">
+											<label class="label is-small">Logo</label>
+											<div id="file-js-logo" class="file has-name is-small">
+												<label class="file-label">
+													<input class="file-input" type="file" name="logo" accept="image/png, image/jpeg, image/gif, image/svg+xml" />
+													<span class="file-cta">
+														<span class="file-icon"><i class="fas fa-upload"></i></span>
+														<span class="file-label">Choose a file...</span>
+													</span>
+													<span class="file-name">No file uploaded</span>
+												</label>
+											</div>
+										</div>
+										<div class="field">
+											<label class="label is-small">Tagline/Slogan</label>
+											<input class="input is-small full-width" placeholder="NetworkDiscover" type="text" name="tagline" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Color</label>
+											<input class="input is-small full-width" type="color" name="color" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Update Check URL</label>
+											<input class="input is-small full-width" placeholder="https://api.github.com/repos/ITSGmbH/NetworkDiscover/releases/latest" type="text" name="update_check" value="" />
+										</div>
+									</div>
+								</div>
+
+								<div class="navbar-item">
+									<div class="box">
+										<p class="subtitle is-6">Configuration</p>
+										<div class="field">
+											<label class="label is-small">Configuration name</label>
+											<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Web-Listener</label>
+											<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
+											<input class="input is-small double-small" type="number" placeholder="9090" name="listen-port" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Database-Path</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="db-path" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Database-URL</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="db-url" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Network Device for scanning</label>
+											<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
+										</div>
+									</div>
+								</div>
+
+							</div>
 							<div class="navbar-item">
 								<button class="button is-primary" id="config-save">Save</button>
 							</div>
@@ -487,15 +578,60 @@
 			</div>
 		</div>
 
+		<div id="modal-scripts-data" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">Script-Scans</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body"></section>
+				<footer class="modal-card-foot"><button class="button">Close</button></footer>
+			</div>
+		</div>
+
+		<div id="modal-nse-scripts" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">Scan-Scripts Management</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body">
+					<div class="columns">
+						<div class="column is-one-third">
+							<ul class="container scripts-list"></ul>
+							<div class="columns">
+								<div class="column file has-name is-small">
+									<label class="file-label">
+										<input type="file" class="file-input" name="nse-script" accept=".nse" />
+										<span class="file-cta"><span class="file-icon"><i class="fas fa-upload"></i></span><span class="file-label">Choose Script...</span></span>
+										<span class="file-name"></span>
+									</label>
+								</div>
+								<div class="column is-narrow">
+									<a class="button is-small is-primary" id="nse-script-upload-btn"><span class="icon"><i class="fas fa-upload"></i></span><span>Upload</span></a>
+								</div>
+							</div>
+						</div>
+						<div class="column">
+							<article class="message">
+								<div class="message-body">
+									<span class="script-name">Loading...</span><br/>
+									<code class="script is-family-monospace">Loading...</code>
+									<span class="script-functions has-text-right" style="width:100%;display:inline-block;">
+										<a class="button is-small is-warning is-light active"><span class="icon"><i class="fas fa-flag"></i></span></a>
+										<a class="button is-small is-danger is-light remove"><span class="icon"><i class="fas fa-trash"></i></span></a>
+									</span>
+								</div>
+							</article>
+						</div>
+					</div>
+				</section>
+				<footer class="modal-card-foot"><button class="button">Close</button></footer>
+			</div>
+		</div>
+
 	</section>
 
 	<footer class="footer p-2">
 		<div class="content has-text-centered">
-			<p>
-				<a href="https://github.com/ITSGmbH/NetworkDiscover">NetworkDiscovery</a>, provided by <a href="https://www.it-s.ch/">IT-S GmbH</a>
-				<br/>
-				<small>&copy; 2021 by Lukas Zurschmiede</small>
-			</p>
+			<a href="https://github.com/ITSGmbH/NetworkDiscover">NetworkDiscovery</a> provided by <a href="https://www.it-s.ch/">IT-S GmbH</a>,
+			<small>&copy; 2021 by Lukas Zurschmiede</small>
 		</div>
 	</footer>
 
@@ -793,6 +929,10 @@
 			$('#modal-hosts-history button.is-info').on('click', _ev => { $('#modal-hosts-history').toggleClass('is-active'); });
 			$('#modal-windows-data button.delete').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
 			$('#modal-windows-data button.button').on('click', _ev => { $('#modal-windows-data').toggleClass('is-active'); });
+			$('#modal-nse-scripts button.delete').on('click', _ev => { $('#modal-nse-scripts').toggleClass('is-active'); });
+			$('#modal-nse-scripts button.button').on('click', _ev => { $('#modal-nse-scripts').toggleClass('is-active'); });
+			$('#modal-scripts-data button.delete').on('click', _ev => { $('#modal-scripts-data').toggleClass('is-active'); });
+			$('#modal-scripts-data button.button').on('click', _ev => { $('#modal-scripts-data').toggleClass('is-active'); });
 
 			// search events
 			$('#scan-now').on('click', { id: 'now'}, trigger_scan);
@@ -866,26 +1006,136 @@
 				});
 			});
 
+
+			// NSE Script Management
+			var selected_script = '';
+			var set_script_content = (script, content, active) => {
+				let code = content
+					.replace(/\</g, '&lt;')
+					.replace(/\>/g, '&gt;')
+					.replace(/  |\t/g, '&nbsp;&nbsp;');
+				$('#modal-nse-scripts .script-name').html(script);
+				$('#modal-nse-scripts .script').html(code);
+			};
+			var add_script_elem = (script) => {
+				if ($('#modal-nse-scripts .scripts-list li a span').filter((_, elem) => $(elem).text().trim() == script.trim()).length > 0) {
+					return;
+				}
+				var elem = $('<li><a class="script-list-name"><span class="icon"><i class="fas fa-file-text"></i></span><span>' + script + '</span></a></li>')
+					.on('click', { script: script }, ev => {
+						selected_script = ev.data.script;
+						$.getJSON("/api/script/load", { script: selected_script }, data => set_script_content(data.script, data.content, data.active) );
+					});
+				$('#modal-nse-scripts .scripts-list').append(elem);
+			};
+			$('#btn-nse').on('click', () => {
+				$('#modal-nse-scripts').toggleClass('is-active');
+				selected_script = '';
+				$.getJSON("/api/script/list", data => {
+					$('#modal-nse-scripts .script').empty();
+					$('#modal-nse-scripts .script-name').empty();
+					$('#modal-nse-scripts .scripts-list').empty();
+					$(data).each((_, script) => add_script_elem(script));
+				});
+			});
+			$('#modal-nse-scripts .script-functions .active').on('click', ev => {
+				$.getJSON("/api/script/activate", { script: selected_script }, data => {
+					console.debug("(De-)Activated: ", data);
+				});
+			});
+			$('#modal-nse-scripts .script-functions .remove').on('click', ev => {
+				$.getJSON("/api/script/delete", { script: selected_script }, data => {
+					$('#modal-nse-scripts .scripts-list li').each((_, elem) => {
+						if ($("a span", elem).filter((_, elem) => $(elem).text().trim() == selected_script.trim()).length > 0) {
+							$(elem).remove();
+						}
+					});
+					$('#modal-nse-scripts .script').empty();
+					$('#modal-nse-scripts .script-name').empty();
+					selected_script = '';
+				});
+			});
+			$('#modal-nse-scripts input[name="nse-script"]').on("change", ev => {
+				if (ev.target.files.length > 0) {
+					$('#modal-nse-scripts .file-name').html(ev.target.files[0].name);
+				}
+			});
+			$('#nse-script-upload-btn').on('click', () => {
+				var input = $('#modal-nse-scripts input[name="nse-script"]').prop('files');
+				if (input.length > 0) {
+					const reader = new FileReader();
+					reader.addEventListener('load', evt => {
+						$.ajax("/api/script/upload", {
+							type: 'POST',
+							contentType: 'application/json',
+							data: JSON.stringify({
+								script: input[0].name,
+								content: evt.target.result
+							}),
+							success: resp => {
+								$('#modal-nse-scripts .file-name').empty();
+								$('#modal-nse-scripts input[name="nse-script"]').val(null);
+								selected_script = resp.script;
+								add_script_elem(resp.script);
+								set_script_content(resp.script, resp.content, resp.active);
+							},
+						});
+					});
+					reader.readAsDataURL(input[0]);
+				}
+			});
+
+
+			// File Input Form in configuration for the Logo
+			$('#config [name="logo"]').on("change", ev => {
+				if (ev.target.files.length > 0) {
+					$('#file-js-logo .file-name').html(ev.target.files[0].name);
+				}
+			});
+			$('#clear-white-label').on('click', ev => {
+				ev.stopPropagation();
+				$('#config [name="logo"]').prop('value', '');
+				$('#file-js-logo .file-name').html('');
+				$('#config [name="color"]').prop('value', '');
+				$('#config [name="tagline"]').prop('value', '');
+				$('#config [name="update_check"]').prop('value', '');
+			});
+
+
 			// Load the Configuration
 			$.getJSON("/api/config", data => {
 				$('#config [name="repeat"]').prop('value', data.repeat);
 				$('#config [name="threads"]').prop('value', data.num_threads);
 				$('#config [name="interface"]').prop('value', data.device);
 				$('#config [name="name"]').prop('value', data.name);
+				$('#config [name="script-arguments"]').prop('value', data.script_args);
+
+				if (data.whitelabel) {
+					$('#file-js-logo .file-name').html(data.whitelabel.logo);
+					$('#config [name="color"]').prop('value', data.whitelabel.color);
+					$('#config [name="tagline"]').prop('value', data.whitelabel.tagline);
+					$('#config [name="update_check"]').prop('value', data.whitelabel.update_check);
+				} else {
+					$('#config [name="color"]').prop('value', '');
+				}
+
 				if (data.listen) {
 					$('#config [name="listen-ip"]').prop('value', data.listen.ip);
 					$('#config [name="listen-port"]').prop('value', data.listen.port);
 				}
+
 				if (data.sqlite) {
 					$('#config [name="db-path"]').prop('value', data.sqlite.file);
 					$('#config [name="db-url"]').prop('value', data.sqlite.url);
 				}
+
 				if (data.targets && data.targets.forEach) {
 					data.targets.forEach((v, k) => {
 						idx = k + 1;
 						$('#config [name="target-' + idx + '-name"]').prop('value', v.target.name);
 						$('#config [name="target-' + idx + '-network"]').prop('value', v.target.ip + '/' + v.target.mask);
 						$('#config [name="target-' + idx + '-extended"]').prop('checked', v.extended);
+						$('#config [name="target-' + idx + '-version"]').prop('checked', v.version_check);
 						if (v.windows) {
 							$('#config [name="target-' + idx + '-windows"]').prop('checked', true);
 							$('#config [name="target-' + idx + '-windom"]').prop('value', v.windows.domain);
@@ -904,6 +1154,7 @@
 						repeat: $('#config [name="repeat"]').prop('value').trim() ? parseInt($('#config [name="repeat"]').prop('value')) : null,
 						num_threads: $('#config [name="threads"]').prop('value').trim() ? parseInt($('#config [name="threads"]').prop('value')) : null,
 						device: $('#config [name="interface"]').prop('value').trim() ? $('#config [name="interface"]').prop('value').trim() : null,
+						script_args: $('#config [name="script-arguments"]').prop('value').trim() ? $('#config [name="script-arguments"]').prop('value').trim() : null,
 						listen: $('#config [name="listen-ip"]').prop('value').trim() ? {
 						 ip: $('#config [name="listen-ip"]').prop('value').trim(),
 						 port: parseInt($('#config [name="listen-port"]').prop('value')),
@@ -913,13 +1164,22 @@
 						 url: $('#config [name="db-url"]').prop('value').trim() ? $('#config [name="db-url"]').prop('value').trim() : null,
 						} : null,
 						targets: [],
+						whitelabel: {
+							logo: ($('#config [name="logo"]').prop('files').length > 0) ? $('#config [name="logo"]')[0].files[0].name : null,
+							logo_data: null,
+							color: $('#config [name="color"]').prop('value').trim() ? $('#config [name="color"]').prop('value').trim() : null,
+							tagline: $('#config [name="tagline"]').prop('value').trim() ? $('#config [name="tagline"]').prop('value').trim() : null,
+							update_check: $('#config [name="update_check"]').prop('value').trim() ? $('#config [name="update_check"]').prop('value').trim() : null,
+						},
 					};
+
 					[1,2,3,4,5].forEach(idx => {
 						var id = "target-" + idx;
 						if ($('#config [name="' + id + '-name"]').prop('value').trim()) {
 							var nw = $('#config [name="' + id + '-network"]').prop('value').trim().split("/");
 							config.targets[idx-1] = {
 								extended: $('#config [name="' + id + '-extended"]').prop('checked'),
+								version_check: $('#config [name="' + id + '-version"]').prop('checked'),
 								target: {
 									name: $('#config [name="' + id + '-name"]').prop('value').trim(),
 									ip: nw[0].trim(),
@@ -936,14 +1196,33 @@
 						}
 					});
 
-					$.ajax("/api/config", {
-						type: 'POST',
-						contentType: 'application/json',
-						data: JSON.stringify(config),
-						success: function(resp) {
-							setTimeout(function() {$('#config-save').removeAttr('disabled');}, 1500);
-						},
-					});
+					// Save-Config function
+					var save_config = config => {
+						$.ajax("/api/config", {
+							type: 'POST',
+							contentType: 'application/json',
+							data: JSON.stringify(config),
+							success: function(resp) {
+								setTimeout(function() {$('#config-save').removeAttr('disabled');}, 1500);
+							},
+						});
+					};
+
+					// Encode the logo as base64 before saveing
+					if ($('#config [name="logo"]').prop('files').length > 0) {
+						const reader = new FileReader();
+						reader.addEventListener('load', evt => {
+							config.whitelabel.logo_data = evt.target.result;
+							save_config(config);
+						});
+						reader.readAsDataURL($('#config [name="logo"]').prop('files')[0]);
+
+					} else {
+						if (!config.whitelabel.color && !config.whitelabel.tagline && !config.whitelabel.update_check) {
+							config.whitelabel = null;
+						}
+						save_config(config);
+					}
 				});
 			}).fail(function() {
 				console.error("Error while fetching configuration.");
@@ -973,16 +1252,16 @@
 				;
 			});
 
-			// Check for the scan-status on the server
+			// Check for the scan-status every 5 seconds
 			window.setInterval(function() {
 				$.getJSON("/api/status", data => {
-					message = '...';
+					message = 'waiting';
 					if (data.running) {
 						message = "running";
 					} else if (data.paused) {
 						message = "paused";
 					} else if (data.triggered) {
-						message = "triggered...";
+						message = "started";
 					}
 					$('#running-status').addClass('is-warning');
 					$('#running-status').removeClass('is-danger');
@@ -994,6 +1273,19 @@
 					$('#running-status').html('check failed...');
 				});
 			}, 5000);
+
+			// Check for an update on every reload
+			$.getJSON("/api/version", data => {
+				if (data.installed != data.latest) {
+					$('#release-version').addClass('is-danger');
+					$('#release-version').removeClass('is-success');
+					$('#release-version').html("New Version: " + data.update);
+				} else {
+					$('#release-version').addClass('is-success');
+					$('#release-version').removeClass('is-danger');
+					$('#release-version').html("Up to date");
+				}
+			});
 		});
 
 		// Show information about a specific host
@@ -1049,6 +1341,31 @@
 				}
 			}
 
+			// Script-Scan
+			if (data.scripts.length > 0 && with_hist) {
+				$('.message-body', cont)
+					.append('<div id="script-scan-button" class="mouse-pointer pt-1" style="display:flex;"><figure class="image is-24x24"><img src="/static/assets/icon-script.svg" /></figure><span class="pl-2">Script-Scan Data</span></div>');
+				$('#script-scan-button', cont).on('click', ev => {
+					$('#modal-scripts-data').toggleClass('is-active');
+				});
+
+				// Script-Scan-Data
+				var scripts_container = $('#modal-scripts-data .modal-card-body');
+				scripts_container.empty();
+
+				for (key in data.scripts) {
+					let script = data.scripts[key];
+					var script_container = $('<p class="subtitle is-5 script-title">' + script.name + '</p><article class="message"><div class="message-body table-container"><table class="table is-striped is-fullwidth"><tbody class="script-data"></tbody></table></div></article>');
+					scripts_container.append(script_container);
+					let data_table = $('.script-data', script_container);
+
+					for (k in script.data) {
+						var elem = script.data[k];
+						data_table.append('<tr><th>' + elem.key + '</th><td>' + elem.value + '</td></tr>');
+					}
+				}
+			}
+
 			// Ports and CVEs
 			var table = $('.message-body', cont).append('<div class="mt-4 table-container"><table class="table is-striped is-fullwidth"><tbody class="mainbody"></tbody></table></div>');
 			data.ports.forEach(port => {
@@ -1087,7 +1404,7 @@
 		// Load data from a selected node and display it on success
 		function selectNode(nodes) {
 			// TODO: Unselect selected nodes if clicked again
-			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&info=" + nodes.join(';'), data => {
+			$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $('#networkarea').data('scan') + "&host=" + nodes.join(';'), data => {
 				$('#host-info-box').empty();
 
 				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
@@ -1105,7 +1422,7 @@
 
 				// Fill Hosts-History
 				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
-					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&info=" + nodes.join(';'), hist_data => {
+					$.getJSON("/api/info?network=" + $('#networkarea').data('network') + "&scan=" + $(_ev.target).data('scan') + "&host=" + nodes.join(';'), hist_data => {
 						$('#modal-hosts-history .modal-card .message-body').empty();
 						$('#modal-hosts-history .modal-card-title').empty();
 						$('#modal-hosts-history .modal-card-title').append('History of: ' + hist_data.ip);

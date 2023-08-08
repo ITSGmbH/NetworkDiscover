@@ -72,7 +72,10 @@ pub struct Host {
 	pub services: Vec<Service>,
 	pub os: Option<String>,
 	pub windows: Option<Windows>,
+	pub scripts: HashMap<String, Vec<ScriptElement>>,
 	pub extended_scan: bool,
+	pub version_check: bool,
+	pub scan_arguments: String,
 	db_id: i64,
 	db_hist_id: i64,
 }
@@ -230,6 +233,45 @@ impl Host {
 		}
 	}
 
+	/// Saves all script results to the database.
+	///
+	/// The host has to be saved already manually by the `save_to_db(...)`
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database instance to save to
+	///
+	pub(crate) fn save_scripts_to_db(&self, db: &mut sqlite::Database) {
+		if self.db_hist_id > 0 {
+			for (name, values) in &self.scripts {
+				let mut script = db::ScriptScan {
+					id: 0,
+					scan: db.current_scan_id,
+					hist_id: self.db_hist_id,
+					script_id: String::from(name),
+				};
+				let _ = script.save(db);
+
+				values.iter().for_each(|elem| {
+					let result = db::ScriptResult {
+						script_id: script.id,
+						key: String::from(&elem.key),
+						value: String::from(&elem.value),
+					};
+					let _ = result.save(db);
+				});
+			}
+		}
+	}
+
+	/// Saves all enumerated windows information to the database.
+	///
+	/// The host has to be saved already manually by the `save_to_db(...)`
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database instance to save to
+	///
 	pub(crate) fn save_windows_information(&self, db: &mut sqlite::Database) {
 		if self.db_hist_id > 0 && self.windows.is_some() {
 			let windows = self.windows.as_ref().unwrap();
@@ -356,4 +398,10 @@ pub struct Vulnerability {
 	pub id: String,
 	pub cvss: f32,
 	pub exploit: bool,
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct ScriptElement {
+	pub key: String,
+	pub value: String,
 }

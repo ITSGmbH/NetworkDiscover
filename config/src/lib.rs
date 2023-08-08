@@ -11,9 +11,11 @@ pub struct SaveConfig {
 	pub repeat: Option<u32>,
 	pub num_threads: Option<u32>,
 	pub device: Option<String>,
+	pub script_args: Option<String>,
 	pub listen: Option<ConnectionStruct>,
 	pub sqlite: Option<DbStruct>,
 	pub targets: Option<Vec<DiscoverStruct>>,
+	pub whitelabel: Option<WhiteLabel>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -22,9 +24,11 @@ pub struct AppConfig {
 	pub repeat: u32,
 	pub num_threads: u32,
 	pub device: Option<String>,
+	pub script_args: Option<String>,
 	pub listen: Option<ConnectionStruct>,
 	pub sqlite: Option<DbStruct>,
 	pub targets: Vec<DiscoverStruct>,
+	pub whitelabel: Option<WhiteLabel>,
 }
 impl Default for AppConfig {
 	fn default() -> Self {
@@ -33,9 +37,11 @@ impl Default for AppConfig {
 			repeat: 0,
 			num_threads: 10,
 			device: None,
+			script_args: None,
 			listen: Default::default(),
 			sqlite: Default::default(),
 			targets: vec![],
+			whitelabel: None,
 		}
 	}
 }
@@ -46,9 +52,31 @@ impl From<SaveConfig> for AppConfig {
 			repeat: item.repeat.unwrap_or_default(),
 			num_threads: item.num_threads.unwrap_or(10),
 			device: item.device,
+			script_args: item.script_args,
 			listen: item.listen,
 			sqlite: item.sqlite,
 			targets: item.targets.unwrap_or_default(),
+			whitelabel: item.whitelabel,
+		}
+	}
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WhiteLabel {
+	pub logo: Option<String>,
+	pub logo_data: Option<String>,
+	pub color: Option<String>,
+	pub tagline: Option<String>,
+	pub update_check: Option<String>,
+}
+impl Default for WhiteLabel {
+	fn default() -> Self {
+		WhiteLabel {
+			logo: None,
+			logo_data: None,
+			color: None,
+			tagline: None,
+			update_check: None,
 		}
 	}
 }
@@ -78,13 +106,15 @@ impl Default for DbStruct {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiscoverStruct {
 	pub extended: Option<bool>,
+	pub version_check: Option<bool>,
 	pub target: Option<ConnectionStruct>,
 	pub windows: Option<WindowsStruct>,
 }
 impl Default for DiscoverStruct {
 	fn default() -> Self {
 		DiscoverStruct {
-			extended: None,
+			extended: Some(true),
+			version_check: Some(true),
 			target: None,
 			windows: None,
 		}
