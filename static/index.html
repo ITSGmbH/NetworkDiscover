@@ -717,7 +717,8 @@
 		      height = $("#networkarea").width(),
 		      radius = 20,
 		      labelsize = 12;
-		var selection = { network: 0, scan: 0 };
+		var selection = { network: 0, scan: 0, nodes: 0 };
+
 		var load_network = ev => {
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
 
@@ -865,9 +866,8 @@
 				}
 
 				function dragstarted(ev, d) {
-					selectNode([ d.id ])
 					nodes.classed("selected", false);
-					d3.select("#node-" + d.id).classed("selected", true);
+					selectNode(d.id)
 				}
 
 				function dragged(ev, d) {
@@ -1005,7 +1005,6 @@
 					}
 				});
 			});
-
 
 			// NSE Script Management
 			var selected_script = '';
@@ -1252,8 +1251,7 @@
 							.attr("class", "node-label hidden");
 						icons.filter(label => label.id == node.id)
 							.attr("class", "hidden");
-					})
-				;
+					});
 			});
 
 			// Check for the scan-status every 5 seconds
@@ -1407,37 +1405,43 @@
 
 		// Load data from a selected node and display it on success
 		function selectNode(nodes) {
-			// TODO: Unselect selected nodes if clicked again
-			$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + nodes.join(';'), data => {
-				$('#host-info-box').empty();
+			$('#host-info-box').empty();
+			if (nodes == selection.nodes) {
+				selection.nodes = 0;
+			} else {
+				selection.nodes = nodes;
+				d3.select("#node-" + selection.nodes).classed("selected", true);
 
-				var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
-				fill_host_info_box(cont, data, true);
+				$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + selection.nodes, data => {
+					selection.nodes = nodes;
+					var cont = $('<article class="message"><div class="message-header"><p>' + data.ip + '</p></div><div class="message-body"></div></article>');
+					fill_host_info_box(cont, data, true);
 
-				data.scan_history.forEach(hist => {
-					$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + (new Date(hist.start)).toUTCString() + '</div>');
-				});
-				$('#host-scan-host-list .mouse-pointer', cont).on('mouseover', ev => {
-					$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
-				});
-				$('#host-scan-host-list .mouse-pointer', cont).on('mouseout', ev => {
-					$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
-				});
-
-				// Fill Hosts-History
-				$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
-					$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + nodes.join(';'), hist_data => {
-						$('#modal-hosts-history .modal-card .message-body').empty();
-						$('#modal-hosts-history .modal-card-title').empty();
-						$('#modal-hosts-history .modal-card-title').append('History of: ' + hist_data.ip);
-						fill_host_info_box($('#modal-hosts-history .modal-card .col-left'), hist_data, false);
-						fill_host_info_box($('#modal-hosts-history .modal-card .col-right'), data, false);
-						$('#modal-hosts-history').toggleClass('is-active');
+					data.scan_history.forEach(hist => {
+						$('#host-scan-host-list', cont).append('<div class="dropdown-item mouse-pointer" data-scan="' + hist.scan + '"><strong>' + hist.scan + ':</strong> ' + (new Date(hist.start)).toUTCString() + '</div>');
 					});
-				});
+					$('#host-scan-host-list .mouse-pointer', cont).on('mouseover', ev => {
+						$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
+					});
+					$('#host-scan-host-list .mouse-pointer', cont).on('mouseout', ev => {
+						$(ev.target).toggleClass("has-background-info").toggleClass("has-text-grey-lighter");
+					});
 
-				$('#host-info-box').append(cont);
-			});
+					// Fill Hosts-History
+					$('#host-scan-host-list .dropdown-item', cont).on('click', _ev => {
+						$.getJSON("/api/info?network=" + selection.network + "&scan=" + selection.scan + "&host=" + selection.nodes, hist_data => {
+							$('#modal-hosts-history .modal-card .message-body').empty();
+							$('#modal-hosts-history .modal-card-title').empty();
+							$('#modal-hosts-history .modal-card-title').append('History of: ' + hist_data.ip);
+							fill_host_info_box($('#modal-hosts-history .modal-card .col-left'), hist_data, false);
+							fill_host_info_box($('#modal-hosts-history .modal-card .col-right'), data, false);
+							$('#modal-hosts-history').toggleClass('is-active');
+						});
+					});
+
+					$('#host-info-box').append(cont);
+				});
+			}
 		}
 
 	</script>
