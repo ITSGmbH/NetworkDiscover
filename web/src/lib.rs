@@ -243,6 +243,8 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 			.service(load_script_content)
 			.service(activate_script)
 			.service(delete_script)
+			.service(load_settings)
+			.service(save_settings)
 	})
 	.workers(4)
 	.bind(( ip.to_owned(), port.to_owned() ))?
@@ -774,6 +776,53 @@ async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::D
 	HttpResponse::Ok().body("reload")
 }
 
+/// Handles requests to get the operating system configuration.
+/// This function has to be registered in the main HttpServer App
+///
+/// # Result
+///
+/// An JSON HttpResponse
+#[get("/api/settings")]
+async fn load_settings() -> Result<impl Responder> {
+	let payload = config::system::SystemSettings::load();
+	Ok(web::Json(payload))
+}
+
+/// Handles requests to save the operation system configuration.
+/// This function has to be registered in the main HttpServer App
+///
+/// After this call, the network-discover may restart.
+/// After this call, the whole system may restart.
+///
+/// # Arguments:
+///
+/// * `payload` - The new configuration to save
+/// * `stop_handle` - Global registered listener to restart the NetworkDiscover
+///
+/// # Result
+///
+/// An JSON HttpResponse
+#[post("/api/settings")]
+async fn save_settings(payload: web::Json<config::system::SystemSettings>, stop_handle: web::Data<StopHandle>) -> Result<impl Responder> {
+	if let Some(network) = &payload.network {
+		network.apply();
+	}
+
+	if let Some(wlan) = &payload.wireless {
+		wlan.apply();
+	}
+
+	if let Some(system) = &payload.system {
+		if system.restart {
+			stop_handle.stop(true);
+		}
+		if system.reboot {
+			stop_handle.reboot();
+		}
+	}
+	Ok(web::Json(true))
+}
+
 /// Holds a Serverhandler in a Mutex to stop the HttpServer gracefully
 #[derive(Default)]
 struct StopHandle {
@@ -792,6 +841,11 @@ impl StopHandle {
 		#[allow(clippy::let_underscore_future)]
 		let _ = self.inner.lock().unwrap().as_ref().unwrap().stop(graceful);
 		*self.stopped.lock().unwrap() = true;
+	}
+
+	/// Send a reboot signal to the operation system
+	pub(crate) fn reboot(&self) {
+		todo!("Send reboot signal to the underlying operation system")
 	}
 }
 

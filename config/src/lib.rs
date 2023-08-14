@@ -1,3 +1,5 @@
+pub mod system;
+
 use log::{info, warn};
 use confy;
 use serde::{Serialize, Deserialize};
@@ -7,7 +9,6 @@ use std::net::{IpAddr, Ipv4Addr};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SaveConfig {
-	pub name: Option<String>,
 	pub repeat: Option<u32>,
 	pub num_threads: Option<u32>,
 	pub device: Option<String>,
@@ -20,7 +21,6 @@ pub struct SaveConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
-	pub name: String,
 	pub repeat: u32,
 	pub num_threads: u32,
 	pub device: Option<String>,
@@ -33,7 +33,6 @@ pub struct AppConfig {
 impl Default for AppConfig {
 	fn default() -> Self {
 		AppConfig {
-			name: String::from("LocalNet"),
 			repeat: 0,
 			num_threads: 10,
 			device: None,
@@ -48,7 +47,6 @@ impl Default for AppConfig {
 impl From<SaveConfig> for AppConfig {
 	fn from(item: SaveConfig) -> Self {
 		AppConfig {
-			name: item.name.unwrap_or(String::from("LocalNet")),
 			repeat: item.repeat.unwrap_or_default(),
 			num_threads: item.num_threads.unwrap_or(10),
 			device: item.device,
