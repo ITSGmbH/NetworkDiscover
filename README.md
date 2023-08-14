@@ -10,7 +10,6 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 %sudo ALL=(ALL) NOPASSWD: NMAP
 ```
 
-
 ## Features
 
 * Discovers all running Hosts on one/multiple networks
@@ -19,18 +18,22 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 * Checks every Host for open and running services
 * Checks every running service for known Vulnerabilities (via vulners)
 * Scans can run manually or automatically every given timespan
+* Detect new Hosts based on DHCP
 * CSV Export of a single scan
 * PDF Reporting
-* Shows a diff between two (or more?) scans
+* Whitelabeling
+* Custom NMAP-Scripts upload
+* Shows a diff between two scans
+* Scan Windows Systems for NetBios and other vulnerabilities (enum4linux-ng)
+* Simple Network-Configuration for debian based installation (wpa_supplicant, dhcpcd)
 
 ### Planned Features
 
-* Detect new Hosts based on DHCP and SLAAC messages
-* Scan Windows Systems for NetBios and other vulnerabilities (enum4linux?)
+* Colors in PDF Report (same as online)
+* IPv6
+* Detect new Hosts based on SLAAC messages
 * SNMP information gathering and display
-* Better Network Map visualization ( https://d3js.org/ / https://observablehq.com/@d3/force-directed-tree / https://mermaid.js.org/ )
 * Scan a host individually (predefined nmap params or individual?)
-* ARM-Packages and installation images
 * Enterprise-Vulners API with `vulners_enterprise.nse` and a custom API-Key
 * ...
 
@@ -48,10 +51,15 @@ To be able to sniff the network for DHCP and other packages, the binary must run
 $ sudo setcap cap_net_raw,cap_net_admin+eip target/release/network_discover
 ```
 
-There are two environment variables available:
+The following environment variables are available:
 
 * **CONFIG_FILE** *(./config.toml)* Path and name of the config file.
 * **DATA_DIR** *(./)* Path where to store the database/sqlite if not configured.
+* **NWD_SYSTEM_CONFIG** *(true)* Set to true to be able to configure the network through the UI.
+* **NWD_CONFIGURE_INTERFACE** *(eth0)* Network Interface to configure an additional IP.
+* **NWD_INTERFACES_FILE** *(/etc/network/interfaces.d/eth0)* Network Configuration to add an additional virtual interface.
+* **NWD_WPA_SUPPLICANT_FILE** *(/etc/wpa_supplicant/wpa_supplicant.conf)* WLAN-Configuration.
+* **NWD_DHCPCD_FILE** *(/etc/dhcpcd.conf)* DHCPCD Configuration for IP-Configuration.
 
 ### Run it locally from source:
 
@@ -61,6 +69,8 @@ $ cargo run
 $ cargo build --release
 $ target/release/network_discover
 ```
+
+Check the `.cargo/config.toml` for environment variables.
 
 ### Run it in a container:
 

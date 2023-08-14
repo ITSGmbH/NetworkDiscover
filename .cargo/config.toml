@@ -1,0 +1,7 @@
+# Envorinment variables for local development to not override system configuration
+[env]
+NWD_SYSTEM_CONFIG = "true"
+NWD_CONFIGURE_INTERFACE = "eth0"
+NWD_WPA_SUPPLICANT_FILE = "./scripts/etc/wpa_supplicant.conf"
+NWD_INTERFACES_FILE = "./scripts/etc/eth0"
+NWD_DHCPCD_FILE = "./scripts/etc/dhcpcd.conf"

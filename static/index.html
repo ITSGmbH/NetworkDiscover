@@ -190,7 +190,7 @@
 
 								<div class="navbar-item">
 									<div class="box">
-										<p class="subtitle is-6">System</p>
+										<p class="subtitle is-6">Global</p>
 										<div class="field">
 											<label class="label is-small">Scan every (hours)</label>
 											<input class="input is-small full-width" placeholder="24" type="number" name="repeat" value="" />
@@ -426,11 +426,7 @@
 
 								<div class="navbar-item">
 									<div class="box">
-										<p class="subtitle is-6">Configuration</p>
-										<div class="field">
-											<label class="label is-small">Configuration name</label>
-											<input class="input is-small full-width" placeholder="LocalNet" type="text" name="name" value="" />
-										</div>
+										<p class="subtitle is-6">System Configuration</p>
 										<div class="field">
 											<label class="label is-small">Web-Listener</label>
 											<input class="input is-small double-big" type="text" placeholder="0.0.0.0" name="listen-ip" value="" />
@@ -447,6 +443,10 @@
 										<div class="field">
 											<label class="label is-small">Network Device for scanning</label>
 											<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Operating-System</label>
+											<a id="btn-osconfig" class="button is-info is-light is-fullwidth is-small">Network Configuration</a>
 										</div>
 									</div>
 								</div>
@@ -619,6 +619,92 @@
 									</span>
 								</div>
 							</article>
+						</div>
+					</div>
+				</section>
+				<footer class="modal-card-foot"><button class="button">Close</button></footer>
+			</div>
+		</div>
+
+		<div id="modal-network-config" class="modal">
+			<div class="modal-background"></div>
+			<div class="modal-card">
+				<header class="modal-card-head"><p class="modal-card-title">Operating-System Configuration</p><button class="delete" aria-label="close"></button></header>
+				<section class="modal-card-body">
+					<div class="columns">
+						<div class="column is-one-third">
+							<ul class="container scripts-list">
+								<li class="os-settings-eth"><a><span class="icon"><i class="fas fa-network-wired"></i></span><span>Ethernet</span></a></li>
+								<li class="os-settings-wlan"><a><span class="icon"><i class="fas fa-wifi"></i></span><span>Wireless</span></a></li>
+								<li class="os-settings-system"><a><span class="icon"><i class="fas fa-sliders"></i></span><span>System Settings</span></a></li>
+							</ul>
+						</div>
+						<div class="column config-container">
+							<section id="os-settings-eth" class="is-hidden content">
+								<article class="message">
+									<div class="message-body">
+										<p class="subtitle is-6">Network Configuration</p>
+										<p class="help">The device has a static and a dynamic Network Configuration</p>
+										<div class="field">
+											<label class="label is-small">IP-Address</label>
+											<input class="input is-small full-width" placeholder="A.C.D.E" type="text" name="os-config-eth-ip" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Router</label>
+											<input class="input is-small full-width" placeholder="A.C.D.E" type="text" name="os-config-eth-route" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">DNS-Servers</label>
+											<input class="input is-small full-width" placeholder="A.C.D.E, A.C.D.E" type="text" name="os-config-eth-dns" value="" />
+											<p class="help">Separate different DNS by space</p>
+										</div>
+										<div class="field has-text-right">
+											<a class="button is-primary">Save</a>
+										</div>
+										<p class="help save-status is-hidden">Processing...</p>
+									</div>
+								</article>
+							</section>
+
+							<section id="os-settings-wlan" class="is-hidden content">
+								<article class="message">
+									<div class="message-body">
+										<p class="subtitle is-6">Wireless Configuration</p>
+										<div class="field">
+											<label class="label is-small">SSID</label>
+											<input class="input is-small full-width" placeholder="" type="text" name="os-config-wlan-ssid" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">PSK / Password</label>
+											<input class="input is-small full-width" placeholder="" type="password" name="os-config-wlan-psk" value="" />
+										</div>
+										<div class="field">
+											<label class="label is-small">Country Code</label>
+											<input class="input is-small full-width" placeholder="2-Char ISO Code Country" type="text" name="os-config-wlan-country" value="" />
+											<p class="help">Enter here the 2-Char Country-Code as defined by ISO-3166-1 Alpha-2</p>
+										</div>
+										<div class="field has-text-right">
+											<a class="button is-primary">Save</a>
+										</div>
+										<p class="help save-status is-hidden">Processing...</p>
+									</div>
+								</article>
+							</section>
+
+							<section id="os-settings-system" class="is-hidden content">
+								<article class="message">
+									<div class="message-body">
+										<div class="field">
+											<a class="button restart is-warning">Restart NetworkDiscover</a>
+										</div>
+										<div class="field">
+											<a class="button reboot is-danger">Reboot System</a>
+										</div>
+										<p class="help save-status is-hidden">Processing...</p>
+									</div>
+								</article>
+							</section>
+
 						</div>
 					</div>
 				</section>
@@ -932,6 +1018,8 @@
 			$('#modal-nse-scripts button.button').on('click', _ev => { $('#modal-nse-scripts').toggleClass('is-active'); });
 			$('#modal-scripts-data button.delete').on('click', _ev => { $('#modal-scripts-data').toggleClass('is-active'); });
 			$('#modal-scripts-data button.button').on('click', _ev => { $('#modal-scripts-data').toggleClass('is-active'); });
+			$('#modal-network-config button.delete').on('click', _ev => { $('#modal-network-config').toggleClass('is-active'); });
+			$('#modal-network-config button.button').on('click', _ev => { $('#modal-network-config').toggleClass('is-active'); });
 
 			// search events
 			$('#scan-now').on('click', { id: 'now'}, trigger_scan);
@@ -1083,6 +1171,71 @@
 				}
 			});
 
+			// System Configuration Dialog and Functions
+			$('#modal-network-config ul.container li').on('click', ev => {
+				$('#modal-network-config .config-container section').removeClass('is-hidden').addClass('is-hidden');
+				$('#' + ev.currentTarget.className).removeClass('is-hidden');
+			});
+			$('#btn-osconfig').on('click', () => {
+				$('#modal-network-config').toggleClass('is-active');
+				$.getJSON("/api/settings", data => {
+					if (data.network) {
+						$('#os-settings-eth [name="os-config-eth-ip"]').prop('value', data.network.ip);
+						$('#os-settings-eth [name="os-config-eth-route"]').prop('value', data.network.router);
+						$('#os-settings-eth [name="os-config-eth-dns"]').prop('value', data.network.dns);
+					}
+					if (data.wireless) {
+						$('#os-settings-wlan [name="os-config-wlan-ssid"]').prop('value', data.wireless.ssid);
+						$('#os-settings-wlan [name="os-config-wlan-psk"]').prop('value', data.wireless.psk);
+						$('#os-settings-wlan [name="os-config-wlan-country"]').prop('value', data.wireless.country);
+					}
+				});
+			});
+			$('#os-settings-eth a.button').on('click', ev => {
+				$('#os-settings-eth .save-status').removeClass('is-hidden');
+				$.ajax('/api/settings', {
+					type: 'POST',
+					contentType: 'application/json',
+					data: JSON.stringify({
+						network: {
+							ip: $('#os-settings-eth [name="os-config-eth-ip"]').prop('value').trim() ? $('#os-settings-eth [name="os-config-eth-ip"]').prop('value') : null,
+							router: $('#os-settings-eth [name="os-config-eth-route"]').prop('value').trim() ? $('#os-settings-eth [name="os-config-eth-route"]').prop('value') : null,
+							dns: $('#os-settings-eth [name="os-config-eth-dns"]').prop('value').trim() ? $('#os-settings-eth [name="os-config-eth-dns"]').prop('value') : null,
+						}
+					}),
+					complete: () => $('#os-settings-eth .save-status').addClass('is-hidden')
+				});
+			});
+			$('#os-settings-wlan a.button').on('click', ev => {
+				$('#os-settings-wlan .save-status').removeClass('is-hidden');
+				$.ajax('/api/settings', {
+					type: 'POST',
+					contentType: 'application/json',
+					data: JSON.stringify({
+						wireless: {
+							ssid: $('#os-settings-wlan [name="os-config-wlan-ssid"]').prop('value').trim() ? $('#os-settings-wlan [name="os-config-wlan-ssid"]').prop('value') : null,
+							psk: $('#os-settings-wlan [name="os-config-wlan-psk"]').prop('value').trim() ? $('#os-settings-wlan [name="os-config-wlan-psk"]').prop('value') : null,
+							country: $('#os-settings-wlan [name="os-config-wlan-country"]').prop('value').trim() ? $('#os-settings-wlan [name="os-config-wlan-country"]').prop('value') : null,
+						}
+					}),
+					complete: () => $('#os-settings-wlan .save-status').addClass('is-hidden')
+				});
+			});
+			$('#os-settings-system a.button').on('click', ev => {
+				$('#os-settings-system .save-status').removeClass('is-hidden');
+				$.ajax('/api/settings', {
+					type: 'POST',
+					contentType: 'application/json',
+					data: JSON.stringify({
+						system: {
+							restart: ev.currentTarget.classList.contains('restart'),
+							reboot: ev.currentTarget.classList.contains('reboot'),
+						}
+					}),
+					complete: () => $('#os-settings-system .save-status').addClass('is-hidden')
+				});
+			});
+
 
 			// File Input Form in configuration for the Logo
 			$('#config [name="logo"]').on("change", ev => {
@@ -1105,7 +1258,6 @@
 				$('#config [name="repeat"]').prop('value', data.repeat);
 				$('#config [name="threads"]').prop('value', data.num_threads);
 				$('#config [name="interface"]').prop('value', data.device);
-				$('#config [name="name"]').prop('value', data.name);
 				$('#config [name="script-arguments"]').prop('value', data.script_args);
 
 				if (data.whitelabel) {
@@ -1148,7 +1300,6 @@
 				$('#config-save').on('click', function() {
 					$('#config-save').attr('disabled', 'disabled');
 					config = {
-						name: $('#config [name="name"]').prop('value').trim() ? $('#config [name="name"]').prop('value').trim() : null,
 						repeat: $('#config [name="repeat"]').prop('value').trim() ? parseInt($('#config [name="repeat"]').prop('value')) : null,
 						num_threads: $('#config [name="threads"]').prop('value').trim() ? parseInt($('#config [name="threads"]').prop('value')) : null,
 						device: $('#config [name="interface"]').prop('value').trim() ? $('#config [name="interface"]').prop('value').trim() : null,
