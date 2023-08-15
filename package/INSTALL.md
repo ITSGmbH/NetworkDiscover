@@ -51,6 +51,6 @@ $ sudo systemctl start network_discover
 To download and install the latest deb-release, use the following commands:
 
 ```
-$ curl -s https://api.github.com/repos/ITSGmbH/NetworkDiscover/releases/latest | grep "browser_download_url.*deb" | cut -d '"' -f 4 | wget -O network_discover.deb -qi -
-$ sudo dpkg -i network-discover.deb
+$ curl -s https://api.github.com/repos/ITSGmbH/NetworkDiscover/releases/latest | grep "browser_download_url.*.deb" | cut -d '"' -f 4 | xargs -l wget -qi -
+$ sudo dpkg -i network_discover...
 ```

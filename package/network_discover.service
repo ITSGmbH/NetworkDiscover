@@ -9,7 +9,7 @@ WorkingDirectory=/opt/network_discover/
 ExecStart=+/opt/network_discover/network_discover
 CapabilityBoundingSet=CAP_NET_BIND_SERVICE
 AmbientCapabilities=
-Environment="NWD_SYSTEM_CONFIG=1"
+Environment="NWD_SYSTEM_CONFIG=1 NWD_DHCPCD_CONFIG=0"
 
 [Install]
 WantedBy=multi-user.target

@@ -18,7 +18,7 @@ ARCHIVE="${PACKAGE}-${VERSION}_${ARCH}.tar.xz"
 DEBIAN="${PACKAGE}-${VERSION}_${ARCH}.deb"
 
 
-#### PREPARE THE PACKAGE
+### PREPARE THE PACKAGE
 
 rm -Rf pkg &>/dev/null
 mkdir -p pkg/opt/${PACKAGE}/ &>/dev/null
@@ -35,7 +35,7 @@ chmod +x pkg/opt/${PACKAGE}/${PACKAGE} &>/dev/null
 chmod -x pkg/lib/systemd/system/${PACKAGE}.service &>/dev/null
 
 
-#### BASE PACKAGE
+### BASE PACKAGE
 
 rm ${ARCHIVE} &>/dev/null
 tar -cJf ${ARCHIVE} -C pkg . &>/dev/null
@@ -43,12 +43,16 @@ tar -cJf ${ARCHIVE} -C pkg . &>/dev/null
 echo "Created $CWD/${ARCHIVE}"
 
 
-#### DEBIAN PACKAGE
+### DEBIAN PACKAGE
 
 if [ ! -f /etc/debian_version ]; then
-  echo "No debian package created"
-  echo "run this in a debian system."
-  exit 0
+  echo "This is not a debian based system"
+  echo "A .deb can be created but with no guarantee to work properly."
+  echo "It should work because there is no real linking, although..."
+  echo
+  echo "press CTRL+C to stop"
+  echo "press [anykey] to continue"
+  read
 fi
 
 rm -Rf deb &>/dev/null
@@ -86,6 +90,15 @@ License: GPL-3+
 EOF
 
 cat << EOF > deb/changelog
+${PACKAGE} (0.3.0-1)
+
+ * UI Enhancements
+ * Network-Configuration for the underlying Debian/Armbian
+ * NMAP-Scripts upload
+ * Windows-Scan via enum4linux-ng
+
+-- Lukas LukyLuke Zurschmiede <${PACKAGE}@ranta.ch>
+
 ${PACKAGE} (0.2.0-1)
 
  * Various changes to make it usable for a daily use.
@@ -103,7 +116,7 @@ cat << EOF > deb/prerm
 #!/bin/sh
 set -e
 invoke-rc.d ${PACKAGE} stop &>/dev/null
-rm /etc/systemd/system/${PACKAGE}.service &>/dev/null
+systemctl disable ${PACKAGE}
 exit 0
 EOF
 
@@ -117,14 +130,8 @@ exit 0
 EOF
 
 cat << EOF > deb/postinst
-setcap CAP_NET_BIND_SERVICE=+eip /opt/network_discover/network_discover
+setcap cap_net_bind,cap_net_raw,cap_net_admin+eip /opt/network_discover/network_discover
 touch /opt/network_discover/config.toml
-
-mkdir -p /etc/systemd/system/ &>/dev/null
-if [ ! -L /etc/systemd/system/${PACKAGE}.service ];
-then
-  ln -s /lib/systemd/system/${PACKAGE}.service /etc/systemd/system/ &>/dev/null
-fi
 
 systemctl daemon-reload
 systemctl enable ${PACKAGE}
