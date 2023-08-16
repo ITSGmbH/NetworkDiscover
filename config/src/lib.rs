@@ -7,6 +7,8 @@ use std::{env, convert::From, str::FromStr};
 use std::path::PathBuf;
 use std::net::{IpAddr, Ipv4Addr};
 
+pub const NWD_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SaveConfig {
 	pub repeat: Option<u32>,
@@ -33,7 +35,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
 	fn default() -> Self {
 		AppConfig {
-			repeat: 0,
+			repeat: 24,
 			num_threads: 10,
 			device: None,
 			script_args: None,

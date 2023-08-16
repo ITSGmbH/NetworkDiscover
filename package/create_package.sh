@@ -130,7 +130,7 @@ exit 0
 EOF
 
 cat << EOF > deb/postinst
-setcap cap_net_bind,cap_net_raw,cap_net_admin+eip /opt/network_discover/network_discover
+setcap cap_net_bind_service,cap_net_raw,cap_net_admin+eip /opt/network_discover/network_discover
 touch /opt/network_discover/config.toml
 
 systemctl daemon-reload
