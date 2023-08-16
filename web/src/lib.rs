@@ -784,8 +784,7 @@ async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::D
 /// An JSON HttpResponse
 #[get("/api/settings")]
 async fn load_settings() -> Result<impl Responder> {
-	let payload = config::system::SystemSettings::load();
-	Ok(web::Json(payload))
+	Ok(web::Json(config::system::SystemSettings::load()))
 }
 
 /// Handles requests to save the operation system configuration.
@@ -816,8 +815,14 @@ async fn save_settings(payload: web::Json<config::system::SystemSettings>, stop_
 		if system.restart {
 			stop_handle.stop(true);
 		}
+		if system.shutdown {
+			config::system::SystemSettings::shutdown();
+		}
 		if system.reboot {
-			stop_handle.reboot();
+			config::system::SystemSettings::reboot();
+		}
+		if system.reload_network {
+			config::system::SystemSettings::reload();
 		}
 	}
 	Ok(web::Json(true))
@@ -841,11 +846,6 @@ impl StopHandle {
 		#[allow(clippy::let_underscore_future)]
 		let _ = self.inner.lock().unwrap().as_ref().unwrap().stop(graceful);
 		*self.stopped.lock().unwrap() = true;
-	}
-
-	/// Send a reboot signal to the operation system
-	pub(crate) fn reboot(&self) {
-		todo!("Send reboot signal to the underlying operation system")
 	}
 }
 

@@ -446,7 +446,7 @@
 										</div>
 										<div class="field">
 											<label class="label is-small">Operating-System</label>
-											<a id="btn-osconfig" class="button is-info is-light is-fullwidth is-small">Network Configuration</a>
+											<a id="btn-osconfig" class="button is-info is-light is-fullwidth is-small">System Configuration</a>
 										</div>
 									</div>
 								</div>
@@ -646,6 +646,10 @@
 										<p class="subtitle is-6">Network Configuration</p>
 										<p class="help">The device has a static and a dynamic Network Configuration</p>
 										<div class="field">
+											<label class="label is-small">Interface</label>
+											<div class="select"><select class="is-small full-width" name="os-config-eth-interface"></select></div>
+										</div>
+										<div class="field">
 											<label class="label is-small">IP-Address</label>
 											<input class="input is-small full-width" placeholder="A.C.D.E" type="text" name="os-config-eth-ip" value="" />
 										</div>
@@ -671,6 +675,10 @@
 									<div class="message-body">
 										<p class="subtitle is-6">Wireless Configuration</p>
 										<div class="field">
+											<label class="label is-small">Interface</label>
+											<div class="select"><select class="is-small full-width" name="os-config-wlan-interface"></select></div>
+										</div>
+										<div class="field">
 											<label class="label is-small">SSID</label>
 											<input class="input is-small full-width" placeholder="" type="text" name="os-config-wlan-ssid" value="" />
 										</div>
@@ -681,7 +689,7 @@
 										<div class="field">
 											<label class="label is-small">Country Code</label>
 											<input class="input is-small full-width" placeholder="2-Char ISO Code Country" type="text" name="os-config-wlan-country" value="" />
-											<p class="help">Enter here the 2-Char Country-Code as defined by ISO-3166-1 Alpha-2</p>
+											<p class="help">Enter here the 2-Char Country-Code as defined by ISO-3166-1 Alpha-2<br/>This is not relevant if NetworkManager is used</p>
 										</div>
 										<div class="field has-text-right">
 											<a class="button is-primary">Save</a>
@@ -698,7 +706,13 @@
 											<a class="button restart is-warning">Restart NetworkDiscover</a>
 										</div>
 										<div class="field">
+											<a class="button reload_network is-warning">Reload Network Configuration</a>
+										</div>
+										<div class="field">
 											<a class="button reboot is-danger">Reboot System</a>
+										</div>
+										<div class="field">
+											<a class="button shutdown is-danger">Shutdown System</a>
 										</div>
 										<p class="help save-status is-hidden">Processing...</p>
 									</div>
@@ -1179,12 +1193,22 @@
 			$('#btn-osconfig').on('click', () => {
 				$('#modal-network-config').toggleClass('is-active');
 				$.getJSON("/api/settings", data => {
+					if (Array.isArray(data.interfaces)) {
+						$('#os-settings-eth [name="os-config-eth-interface"]').empty();
+						$('#os-settings-eth [name="os-config-wlan-interface"]').empty();
+						data.interfaces.forEach((val) => {
+							$('#os-settings-eth [name="os-config-eth-interface"]').append($('<option>', { value: val, text: val }));
+							$('#os-settings-wlan [name="os-config-wlan-interface"]').append($('<option>', { value: val, text: val }));
+						});
+					}
 					if (data.network) {
+						$('#os-settings-eth [name="os-config-eth-interface"]').prop('value', data.network.interface);
 						$('#os-settings-eth [name="os-config-eth-ip"]').prop('value', data.network.ip);
 						$('#os-settings-eth [name="os-config-eth-route"]').prop('value', data.network.router);
 						$('#os-settings-eth [name="os-config-eth-dns"]').prop('value', data.network.dns);
 					}
 					if (data.wireless) {
+						$('#os-settings-wlan [name="os-config-wlan-interface"]').prop('value', data.wireless.interface);
 						$('#os-settings-wlan [name="os-config-wlan-ssid"]').prop('value', data.wireless.ssid);
 						$('#os-settings-wlan [name="os-config-wlan-psk"]').prop('value', data.wireless.psk);
 						$('#os-settings-wlan [name="os-config-wlan-country"]').prop('value', data.wireless.country);
@@ -1198,6 +1222,7 @@
 					contentType: 'application/json',
 					data: JSON.stringify({
 						network: {
+							interface: $('#os-settings-eth [name="os-config-eth-interface"]').prop('value').trim() ? $('#os-settings-eth [name="os-config-eth-interface"]').prop('value') : null,
 							ip: $('#os-settings-eth [name="os-config-eth-ip"]').prop('value').trim() ? $('#os-settings-eth [name="os-config-eth-ip"]').prop('value') : null,
 							router: $('#os-settings-eth [name="os-config-eth-route"]').prop('value').trim() ? $('#os-settings-eth [name="os-config-eth-route"]').prop('value') : null,
 							dns: $('#os-settings-eth [name="os-config-eth-dns"]').prop('value').trim() ? $('#os-settings-eth [name="os-config-eth-dns"]').prop('value') : null,
@@ -1213,6 +1238,7 @@
 					contentType: 'application/json',
 					data: JSON.stringify({
 						wireless: {
+							interface: $('#os-settings-wlan [name="os-config-wlan-interface"]').prop('value').trim() ? $('#os-settings-wlan [name="os-config-wlan-interface"]').prop('value') : null,
 							ssid: $('#os-settings-wlan [name="os-config-wlan-ssid"]').prop('value').trim() ? $('#os-settings-wlan [name="os-config-wlan-ssid"]').prop('value') : null,
 							psk: $('#os-settings-wlan [name="os-config-wlan-psk"]').prop('value').trim() ? $('#os-settings-wlan [name="os-config-wlan-psk"]').prop('value') : null,
 							country: $('#os-settings-wlan [name="os-config-wlan-country"]').prop('value').trim() ? $('#os-settings-wlan [name="os-config-wlan-country"]').prop('value') : null,
@@ -1229,7 +1255,9 @@
 					data: JSON.stringify({
 						system: {
 							restart: ev.currentTarget.classList.contains('restart'),
+							reload_network: ev.currentTarget.classList.contains('reload_network'),
 							reboot: ev.currentTarget.classList.contains('reboot'),
+							shutdown: ev.currentTarget.classList.contains('shutdown'),
 						}
 					}),
 					complete: () => $('#os-settings-system .save-status').addClass('is-hidden')
