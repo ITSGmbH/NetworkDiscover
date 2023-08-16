@@ -824,6 +824,9 @@ async fn save_settings(payload: web::Json<config::system::SystemSettings>, stop_
 		if system.reload_network {
 			config::system::SystemSettings::reload();
 		}
+		if system.reset {
+			config::system::SystemSettings::reset_config();
+		}
 	}
 	Ok(web::Json(true))
 }

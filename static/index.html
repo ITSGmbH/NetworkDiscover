@@ -703,16 +703,19 @@
 								<article class="message">
 									<div class="message-body">
 										<div class="field">
-											<a class="button restart is-warning">Restart NetworkDiscover</a>
+											<a class="button restart is-info">Restart NetworkDiscover</a>
 										</div>
 										<div class="field">
-											<a class="button reload_network is-warning">Reload Network Configuration</a>
+											<a class="button reboot is-warning">Restart System</a>
 										</div>
 										<div class="field">
-											<a class="button reboot is-danger">Reboot System</a>
+											<a class="button reload_network is-warning">Reload Network</a>
 										</div>
 										<div class="field">
 											<a class="button shutdown is-danger">Shutdown System</a>
+										</div>
+										<div class="field">
+											<a class="button reset is-danger">Reset Configuration</a>
 										</div>
 										<p class="help save-status is-hidden">Processing...</p>
 									</div>
@@ -1258,6 +1261,7 @@
 							reload_network: ev.currentTarget.classList.contains('reload_network'),
 							reboot: ev.currentTarget.classList.contains('reboot'),
 							shutdown: ev.currentTarget.classList.contains('shutdown'),
+							reset: ev.currentTarget.classList.contains('reset'),
 						}
 					}),
 					complete: () => $('#os-settings-system .save-status').addClass('is-hidden')
@@ -1328,7 +1332,7 @@
 				$('#config-save').on('click', function() {
 					$('#config-save').attr('disabled', 'disabled');
 					config = {
-						repeat: $('#config [name="repeat"]').prop('value').trim() ? parseInt($('#config [name="repeat"]').prop('value')) : null,
+						repeat: $('#config [name="repeat"]').prop('value').trim() ? parseInt($('#config [name="repeat"]').prop('value')) : 24,
 						num_threads: $('#config [name="threads"]').prop('value').trim() ? parseInt($('#config [name="threads"]').prop('value')) : null,
 						device: $('#config [name="interface"]').prop('value').trim() ? $('#config [name="interface"]').prop('value').trim() : null,
 						script_args: $('#config [name="script-arguments"]').prop('value').trim() ? $('#config [name="script-arguments"]').prop('value').trim() : null,

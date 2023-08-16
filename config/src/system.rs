@@ -118,6 +118,7 @@ pub struct SystemConfig {
 	pub restart: bool,
 	pub reboot: bool,
 	pub shutdown: bool,
+	pub reset: bool,
 }
 
 /// Implementation to load the configuration
@@ -166,6 +167,7 @@ impl SystemSettings {
 			return;
 		}
 		if is_dhcpcd_conf_enabled() {
+			// Restart Networking Service
 			let mut cmd = Command::new("sudo");
 			cmd.arg("systemctl")
 				.arg("restart")
@@ -174,6 +176,8 @@ impl SystemSettings {
 			let _ = cmd.output();
 
 		} else {
+			// 1. Restart NetworkManager
+			// 2. Enable NWD-LAN and NWD-WiFi
 			let mut cmd = Command::new("sudo");
 			cmd.arg("systemctl")
 				.arg("restart")
@@ -197,6 +201,39 @@ impl SystemSettings {
 			log::trace!("[main] Command: {:?}", cmd);
 			let _ = cmd.output();
 		}
+	}
+
+	/// Remove the Configuration, Networks and DB
+	pub fn reset_config() {
+		let mut cmd = Command::new("sudo");
+		cmd.arg("nmcli")
+			.arg("con")
+			.arg("del")
+			.arg("NWD-LAN");
+		log::trace!("[main] Command: {:?}", cmd);
+		let _ = cmd.output();
+
+		let mut cmd = Command::new("sudo");
+		cmd.arg("nmcli")
+			.arg("con")
+			.arg("del")
+			.arg("NWD-WiFi");
+		log::trace!("[main] Command: {:?}", cmd);
+		let _ = cmd.output();
+
+		let mut cmd = Command::new("sudo");
+		cmd.arg("rm")
+			.arg("config.toml");
+		log::trace!("[main] Command: {:?}", cmd);
+		let _ = cmd.output();
+
+		let mut cmd = Command::new("sudo");
+		cmd.arg("rm")
+			.arg("*.sqlite*");
+		log::trace!("[main] Command: {:?}", cmd);
+		let _ = cmd.output();
+
+		Self::reboot();
 	}
 
 	/// Get a list of all network interfaces
@@ -357,6 +394,7 @@ impl SystemNetwork {
 	/// id=NWD-LAN
 	/// uuid=a414d407-9193-4ee8-8196-ab6bca788f03
 	/// type=ethernet
+	/// autoconnect-priority=99
 	/// interface-name=INTERFACE
 	///
 	/// [ethernet]
@@ -396,7 +434,7 @@ impl SystemNetwork {
 				let mut conf_string = String::from("# Configuration created/managed by NetworkDiscover");
 				conf_string.push_str("\n[connection]\nid=NWD-LAN");
 				conf_string.push_str("\nuuid=a414d407-9193-4ee8-8196-ab6bca788f03");
-				conf_string.push_str("\ntype=ethernet\ninterface-name=");
+				conf_string.push_str("\ntype=ethernet\nautoconnect-priority=99\ninterface-name=");
 				conf_string.push_str(&interface);
 				conf_string.push_str("\n\n[ethernet]\n\n[ipv6]\naddr-gen-mode=default\nmethod=auto\n\n[proxy]\n\n[ipv4]\nmethod=auto\n");
 
@@ -581,6 +619,7 @@ impl SystemWireless {
 	/// id=NWD-WiFi
 	/// uuid=73f99d6a-a155-400c-a8d8-c484989526ce
 	/// type=wifi
+	/// autoconnect-priority=99
 	/// interface-name=wlan0
 	///
 	/// [wifi]
@@ -620,7 +659,7 @@ impl SystemWireless {
 				let mut conf_string = String::from("# Configuration created/managed by NetworkDiscover");
 				conf_string.push_str("\n[connection]\nid=NWD-WiFi");
 				conf_string.push_str("\nuuid=73f99d6a-a155-400c-a8d8-c484989526ce");
-				conf_string.push_str("\ntype=wifi\ninterface-name=");
+				conf_string.push_str("\ntype=wifi\nautoconnect-priority=99\ninterface-name=");
 				if let Some(interface) = &self.interface {
 					conf_string.push_str(interface);
 				}
