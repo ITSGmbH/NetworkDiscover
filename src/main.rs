@@ -1,4 +1,4 @@
-mod core;
+pub mod core;
 use crate::core::logger;
 use log::info;
 
