@@ -63,9 +63,12 @@
 		#scans-list,
 		#networks-list,
 		#windows-information {
-			max-height: 90vh;
+			max-height: 80vh;
 			overflow-y: scroll;
 			min-height: 2.75em;
+		}
+		#config-container .navbar-item div.box {
+			width: 100%;
 		}
 
 		.search {
@@ -183,6 +186,8 @@
 
 				<div class="navbar-end">
 
+					<a id="btn-osconfig" class="navbar-item">System</a>
+
 					<div class="navbar-item has-dropdown has-dropdown is-hoverable">
 						<span class="navbar-link">Config</span>
 						<fieldset class="navbar-dropdown is-right" id="config">
@@ -213,183 +218,12 @@
 
 								<div class="navbar-item">
 									<div class="box" id="config-network">
-										<p class="subtitle is-6">Networks</p>
+										<p class="subtitle is-6">Networks <small><a href="#" id="add-network-config">(add)</a></small></p>
 
-										<div class="block tabs is-centered">
-											<ul>
-												<li class="is-active" id="config-network-1-tab"><a>#1</a></li>
-												<li id="config-network-2-tab"><a>#2</a></li>
-												<li id="config-network-3-tab"><a>#3</a></li>
-												<li id="config-network-4-tab"><a>#4</a></li>
-												<li id="config-network-5-tab"><a>#5</a></li>
-											</ul>
+										<div class="block tabs">
+											<ul></ul>
 										</div>
 
-										<div class="block tabs-block" id="config-network-1">
-											<div class="field">
-												<label class="label is-small">Name</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-1-name" value="" />
-											</div>
-											<div class="field">
-												<label class="label is-small">Network/mask</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-1-network" value="" />
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-1-extended" value="true" /> Vulnerability Scan</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-1-version" value="true" /> Try to determine Service Version/Info</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-1-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
-											</div>
-											<div id="target-1-windows-container">
-												<div class="field">
-													<label class="label is-small">Windows Domain</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-1-windom" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Windows Domain User</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-1-winuser" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Password</label>
-													<input class="input is-small full-width" placeholder="" type="password" name="target-1-winpass" value="" />
-												</div>
-											</div>
-										</div>
-										<div class="block tabs-block is-hidden" id="config-network-2">
-											<div class="field">
-												<label class="label is-small">Name</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-2-name" value="" />
-											</div>
-											<div class="field">
-												<label class="label is-small">Network/mask</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-2-network" value="" />
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-2-extended" value="true" /> Vulnerability Scan</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-2-version" value="true" /> Try to determine Service Version/Info</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-2-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
-											</div>
-											<div id="target-2-windows-container">
-												<div class="field">
-													<label class="label is-small">Windows Domain</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-2-windom" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Windows Domain User</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-2-winuser" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Password</label>
-													<input class="input is-small full-width" placeholder="" type="password" name="target-2-winpass" value="" />
-												</div>
-											</div>
-										</div>
-										<div class="block tabs-block is-hidden" id="config-network-3">
-											<div class="field">
-												<label class="label is-small">Name</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-3-name" value="" />
-											</div>
-											<div class="field">
-												<label class="label is-small">Network/mask</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-3-network" value="" />
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-3-extended" value="true" /> Vulnerability Scan</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-3-version" value="true" /> Try to determine Service Version/Info</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-3-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
-											</div>
-											<div id="target-3-windows-container">
-												<div class="field">
-													<label class="label is-small">Windows Domain</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-3-windom" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Windows Domain User</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-3-winuser" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Password</label>
-													<input class="input is-small full-width" placeholder="" type="password" name="target-3-winpass" value="" />
-												</div>
-											</div>
-										</div>
-										<div class="block tabs-block is-hidden" id="config-network-4">
-											<div class="field">
-												<label class="label is-small">Name</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-4-name" value="" />
-											</div>
-											<div class="field">
-												<label class="label is-small">Network/mask</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-4-network" value="" />
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-4-extended" value="true" /> Vulnerability Scan</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-4-version" value="true" /> Try to determine Service Version/Info</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-4-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
-											</div>
-											<div id="target-4-windows-container">
-												<div class="field">
-													<label class="label is-small">Windows Domain</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-4-windom" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Windows Domain User</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-4-winuser" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Password</label>
-													<input class="input is-small full-width" placeholder="" type="password" name="target-4-winpass" value="" />
-												</div>
-											</div>
-										</div>
-										<div class="block tabs-block is-hidden" id="config-network-5">
-											<div class="field">
-												<label class="label is-small">Name</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-5-name" value="" />
-											</div>
-											<div class="field">
-												<label class="label is-small">Network/mask</label>
-												<input class="input is-small full-width" placeholder="" type="text" name="target-5-network" value="" />
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-5-extended" value="true" /> Vulnerability Scan</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-5-version" value="true" /> Try to determine Service Version/Info</label>
-											</div>
-											<div class="field">
-												<label class="checkbox"><input type="checkbox" name="target-5-windows" class="windows-config-selector" value="true" /> Windows Scan</label>
-											</div>
-											<div id="target-5-windows-container">
-												<div class="field">
-													<label class="label is-small">Windows Domain</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-5-windom" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Windows Domain User</label>
-													<input class="input is-small full-width" placeholder="" type="text" name="target-5-winuser" value="" />
-												</div>
-												<div class="field">
-													<label class="label is-small">Password</label>
-													<input class="input is-small full-width" placeholder="" type="password" name="target-5-winpass" value="" />
-												</div>
-											</div>
-										</div>
 									</div>
 								</div>
 
@@ -443,10 +277,6 @@
 										<div class="field">
 											<label class="label is-small">Network Device for scanning</label>
 											<input class="input is-small full-width" placeholder="None" type="text" name="interface" value="" />
-										</div>
-										<div class="field">
-											<label class="label is-small">Operating-System</label>
-											<a id="btn-osconfig" class="button is-info is-light is-fullwidth is-small">System Configuration</a>
 										</div>
 									</div>
 								</div>
@@ -1087,29 +917,6 @@
 				console.error("Error while loading Networks.");
 			});
 
-			// Switch network-config tabs in Configuration
-			$('#config-network .tabs li').each(function(_, elem) {
-				elem = $(elem);
-				elem.on('click', ev => {
-					$('#config-network .tabs li').removeClass('is-active');
-					$('#config-network .tabs-block').removeClass('is-hidden').addClass('is-hidden');
-					elem.addClass('is-active');
-					$('#' + elem.attr('id').replace('-tab', '')).removeClass('is-hidden');
-				});
-			});
-
-			// Show Windows-config only when checked
-			$('#config-network .windows-config-selector').each(function(_, elem) {
-				elem = $(elem);
-				elem.on('click', ev => {
-					if (elem.prop('checked')) {
-						$('#' + elem.attr('name') + '-container').removeClass('is-hidden');
-					} else {
-						$('#' + elem.attr('name') + '-container').addClass('is-hidden');
-					}
-				});
-			});
-
 			// NSE Script Management
 			var selected_script = '';
 			var set_script_content = (script, content, active) => {
@@ -1285,6 +1092,58 @@
 			});
 
 
+			// Add Network-Config-Handler
+			let add_network = () => {
+				let num = $('#config-network .tabs ul li').length + 1;
+				$('#config-network .tabs ul').append($('<li id="config-network-' + num + '-tab"><a>#' + num + '</a></li>'));
+				$('#config-network').append($('<div class="block tabs-block is-hidden" id="config-network-' + num + '">' +
+					'<div class="field">' +
+					'<label class="label is-small">Name</label>' +
+					'<input class="input is-small full-width" placeholder="" type="text" name="target-' + num + '-name" value="" />' +
+					'</div><div class="field">' +
+					'<label class="label is-small">Network/mask</label>' +
+					'<input class="input is-small full-width" placeholder="" type="text" name="target-' + num + '-network" value="" />' +
+					'</div><div class="field">' +
+					'<label class="checkbox"><input type="checkbox" name="target-' + num + '-extended" value="true" /> Vulnerability Scan</label>' +
+					'</div><div class="field">' +
+					'<label class="checkbox"><input type="checkbox" name="target-' + num + '-version" value="true" /> Try to determine Service Version/Info</label>' +
+					'</div><div class="field">' +
+					'<label class="checkbox"><input type="checkbox" name="target-' + num + '-windows" class="windows-config-selector" value="true" /> Windows Scan</label>' +
+					'</div><div id="target-' + num + '-windows-container">' +
+					'<div class="field">' +
+					'<label class="label is-small">Windows Domain</label>' +
+					'<input class="input is-small full-width" placeholder="" type="text" name="target-' + num + '-windom" value="" />' +
+					'</div><div class="field">' +
+					'<label class="label is-small">Windows Domain User</label>' +
+					'<input class="input is-small full-width" placeholder="" type="text" name="target-' + num + '-winuser" value="" />' +
+					'</div><div class="field">' +
+					'<label class="label is-small">Password</label>' +
+					'<input class="input is-small full-width" placeholder="" type="password" name="target-' + num + '-winpass" value="" />' +
+					'</div></div></div>'));
+
+					// Show network config tab and hide others
+					$('#config-network-' + num + '-tab').on('click', ev => {
+						$('#config-network .tabs li').removeClass('is-active');
+						$('#config-network .tabs-block').removeClass('is-hidden').addClass('is-hidden');
+						$('#config-network-' + num + '-tab').addClass('is-active');
+						$('#config-network-' + num).removeClass('is-hidden');
+					});
+
+					// Show Windows-config only when checked
+					$('#target-' + num + '-windows').on('click', ev => {
+						if (elem.prop('checked')) {
+							$('#target-' + num + '-windows-container').removeClass('is-hidden');
+						} else {
+							$('#target-' + num + '-windows-container').addClass('is-hidden');
+						}
+					});
+
+					// Select the network tab
+					$('#config-network-' + num + '-tab').trigger('click');
+					return num;
+			};
+			$('#add-network-config').on('click', ev => add_network());
+
 			// Load the Configuration
 			$.getJSON("/api/config", data => {
 				$('#config [name="repeat"]').prop('value', data.repeat);
@@ -1313,7 +1172,7 @@
 
 				if (data.targets && data.targets.forEach) {
 					data.targets.forEach((v, k) => {
-						idx = k + 1;
+						idx = add_network();
 						$('#config [name="target-' + idx + '-name"]').prop('value', v.target.name);
 						$('#config [name="target-' + idx + '-network"]').prop('value', v.target.ip + '/' + v.target.mask);
 						$('#config [name="target-' + idx + '-extended"]').prop('checked', v.extended);
@@ -1327,6 +1186,9 @@
 							$('#target-' + idx + '-windows-container').addClass('is-hidden');
 						}
 					});
+
+					// Select teh first network as default
+					$('#config-network-1-tab').trigger('click');
 				}
 
 				$('#config-save').on('click', function() {
@@ -1354,11 +1216,12 @@
 						},
 					};
 
-					[1,2,3,4,5].forEach(idx => {
-						var id = "target-" + idx;
+					$('#config-network .tabs ul li').each(k => {
+						let idx = config.targets.length;
+						var id = "target-" + (k + 1);
 						if ($('#config [name="' + id + '-name"]').prop('value').trim()) {
 							var nw = $('#config [name="' + id + '-network"]').prop('value').trim().split("/");
-							config.targets[idx-1] = {
+							config.targets[idx] = {
 								extended: $('#config [name="' + id + '-extended"]').prop('checked'),
 								version_check: $('#config [name="' + id + '-version"]').prop('checked'),
 								target: {
@@ -1368,7 +1231,7 @@
 								}
 							};
 							if ($('#config [name="' + id + '-windows"]').prop('checked')) {
-								config.targets[idx-1].windows = {
+								config.targets[idx].windows = {
 									domain: $('#config [name="' + id + '-windom"]').prop('value').trim() ? $('#config [name="' + id + '-windom"]').prop('value').trim() : null,
 									domain_user: $('#config [name="' + id + '-winuser"]').prop('value').trim() ? $('#config [name="' + id + '-winuser"]').prop('value').trim() : null,
 									password: $('#config [name="' + id + '-winpass"]').prop('value').trim() ? $('#config [name="' + id + '-winpass"]').prop('value').trim() : null,

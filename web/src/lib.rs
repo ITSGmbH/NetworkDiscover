@@ -772,7 +772,7 @@ async fn load_config(config: web::Data<config::AppConfig>) -> Result<impl Respon
 ///
 /// An JSON HttpResponse
 #[post("/api/config")]
-async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::Data<StopHandle>) -> HttpResponse {
+async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::Data<StopHandle>) -> Result<impl Responder> {
 	// TODO: Windows-Password security: Copy over from the original config if None
 	let mut conf = config::AppConfig::from(payload.0);
 
@@ -794,7 +794,7 @@ async fn save_config(payload: web::Json<config::SaveConfig>, stop_handle: web::D
 
 	config::save(&conf);
 	stop_handle.stop(true);
-	HttpResponse::Ok().body("reload")
+	Ok(web::Json("reload"))
 }
 
 /// Handles requests to get the operating system configuration.
