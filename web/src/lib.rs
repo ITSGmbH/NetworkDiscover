@@ -386,6 +386,7 @@ async fn index(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 		Some(wl) if wl.color.is_some() => String::from(wl.color.clone().unwrap()),
 		_ => String::from("#3e8ed0"),
 	};
+	let version = String::from(config::NWD_VERSION);
 
 	Ok(HttpResponse::build(StatusCode::OK)
 		.content_type("text/html; charset=utf-8")
@@ -394,6 +395,7 @@ async fn index(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 				.unwrap_or(String::from("No index file found..."))
 				.replace("{logo}", &logo)
 				.replace("{tagline}", &tagline)
+				.replace("{version}", &version)
 				.replace("{base_color}", &base_color)
 				.replace("{base_color_r}", &u8::from_str_radix(&base_color[1..3], 16).unwrap_or(62).to_string())
 				.replace("{base_color_g}", &u8::from_str_radix(&base_color[3..5], 16).unwrap_or(142).to_string())
