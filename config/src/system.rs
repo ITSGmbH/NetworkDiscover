@@ -462,6 +462,12 @@ impl SystemNetwork {
 			},
 			Err(err) => log::error!("{}: {}", get_conf_nm_lan_file(), err),
 		}
+
+		let mut cmd = Command::new("sudo");
+		cmd.arg("chmod")
+			.arg("0600")
+			.arg(get_conf_nm_lan_file());
+		let _ = cmd.output();
 	}
 
 	/// Write DHCPCD LAN-Configuraiton
@@ -531,6 +537,17 @@ impl SystemNetwork {
 			},
 			Err(err) => log::error!("{}: {}", get_conf_dhcpcd_file(), err),
 		}
+		let mut cmd = Command::new("sudo");
+		cmd.arg("chmod")
+			.arg("0600")
+			.arg(get_conf_ifaces_file());
+		let _ = cmd.output();
+
+		let mut cmd = Command::new("sudo");
+		cmd.arg("chmod")
+			.arg("0600")
+			.arg(get_conf_dhcpcd_file());
+		let _ = cmd.output();
 	}
 
 }
@@ -684,6 +701,11 @@ impl SystemWireless {
 			},
 			Err(err) => log::error!("{}: {}", get_conf_nm_wifi_file(), err),
 		}
+		let mut cmd = Command::new("sudo");
+		cmd.arg("chmod")
+			.arg("0600")
+			.arg(get_conf_nm_lan_file());
+		let _ = cmd.output();
 	}
 
 	/// Write WPA-Supplicant Wifi-Configuraiton
@@ -718,6 +740,11 @@ impl SystemWireless {
 			},
 			Err(err) => log::error!("{}: {}", get_conf_wpa_file(), err),
 		}
+		let mut cmd = Command::new("sudo");
+		cmd.arg("chmod")
+			.arg("0600")
+			.arg(get_conf_wpa_file());
+		let _ = cmd.output();
 	}
 
 }

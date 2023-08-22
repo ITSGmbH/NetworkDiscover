@@ -90,6 +90,15 @@ License: GPL-3+
 EOF
 
 cat << EOF > deb/changelog
+${PACKAGE} (0.3.4-1)
+
+ * Recurring Scan changed to CRON Syntax
+ * UI Enhancements
+ * Dynamic amount of networks in configuration UI
+ * System as main menu
+
+-- Lukas LukyLuke Zurschmiede <${PACKAGE}@ranta.ch>
+
 ${PACKAGE} (0.3.0-1)
 
  * UI Enhancements

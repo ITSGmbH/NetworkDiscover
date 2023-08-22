@@ -11,7 +11,7 @@ pub const NWD_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SaveConfig {
-	pub repeat: Option<u32>,
+	pub repeat: Option<String>,
 	pub num_threads: Option<u32>,
 	pub device: Option<String>,
 	pub script_args: Option<String>,
@@ -23,7 +23,7 @@ pub struct SaveConfig {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AppConfig {
-	pub repeat: u32,
+	pub repeat: String,
 	pub num_threads: u32,
 	pub device: Option<String>,
 	pub script_args: Option<String>,
@@ -35,7 +35,7 @@ pub struct AppConfig {
 impl Default for AppConfig {
 	fn default() -> Self {
 		AppConfig {
-			repeat: 24,
+			repeat: String::from("0 * * * *"),
 			num_threads: 10,
 			device: None,
 			script_args: None,
@@ -58,6 +58,18 @@ impl From<SaveConfig> for AppConfig {
 			targets: item.targets.unwrap_or_default(),
 			whitelabel: item.whitelabel,
 		}
+	}
+}
+impl AppConfig {
+	/// Returns a valid cron string
+	/// This is needed because cron-parser only checks for more fields but not if there are enough
+	pub fn get_repeat(&self) -> String {
+		let mut repeat = String::from(&self.repeat);
+		let fields: Vec<&str> = repeat.split_whitespace().collect();
+		if fields.len() != 5 {
+			repeat = String::from("0 * * * *");
+		}
+		repeat
 	}
 }
 

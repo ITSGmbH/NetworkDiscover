@@ -165,6 +165,9 @@ sudo chmod 0755 /usr/local/bin/enum4linux-ng
 # 5. Install NetworkDiscover
 curl -s https://api.github.com/repos/ITSGmbH/NetworkDiscover/releases/latest | grep "browser_download_url.*armhf.deb" | cut -d '"' -f 4 | wget -O network_discover.deb -qi -
 sudo dpkg -i network_discover.deb
+
+# 6. Clean up
+rm network_discover.deb
 ```
 
 ## Configuration
@@ -184,71 +187,3 @@ WLAN is only working as a DHCP-Client for now.
 The Configuration is created automatically on first start and should be changed through the Web-Interface.
 
 It is stored under `./config.toml` and may look like this:
-
-```toml
-repeat = 0
-num_threads = 10
-device = 'eth0'
-script_args = 'showcves'
-
-[listen]
-ip = '0.0.0.0'
-mask = 32
-port = 9090
-protocol = 'UDP'
-
-[sqlite]
-file = './scan.sqlite'
-
-[[targets]]
-extended = true
-version_check = true
-
-[targets.target]
-name = 'Local LAN'
-ip = '192.168.66.0'
-mask = 24
-port = 53
-protocol = 'UDP'
-
-[targets.target]
-ip = '192.168.55.0'
-name = 'Guest WLAN'
-mask = 24
-port = 53
-protocol = 'UDP'
-
-[targets.windows]
-domain = 'mydomain'
-domain_user = 'scanuser'
-password = 'scan666p@sswOrd'
-```
-
-### Main Parameters
-
-* **repeat** _(int32)_: Number of seconds to pause after a new scan starts
-* **num_threads** _(int32)_: Number of parallel hosts which are scanned with nmap and enum4linux-ng
-
-### Listen Parameters
-
-* **ip** _(string)_: IP-Address to listen on for the Web-Interface
-* **port** _(int32)_: Port on which the Webserver should listen on
-
-### Targets
-
-* **extended** _(bool)_: If false, no Vulnerability-Scan is executed but all uploaded scripts are
-* **version_check** _(bool)_: If false, namp does not try to evaluate the version of the service *(only if extended_scan=off, some scripts struggle with this option)*
-
-#### List of Targets
-
-* **ip** _(string)_: The network address to scan
-* **name** _(string)_: Name of the network
-* **mask** _(int32)_: Netmask as CIDR for the above network address
-* **port** _(int32)_: Port to use for check if a host is alive
-* **protocol** _(string)_: Protocol (TCP, UDP) to use for check if a host is alive
-
-#### Windows Scan
-
-* **domain** _(string)_: Windows Domain to use to scan an login with the user
-* **domain_user** _(string)_: Windows user to try to login
-* **password** _(string)_: Password for the Windows-User, **stored in cleartext**

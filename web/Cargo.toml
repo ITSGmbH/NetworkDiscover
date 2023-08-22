@@ -24,3 +24,4 @@ log = { version = "0.4" }
 chrono = { version = "0.4" }
 minreq = { version = "2.8", features = [ "https-rustls" ]}
 base64 = { version = "0.21" }
+cron-parser = { version = "0.8" }

@@ -197,8 +197,8 @@
 									<div class="box">
 										<p class="subtitle is-6">Global</p>
 										<div class="field">
-											<label class="label is-small">Scan every (hours)</label>
-											<input class="input is-small full-width" placeholder="24" type="number" name="repeat" value="" />
+											<label class="label is-small">Scan time <small>(<a href="https://cron.help/" target="_blank">Cron-Syntax</a>)</small></label>
+											<input class="input is-small full-width" placeholder="min  hour  dom  month  dow" type="text" name="repeat" value="" />
 										</div>
 										<div class="field">
 											<label class="label is-small">Parallel asset scans</label>
@@ -218,7 +218,7 @@
 
 								<div class="navbar-item">
 									<div class="box" id="config-network">
-										<p class="subtitle is-6">Networks <small><a href="#" id="add-network-config">(add)</a></small></p>
+										<p class="subtitle is-6">Networks <small>(<a href="#" id="add-network-config">add</a>)</small></p>
 
 										<div class="block tabs">
 											<ul></ul>
@@ -229,7 +229,7 @@
 
 								<div class="navbar-item">
 									<div class="box">
-										<p class="subtitle is-6">White-Labeling <small><a href="#" id="clear-white-label">(clear)</a></small></p>
+										<p class="subtitle is-6">White-Labeling <small>(<a href="#" id="clear-white-label">clear</a>)</small></p>
 										<div class="field">
 											<label class="label is-small">Logo</label>
 											<div id="file-js-logo" class="file has-name is-small">
@@ -1194,7 +1194,7 @@
 				$('#config-save').on('click', function() {
 					$('#config-save').attr('disabled', 'disabled');
 					config = {
-						repeat: $('#config [name="repeat"]').prop('value').trim() ? parseInt($('#config [name="repeat"]').prop('value')) : 24,
+						repeat: $('#config [name="repeat"]').prop('value').trim() ? $('#config [name="repeat"]').prop('value') : '0 * * * *',
 						num_threads: $('#config [name="threads"]').prop('value').trim() ? parseInt($('#config [name="threads"]').prop('value')) : null,
 						device: $('#config [name="interface"]').prop('value').trim() ? $('#config [name="interface"]').prop('value').trim() : null,
 						script_args: $('#config [name="script-arguments"]').prop('value').trim() ? $('#config [name="script-arguments"]').prop('value').trim() : null,
