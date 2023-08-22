@@ -4,6 +4,8 @@ use actix_files::Files;
 use serde::{Serialize, Deserialize};
 use minreq;
 use base64::Engine;
+use cron_parser;
+use chrono::Utc;
 
 use std::{fs, path, io::{self, Write}, ffi::OsStr, thread, time};
 use std::sync::{Arc, Mutex};
@@ -278,30 +280,41 @@ pub async fn run(config: config::AppConfig) -> std::io::Result<()> {
 	let recurring_stop = Arc::new(AtomicBool::new(false));
 	let recurring = thread::spawn({
 		let recurring_stop = recurring_stop.clone();
-		let recurring_sleep = config.repeat as u64 * 3600;
 		let recurring_conf = config.clone();
 		let recurring_running = running.clone();
+		let recurring_sleep = config.get_repeat();
 
-		if recurring_sleep <= 0 {
-			info!("Recurring scan not enabled, value is '0'");
+		if let Err(err) = cron_parser::parse(&recurring_sleep, &Utc::now()) {
+			info!("Recurring scan not enabled: {:?}", err);
 			recurring_stop.store(true, Ordering::Relaxed);
 		}
 
 		move || {
-			info!("Start recurring scan every {}s", recurring_sleep);
-			let mut cnt = 0;
+			info!("Recurring scans: '{}'", recurring_sleep);
+			let mut show_duration = true;
 			loop {
-				 if recurring_stop.load(Ordering::Relaxed) {
-					 break;
-				 }
-				cnt += 1;
+				if recurring_stop.load(Ordering::Relaxed) {
+					break;
+				}
 				thread::sleep(time::Duration::from_secs(1));
-				if cnt > recurring_sleep {
-					cnt = 0;
-					info!("Recurring scan triggered after {}s", recurring_sleep);
-					let inner_running = recurring_running.clone();
-					let res = start_scan_thread(recurring_conf.clone(), inner_running.into_inner());
-					info!("Recurring scan: {}", String::from(res));
+
+				match cron_parser::parse(&recurring_sleep, &Utc::now()) {
+					Ok(next) => {
+						let duration = (next - Utc::now()).num_seconds();
+						if show_duration {
+							info!("Recurring scan at {:?} - in {} seconds", next.with_timezone(&chrono::Local), duration);
+							show_duration = false;
+						}
+
+						if duration < 1 {
+							info!("Recurring scan triggered");
+							let inner_running = recurring_running.clone();
+							let res = start_scan_thread(recurring_conf.clone(), inner_running.into_inner());
+							info!("Recurring scan: {}", String::from(res));
+							show_duration = true;
+						}
+					},
+					_ => recurring_stop.store(true, Ordering::Relaxed)
 				}
 			}
 			info!("Recurring scan stopped");
