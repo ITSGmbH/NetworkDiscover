@@ -90,7 +90,7 @@ License: GPL-3+
 EOF
 
 cat << EOF > deb/changelog
-${PACKAGE} (0.3.4-1)
+${PACKAGE} (0.3.3-1)
 
  * Recurring Scan changed to CRON Syntax
  * UI Enhancements
