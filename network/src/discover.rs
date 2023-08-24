@@ -575,7 +575,7 @@ mod discover_impl {
 			cmd.arg("nmap")
 				.arg("-O")
 				.arg("-sT");
-			if host.version_check {
+			if host.version_check || host.extended_scan {
 				cmd.arg("-sV");
 			}
 			if !host.scan_arguments.is_empty() {
@@ -584,7 +584,6 @@ mod discover_impl {
 				cmd.arg(sargs.as_str());
 			}
 			if host.extended_scan {
-				cmd.arg("-sV");
 				cmd.arg("--script=vulners");
 			} else {
 				cmd.arg("--script=./scripts/");

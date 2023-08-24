@@ -130,7 +130,13 @@ mod discover_impl {
 	fn log_routes(label: &str, routes: &Vec<Route>) {
 		debug!("  {}:", label);
 		for route in routes {
-			debug!("    {}{:?}/{:?} via {:?} dev {} and ip {:?}", if route.is_default { "default for " } else { "" } , route.network.unwrap(), route.netmask, route.router.unwrap(), route.device, route.link.unwrap());
+			debug!("    {}{:?}/{:?} via {:?} dev {} and ip {:?}",
+				if route.is_default { "default for " } else { "" },
+				if let Some(val) = route.network { val.to_string() } else { String::from("0.0.0.0") },
+				route.netmask,
+				if let Some(val) = route.router { val.to_string() } else { String::from("0.0.0.0") },
+				route.device,
+				if let Some(val) = route.link { val.to_string() } else { String::from("0.0.0.0") });
 		}
 	}
 
