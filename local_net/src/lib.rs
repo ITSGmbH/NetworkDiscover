@@ -161,7 +161,7 @@ mod discover_impl {
 
 					// Filter routes and assign
 					routings.iter()
-						.filter(|route| route.link.unwrap() == data.ipaddr.unwrap() && route.netmask == data.network)
+						.filter(|route| route.link.is_some() && route.link.unwrap() == data.ipaddr.unwrap() && route.netmask == data.network)
 						.for_each(|route| {
 							data.routes.push(route.clone());
 						});
