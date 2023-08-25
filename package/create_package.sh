@@ -90,6 +90,14 @@ License: GPL-3+
 EOF
 
 cat << EOF > deb/changelog
+${PACKAGE} (0.3.4-1)
+
+ * Use the configured network as the main key and not the real network
+ * Add a new field to the host to identify the real ip network
+ * Fix problem with DHCP and extended scan
+
+-- Lukas LukyLuke Zurschmiede <${PACKAGE}@ranta.ch>
+
 ${PACKAGE} (0.3.3-1)
 
  * Recurring Scan changed to CRON Syntax

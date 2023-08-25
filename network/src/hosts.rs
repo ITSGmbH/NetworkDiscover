@@ -68,6 +68,7 @@ impl FromStr for State {
 pub struct Host {
 	pub network: String,
 	pub ip: Option<IpAddr>,
+	pub ipnet: String,
 	pub hops: Vec<IpAddr>,
 	pub services: Vec<Service>,
 	pub os: Option<String>,
@@ -102,7 +103,7 @@ impl Host {
 
 		// create the host object if it does not exist
 		self.db_id = if host.id > 0 {
-			host.id
+			self.update_host(db, &host.id)
 		} else {
 			let ip = self.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap());
 			self.create_host(db, &ip.to_string())
@@ -169,7 +170,28 @@ impl Host {
 		let mut host = db::Host::default();
 		host.ip = ip.to_string();
 		host.network = String::from(&self.network);
-		host.comment = format!("First seen on {}", chrono::Utc::now());
+		host.ipnet = String::from(&self.ipnet);
+		host.comment = format!("Last seen: {}", chrono::Utc::now());
+		let _ = host.save(db);
+		host.id
+	}
+
+	/// Update a host with it's new IP and Network
+	///
+	/// Returns the database id from the database
+	///
+	/// # Arguments
+	///
+	/// * `db` - Database instance to save to
+	/// * `host_id` - ID of the host
+	///
+	fn update_host(&self, db: &mut sqlite::Database, host_id: &i64) -> i64 {
+		let mut host = db::Host::default();
+		host.id = *host_id;
+		host.ip = self.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap()).to_string();
+		host.network = String::from(&self.network);
+		host.ipnet = String::from(&self.ipnet);
+		host.comment = format!("Last seen: {}", chrono::Utc::now());
 		let _ = host.save(db);
 		host.id
 	}

@@ -1326,7 +1326,7 @@
 				if (data.installed != data.latest) {
 					$('#release-version').addClass('is-danger');
 					$('#release-version').removeClass('is-success');
-					$('#release-version').html("Latest Release: " + data.latest + ' - Installed Version: ' + data.version);
+					$('#release-version').html("Latest Release: " + data.latest + ' - Installed Version: ' + data.installed);
 				} else {
 					$('#release-version').addClass('is-success');
 					$('#release-version').removeClass('is-danger');

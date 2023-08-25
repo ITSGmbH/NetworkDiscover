@@ -493,7 +493,7 @@ mod discover_impl {
 				// Direct Route -> Get the Gateway and Network based on the the "device"
 				let mut gateway = if let Some((ref device, ref network)) = device {
 					gateways.clone().into_iter().find_map(|(gw, dev)| if &dev == device {
-						host.network = network.clone();
+						host.ipnet = network.clone();
 						Some(gw)
 					} else {
 						None
@@ -575,7 +575,7 @@ mod discover_impl {
 			cmd.arg("nmap")
 				.arg("-O")
 				.arg("-sT");
-			if host.version_check {
+			if host.version_check || host.extended_scan {
 				cmd.arg("-sV");
 			}
 			if !host.scan_arguments.is_empty() {
@@ -584,7 +584,6 @@ mod discover_impl {
 				cmd.arg(sargs.as_str());
 			}
 			if host.extended_scan {
-				cmd.arg("-sV");
 				cmd.arg("--script=vulners");
 			} else {
 				cmd.arg("--script=./scripts/");

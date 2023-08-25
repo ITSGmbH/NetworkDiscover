@@ -130,7 +130,13 @@ mod discover_impl {
 	fn log_routes(label: &str, routes: &Vec<Route>) {
 		debug!("  {}:", label);
 		for route in routes {
-			debug!("    {}{:?}/{:?} via {:?} dev {} and ip {:?}", if route.is_default { "default for " } else { "" } , route.network.unwrap(), route.netmask, route.router.unwrap(), route.device, route.link.unwrap());
+			debug!("    {}{:?}/{:?} via {:?} dev {} and ip {:?}",
+				if route.is_default { "default for " } else { "" },
+				if let Some(val) = route.network { val.to_string() } else { String::from("0.0.0.0") },
+				route.netmask,
+				if let Some(val) = route.router { val.to_string() } else { String::from("0.0.0.0") },
+				route.device,
+				if let Some(val) = route.link { val.to_string() } else { String::from("0.0.0.0") });
 		}
 	}
 
@@ -161,7 +167,7 @@ mod discover_impl {
 
 					// Filter routes and assign
 					routings.iter()
-						.filter(|route| route.link.unwrap() == data.ipaddr.unwrap() && route.netmask == data.network)
+						.filter(|route| route.link.is_some() && route.link.unwrap() == data.ipaddr.unwrap() && route.netmask == data.network)
 						.for_each(|route| {
 							data.routes.push(route.clone());
 						});

@@ -281,6 +281,7 @@ pub struct Host {
 	pub id: i64,
 	pub hist_id: i64,
 	pub network: String,
+	pub ipnet: String,
 	pub ip: String,
 	pub os: String,
 	pub ignore: bool,
@@ -535,16 +536,18 @@ impl Host {
 			let pool = con.unwrap();
 			let query = if self.id <= 0 {
 				self.id = next_id(pool, "id", "hosts");
-				query("INSERT INTO hosts (id,network,ip,ignore,comment) VALUES(?,?,?,?,?)")
+				query("INSERT INTO hosts (id,network,ipnet,ip,ignore,comment) VALUES(?,?,?,?,?,?)")
 					.bind(self.id)
 					.bind(&self.network)
+					.bind(&self.ipnet)
 					.bind(&self.ip)
 					.bind(self.ignore)
 					.bind(&self.comment)
 					.execute(pool)
 			} else {
-				query("UPDATE hosts SET network = ?, ip = ?, ignore = ?, comment = ? WHERE id=?")
+				query("UPDATE hosts SET network = ?, ipnet = ?, ip = ?, ignore = ?, comment = ? WHERE id=?")
 					.bind(&self.network)
+					.bind(&self.ipnet)
 					.bind(&self.ip)
 					.bind(self.ignore)
 					.bind(&self.comment)

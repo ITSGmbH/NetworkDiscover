@@ -152,6 +152,7 @@ sudo apt full-upgrade
 # 2. Install dependencies
 sudo apt install curl wget nmap traceroute python3-ldap3 python3-yaml python3-impacket
 sudo apt install smbclient samba
+sudo systemctl stop smbd nmbd samba-ad-dc
 sudo systemctl disable smbd nmbd samba-ad-dc
 
 # 3. Install vulners nmap script
