@@ -1,6 +1,6 @@
 FROM archlinux:base
 
-RUN pacman -Syu --noconfirm && pacman -S --noconfirm openssl nmap sudo && pacman -Sc --noconfirm
+RUN pacman -Syu --noconfirm && pacman -S --noconfirm libpcap nmap sudo && pacman -Sc --noconfirm
 RUN echo -e "Cmnd_Alias NMAP = /usr/bin/nmap\nALL ALL=(ALL) NOPASSWD: NMAP" > /etc/sudoers.d/nmap
 
 ADD https://raw.githubusercontent.com/vulnersCom/nmap-vulners/master/vulners.nse /usr/share/nmap/scripts/vulners.nse

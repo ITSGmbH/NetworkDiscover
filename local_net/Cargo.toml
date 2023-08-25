@@ -10,4 +10,5 @@ path = "src/lib.rs"
 
 [dependencies]
 config = { path = "../config" }
-log = { version = "0.4" }
+
+log = { version = "0.*" }

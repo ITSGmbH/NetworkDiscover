@@ -82,13 +82,12 @@ Allthough if you run it in a container or locally on a development machine, the 
 
 ### Run it from source
 
+Check the `.cargo/config.toml` for environment variables.
+
 ```bash
 $ cargo build --release
 $ target/release/network_discover
 ```
-
-Check the `.cargo/config.toml` for environment variables.
-
 
 ### Run it in a container
 
@@ -187,4 +186,19 @@ WLAN is only working as a DHCP-Client for now.
 
 The Configuration is created automatically on first start and should be changed through the Web-Interface.
 
-It is stored under `./config.toml` and may look like this:
+
+## Build
+
+Normally build with cargo:
+
+```
+$ cargo build
+$ cargo build --release
+```
+
+or with Cross for a different architecture *(musl does not work because libpcap could not be found)*:
+
+```
+$ cross build --target armv7-unknown-linux-gnueabihf
+$ cross build --release --target armv7-unknown-linux-gnueabihf
+```

@@ -1,0 +1,5 @@
+[build]
+default-target = "armv7-unknown-linux-gnueabihf"
+
+[target.armv7-unknown-linux-gnueabihf]
+pre-build = [ "dpkg --add-architecture armhf && apt-get -y update && apt-get -y install libpcap-dev:armhf" ]
