@@ -57,7 +57,6 @@ impl Database {
 			self.pool = Some(
 				SqlitePoolOptions::new()
 					.max_connections(10)
-					.connect_timeout(connect_timeout)
 					.connect_lazy_with(connect_options)
 			);
 

@@ -11,6 +11,10 @@ package/deb
 package/*.tar.*
 package/*.deb
 
+# Cross
+/deb/
+/pkg/
+
 # Rust
 target
 

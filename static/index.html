@@ -26,7 +26,8 @@
 		section .message.is-info .message-body { border-color: var(--base-color); }
 
 		/* Custom Rules for the layout */
-		#networkarea {
+		#networkarea,
+		#networklist {
 			position: fixed;
 			border: 1px solid lightgray;
 			top: 60px;
@@ -34,6 +35,10 @@
 			right: 33.3333333%;
 			bottom: 41px;
 		}
+		#networklist { padding: 10px 10px 40px; overflow: scroll; }
+		#networklist table { width: 100%; }
+		#networklist table tbody tr { cursor: pointer; }
+
 		footer.footer {
 			position: fixed;
 			bottom: 0;
@@ -85,6 +90,16 @@
 			left: 33.333333%;
 			margin-left: -25%;
 			text-align: center;
+		}
+		.view-modes {
+			position: fixed;
+			z-index: 1;
+			bottom: 50px;
+			right: 33.333333%;
+			margin-right: 5px;
+		}
+		.view-menu-item img {
+			vertical-align: middle;
 		}
 
 		.legend {
@@ -316,7 +331,7 @@
 	<section>
 		<div class="columns">
 			<div class="column is-two-thirds">
-				<div class="legend">
+				<div class="legend" id="graph-legend">
 					<div class="columns is-desktop">
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-normal"></div></div><div class="column legend-text">Normal</div>
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-first"></div></div><div class="column legend-text">First seen</div>
@@ -330,10 +345,7 @@
 						<div class="column is-narrow"><div class="legend-entry legend-image" id="legend-color-windows"><img src="/static/assets/icon-os.svg" /></div></div><div class="column legend-text">NetBIOS</div>
 					</div>
 				</div>
-				<div class="area-hint is-size-7 has-text-grey-light">
-					Drag a node to move;<br/>Double-click to reset it's position;
-				</div>
-				<div class="search">
+				<div class="search" id="graph-search">
 					<div class="field">
 						<p class="control has-icons-left">
 							<input id="hosts-filter" type="text" placeholder="Search for hosts..." class="input" />
@@ -343,8 +355,18 @@
 						</p>
 					</div>
 				</div>
+				<div class="view-modes is-size-7 has-text-grey-light">
+					<div class="view-menu-item tag is-light"><a id="view-list" title="Display hosts in a table"><img src="/static/assets/view-list.svg" /> List view</a></div>
+					<div class="view-menu-item tag is-light"><a id="view-graph" title="Display hosts in a visual graph"><img src="/static/assets/view-graph.svg" /> Graph view</a></div>
+					<div class="view-menu-item tag is-white"><a id="hide-removed" title="Toggle 'removed hosts' visibility"><img src="/static/assets/view-removed.svg" /></a></div>
+				</div>
+				<div class="area-hint is-size-7 has-text-grey-light" id="graph-hint">
+					Drag a node to move;<br/>Double-click to reset it's position;
+				</div>
 				<div id="networkarea"></div>
+				<div id="networklist" class="is-hidden"></div>
 			</div>
+
 			<div class="column">
 				<div class="scan-info">
 					<p><span class="title is-5" id="selected-network"></span> [ <span id="selected-scan"></span> ]</p>
@@ -564,7 +586,7 @@
 	<footer class="footer p-2">
 		<div class="content has-text-centered">
 			<a href="https://github.com/ITSGmbH/NetworkDiscover">NetworkDiscovery</a> provided by <a href="https://www.it-s.ch/">IT-S GmbH</a>,
-			<small>&copy; 2021 by Lukas Zurschmiede</small>
+			<small>&copy; 2023 by Lukas Zurschmiede</small>
 		</div>
 	</footer>
 
@@ -615,6 +637,8 @@
 					os: v.os,
 					background: color,
 					highlight: color,
+					first: (v.first_scan > 1 && v.first_scan == scan),
+					changed: (v.changed_scan > 1 && v.changed_scan == scan - 1),
 					removed: v.is_removed,
 					group: v.is_removed ? "delete" : getNodeGroup(v.os),
 					extended: v.extended,
@@ -639,7 +663,7 @@
 					label: "",
 					background: "#fd8",
 					highlight: "#d81",
-					removed: true
+					removed: false
 				});
 			}
 			delete graph.node_ids;
@@ -650,177 +674,208 @@
 		      height = $("#networkarea").width(),
 		      radius = 20,
 		      labelsize = 12;
-		var selection = { network: 0, scan: 0, nodes: 0 };
 
+		var selection = { network: 0, scan: 0, nodes: 0 };
 		var load_network = ev => {
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
-				d3.selectAll("#networkarea > *").remove();
-				const svg = d3.select("#networkarea")
-					.append('svg')
-					.attr("viewBox", [ 0, 0, width, height ])
-					.attr("style", "max-width: 100%; width: 100%; height: 100%;")
-					.call(d3.zoom()
-						.scaleExtent([0.1, 5])
-						.on("zoom", ev => d3.selectAll('svg g').attr('transform', ev.transform)))
-					.on("dblclick.zoom", null);
+				selection.network = ev.data.network;
+				selection.scan = ev.data.scan;
 
-				// Centric-Force based visualization
+				$('#host-info-box').empty();
+				$('#btn-pdf').attr('href', '/export/pdf?network=' + ev.data.network + '&scan=' + ev.data.scan);
+				$('#btn-csv').attr('href', '/export/csv?network=' + ev.data.network + '&scan=' + ev.data.scan);
+
 				const graph = prepareGraph(data, ev.data.scan);
-				const simulation = d3.forceSimulation()
-					.force("link", d3.forceLink().id(d => d.id).distance(200))
-					.force("cluster", forceCluster())
-					.force("charge", d3.forceManyBody().strength(-1000))
-					.force("collision", d3.forceCollide().radius(radius * 1.5))
-					.force("center", d3.forceCenter(width/2, height/2));
+				createVisualGraph('networkarea', graph);
+				createListGraph('networklist', graph);
+			});
+		}
 
-				// Labels in lowest layer
-				const labels = svg.append("g")
-					.attr("class", "node-labels")
-					.selectAll("text")
-						.data(graph.nodes)
-						.enter()
-						.append("text")
-						.attr("class", "node-label")
-						.attr("font-size", labelsize + "px")
-						.attr("fill", "black");
+		// Create a visual representation oof the graph
+		function createVisualGraph(id, data) {
+			d3.selectAll('#' + id + " > *").remove();
+			const svg = d3.select("#" + id)
+				.append('svg')
+				.attr("viewBox", [ 0, 0, width, height ])
+				.attr("style", "max-width: 100%; width: 100%; height: 100%;")
+				.call(d3.zoom()
+					.scaleExtent([0.1, 5])
+					.on("zoom", ev => d3.selectAll('svg g').attr('transform', ev.transform)))
+				.on("dblclick.zoom", null);
 
-				const label_lines = labels
-					.selectAll("tspan")
-					.data(d => d.label.split('\n'))
+			// Centric-Force based visualization
+			const simulation = d3.forceSimulation()
+				.force("link", d3.forceLink().id(d => d.id).distance(200))
+				.force("cluster", forceCluster())
+				.force("charge", d3.forceManyBody().strength(-1000))
+				.force("collision", d3.forceCollide().radius(radius * 1.5))
+				.force("center", d3.forceCenter(width/2, height/2));
+
+			// Labels in lowest layer
+			const labels = svg.append("g")
+				.attr("class", "node-labels")
+				.selectAll("text")
+					.data(data.nodes)
 					.enter()
-						.append("tspan")
-						.text(d => d)
-						.attr("text-anchor", "middle")
-						.attr("x", 0)
-						.attr("dy", labelsize * 1.2);
+					.append("text")
+					.attr("class", "node-label")
+					.attr("font-size", labelsize + "px")
+					.attr("fill", "black");
+			const label_lines = labels
+				.selectAll("tspan")
+				.data(d => d.label.split('\n'))
+				.enter()
+					.append("tspan")
+					.text(d => d)
+					.attr("text-anchor", "middle")
+					.attr("x", 0)
+					.attr("dy", labelsize * 1.2);
 
-				// Links behind Nodes
-				const links = svg.append("g")
-						.attr("class", "links")
-						.attr("stroke", "#996666")
-						.attr("stroke-width", 1.5)
-					.selectAll("line")
-						.data(graph.edges)
-						.enter()
-						.append("line")
-						.attr("class", "link");
+			// Links behind Nodes
+			const links = svg.append("g")
+					.attr("class", "links")
+					.attr("stroke", "#996666")
+					.attr("stroke-width", 1.5)
+				.selectAll("line")
+					.data(data.edges)
+					.enter()
+					.append("line")
+					.attr("class", "link");
 
-				// Nodes in front
-				const nodes = svg.append("g")
-					.attr("class", "nodes")
-					.attr("stroke-width", "2")
-					.attr("stroke-dasharray", "5,5")
-					.selectAll("circle")
-						.data(graph.nodes)
-						.enter()
-						.append("circle")
-						.attr("class", "node")
-						.attr("fill", d => d.background)
-						.attr("r", radius)
-						.attr("id", d => "node-" + d.id);
+			// Nodes in front
+			const nodes = svg.append("g")
+				.attr("class", "nodes")
+				.attr("stroke-width", "2")
+				.attr("stroke-dasharray", "5,5")
+				.selectAll("circle")
+					.data(data.nodes)
+					.enter()
+					.append("circle")
+					.attr("class", "node")
+					.attr("fill", d => d.background)
+					.attr("r", radius)
+					.attr("id", d => "node-" + d.id);
 
-				// Icon on top of the node
-				const icons = svg.append("g")
-					.attr("class", "icons")
-					.selectAll("image")
-						.data(graph.nodes)
-						.enter()
-						.append("image")
-						.attr("class", d => {
-							if (d.cve) return "vulnerable";
-							if (d.extended) return "netbios";
-							return "";
+			// Icon on top of the node
+			const icons = svg.append("g")
+				.attr("class", "icons")
+				.selectAll("image")
+					.data(data.nodes)
+					.enter()
+					.append("image")
+					.attr("class", d => {
+						if (d.cve) return "vulnerable";
+						if (d.extended) return "netbios";
+						return "";
+					})
+					.attr("xlink:href", d => getNodeIcon(d.os ? d.os : 'unknown'))
+					.attr("width", radius)
+					.attr("height", radius)
+				.call(
+					d3.drag()
+						.on("start", (ev, d) => {
+							nodes.classed("selected", false);
+							selectNode(d.id)
 						})
-						.attr("xlink:href", d => getNodeIcon(d.os ? d.os : 'unknown'))
-						.attr("width", radius)
-						.attr("height", radius)
-					.call(
-						d3.drag()
-							.on("start", dragstarted)
-							.on("drag", dragged)
-							.on("end", dragended)
-					)
-					.on("dblclick", unfix);
-
-				simulation.nodes(graph.nodes).on("tick", updateGraph);
-				simulation.force("link").links(graph.edges);
-
-				function centroid(nodes) {
-					let x = 0;
-					let y = 0;
-					let z = 0;
-					for (const d of nodes) {
-						let k = radius ** 2;
-						x += d.x * k;
-						y += d.y * k;
-						z += k;
-					}
-					return {x: x / z, y: y / z};
-				}
-
-				function forceCluster() {
-					let nodes;
-					function force(alpha) {
-						const centroids = d3.rollup(nodes, centroid, d => d.group);
-						const l = alpha * 0.8;
-						for (const d of nodes) {
-							const { x: cx, y: cy } = centroids.get(d.group);
-							d.vx -= (d.x - (cx || 1)) * l;
-							d.vy -= (d.y - (cy || 1)) * l;
-						}
-					}
-					force.initialize = n => nodes = n;
-					return force;
-				}
-
-				function updateGraph() {
-					links
-						.attr("x1", d => d.source.x)
-						.attr("y1", d => d.source.y)
-						.attr("x2", d => d.target.x)
-						.attr("y2", d => d.target.y);
-
-					nodes
-						.attr("cx", d => d.x)
-						.attr("cy", d => d.y);
-					labels
-						.attr("transform", d => "translate(" + (d.x) + "," + (d.y + radius) + ")");
-					icons
-						.attr("x", d => d.x - (0.5*radius))
-						.attr("y", d => d.y - (0.5*radius));
-				}
-
-				function unfix(ev, d) {
+						.on("drag", (ev, d) => {
+							d.fx = ev.x;
+							d.fy = ev.y;
+							d3.select("#node-" + d.id).classed("fixed", true);
+						})
+						.on("end", (ev, d) => {
+							simulation.alphaTarget(0.1).restart();
+						})
+				)
+				.on("dblclick", (ev, d) => {
 					delete d.fx,
 					delete d.fy,
 					d3.select("#node-" + d.id).classed("fixed", false);
 					simulation.alphaTarget(0).restart();
-				}
+				});
 
-				function dragstarted(ev, d) {
-					nodes.classed("selected", false);
-					selectNode(d.id)
-				}
+			simulation.nodes(data.nodes).on("tick", () => {
+				links
+					.attr("x1", d => d.source.x)
+					.attr("y1", d => d.source.y)
+					.attr("x2", d => d.target.x)
+					.attr("y2", d => d.target.y);
 
-				function dragged(ev, d) {
-					d.fx = ev.x;
-					d.fy = ev.y;
-					d3.select("#node-" + d.id).classed("fixed", true);
-				}
-
-				function dragended(ev, d) {
-					simulation.alphaTarget(0.1).restart();
-				}
-
-				$('#host-info-box').empty();
-				selection.network = ev.data.network;
-				selection.scan = ev.data.scan;
-
-				$('#btn-pdf').attr('href', '/export/pdf?network=' + ev.data.network + '&scan=' + ev.data.scan);
-				$('#btn-csv').attr('href', '/export/csv?network=' + ev.data.network + '&scan=' + ev.data.scan);
+				nodes
+					.attr("cx", d => d.x)
+					.attr("cy", d => d.y);
+				labels
+					.attr("transform", d => "translate(" + (d.x) + "," + (d.y + radius) + ")");
+				icons
+					.attr("x", d => d.x - (0.5*radius))
+					.attr("y", d => d.y - (0.5*radius));
 			});
+			simulation.force("link").links(data.edges);
 		}
 
+		// Calculate the force center for the G3-Graph
+		function centroid(nodes) {
+			let x = 0;
+			let y = 0;
+			let z = 0;
+			for (const d of nodes) {
+				let k = radius ** 2;
+				x += d.x * k;
+				y += d.y * k;
+				z += k;
+			}
+			return {x: x / z, y: y / z};
+		}
+		function forceCluster() {
+			let nodes;
+			function force(alpha) {
+				const centroids = d3.rollup(nodes, centroid, d => d.group);
+				const l = alpha * 0.8;
+				for (const d of nodes) {
+					const { x: cx, y: cy } = centroids.get(d.group);
+					d.vx -= (d.x - (cx || 1)) * l;
+					d.vy -= (d.y - (cy || 1)) * l;
+				}
+			}
+			force.initialize = n => nodes = n;
+			return force;
+		}
+
+		// Create a list representation oof the graph
+		function createListGraph(id, data) {
+			$('#' + id).empty();
+			$('#' + id).append('<table class="table"><thead><tr><th>#</th><th>System</th><th>OS</th><th></th></tr></thead><tbody></tbody></table>');
+			let live_nodes = appendListNode($('#' + id + ' table tbody'), data.root_node, data, 0, 0);
+			$('#' + id + ' table').append('<tfoot><tr><th></th><th></th><th></th><th class="has-text-right">Total online: ' + live_nodes + '</th></tr></tfoot>');
+		}
+		function appendListNode(table, id, data, count, indent) {
+			let node = data.nodes.find((n) => n.id == id);
+			if (node == undefined) { return; }
+
+			let tr_class = '';
+			let tags = '';
+			if (node.cve) { tags += '<span class="tag is-small is-danger">CVEs</span><br/>'; }
+			if (node.extended) { tags += '<span class="tag is-small is-info">Extended Information</span><br/>'; }
+			if (node.first) { tags += '<span class="tag is-success is-small">first seen</span><br/>'; }
+			if (node.changed) { tags += '<span class="tag is-warning is-small">Changed</span><br/>'; }
+			if (node.removed && id != 'root') { tags += '<span class="tag is-danger is-light is-small">Removed</span><br/>'; tr_class += 'removed '; } else { count++; }
+
+			let icon = '<figure class="image is-24x24"><img src="' + getNodeIcon(node.os ? node.os : 'unknown') + '" /></figure>';
+			let label = node.label.split('\n').reduce((acc, val) => acc + '<br/><small class="has-text-grey">' + val + '</small>');
+			let os = node.os;
+
+			let row = $('<tr class="' + tr_class + '"><td>' + icon + '</td><td>' + (label ? label : 'root') + '</td><td>' + os + '</td><td>' + tags + '</td></tr>');
+			row.on('click', (ev) => selectNode(id));
+			table.append(row);
+
+			data.edges.forEach((n) => {
+				if (n.target && n.source && n.target.id == id) {
+					count = appendListNode(table, n.source.id, data, count, indent+1);
+				}
+			});
+			return count;
+		}
+
+		// Load all scans based on a selected Network
 		var load_scans = ev => {
 			let changed = $('#scans-changed-only').prop("checked");
 			$.getJSON("/api/scans?network=" + ev.data.network, scans => {
@@ -841,6 +896,7 @@
 			});
 		};
 
+		// Manually trigger/start a scan
 		var trigger_scan = ev => {
 			$.getJSON("/api/scan_now", data => {
 				$('#scan-now-modal').toggleClass('is-active');
@@ -894,6 +950,51 @@
 			});
 			$('#scans-changed-only').change(ev => {
 				load_scans({ data: { network: $('#selected-network').data("network") } });
+			});
+
+			// View-Modes (Graph or List, toggle removed)
+			$('#view-list').on('click', ev => {
+				$('#networklist').removeClass('is-hidden');
+				$('#networkarea').addClass('is-hidden');
+				$('#graph-legend').addClass('is-hidden');
+				$('#graph-search').addClass('is-hidden');
+				$('#graph-hint').addClass('is-hidden');
+			});
+			$('#view-graph').on('click', ev => {
+				$('#networklist').addClass('is-hidden');
+				$('#networkarea').removeClass('is-hidden');
+				$('#graph-legend').removeClass('is-hidden');
+				$('#graph-search').removeClass('is-hidden');
+				$('#graph-hint').removeClass('is-hidden');
+			});
+			$('#hide-removed').on('click', ev => {
+				$('#networklist table tr.removed').toggleClass('is-hidden');
+
+				const svg = d3.select("#networkarea svg");
+				const nodes = svg.selectAll(".nodes circle");
+				const links = svg.selectAll(".links line");
+				const labels = svg.selectAll(".node-labels text");
+				const icons = svg.selectAll(".icons image");
+				let hide_nodes = svg.selectAll(".nodes circle.hidden").nodes().length == 0;
+
+				nodes.attr("class", "node");
+				links.attr("class", "link");
+				labels.attr("class", "node-label");
+				icons.attr("class", "");
+
+				if (hide_nodes) {
+					nodes.attr("class", "node")
+						.filter(node => node.removed)
+						.attr("class", "node hidden")
+						.each(node => {
+							links.filter(link => link.source.id == node.id || link.target.id == node.id)
+								.attr("class", "link hidden");
+							labels.filter(label => label.id == node.id)
+								.attr("class", "node-label hidden");
+							icons.filter(label => label.id == node.id)
+								.attr("class", "hidden");
+						});
+				}
 			});
 
 			// Load all Networks

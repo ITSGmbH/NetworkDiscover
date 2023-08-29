@@ -9,6 +9,10 @@ name = "config"
 path = "src/lib.rs"
 
 [dependencies]
-log = { version = "0.4" }
-confy = { version = "0.4" }
+log = { version = "0.*" }
+
+uuid = { version = "1.4", features = ["serde", "v4"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0" }
+
+confy = { version = "0.5" }

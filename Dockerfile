@@ -1,13 +1,13 @@
 FROM rust:1 as builder
 
-RUN apt-get update && apt-get upgrade -y && apt-get -y install libssl-dev
+RUN apt-get update && apt-get upgrade -y && apt-get -y install libpcap-dev
 
 WORKDIR /usr/src/nwd
 COPY . .
 RUN cargo install --path .
 
 FROM debian:bullseye-slim
-RUN apt-get update && apt-get install -y nmap sudo libssl-dev net-tools && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y nmap sudo libpcap-dev net-tools && rm -rf /var/lib/apt/lists/*
 RUN echo -e "Cmnd_Alias NMAP = /usr/bin/nmap\nALL ALL=(ALL) NOPASSWD: NMAP" > /etc/sudoers.d/nmap
 
 ADD https://raw.githubusercontent.com/vulnersCom/nmap-vulners/master/vulners.nse /usr/share/nmap/scripts/vulners.nse
