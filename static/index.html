@@ -93,7 +93,7 @@
 		}
 		.view-modes {
 			position: fixed;
-			z-index: 55;
+			z-index: 1;
 			bottom: 50px;
 			right: 33.333333%;
 			margin-right: 5px;
@@ -356,8 +356,9 @@
 					</div>
 				</div>
 				<div class="view-modes is-size-7 has-text-grey-light">
-					<div class="view-menu-item tag is-ok"><a id="view-list"><img src="/static/assets/view-list.svg" /> List view</a></div>
-					<div class="view-menu-item tag is-ok"><a id="view-graph"><img src="/static/assets/view-graph.svg" /> Graph view</a></div>
+					<div class="view-menu-item tag is-light"><a id="view-list" title="Display hosts in a table"><img src="/static/assets/view-list.svg" /> List view</a></div>
+					<div class="view-menu-item tag is-light"><a id="view-graph" title="Display hosts in a visual graph"><img src="/static/assets/view-graph.svg" /> Graph view</a></div>
+					<div class="view-menu-item tag is-white"><a id="hide-removed" title="Toggle 'removed hosts' visibility"><img src="/static/assets/view-removed.svg" /></a></div>
 				</div>
 				<div class="area-hint is-size-7 has-text-grey-light" id="graph-hint">
 					Drag a node to move;<br/>Double-click to reset it's position;
@@ -662,7 +663,7 @@
 					label: "",
 					background: "#fd8",
 					highlight: "#d81",
-					removed: true
+					removed: false
 				});
 			}
 			delete graph.node_ids;
@@ -677,12 +678,10 @@
 		var selection = { network: 0, scan: 0, nodes: 0 };
 		var load_network = ev => {
 			$.getJSON("/api/network?network=" + ev.data.network + '&scan=' + ev.data.scan, data => {
-				// Clean up
-				$('#host-info-box').empty();
-
-				// Initialize
 				selection.network = ev.data.network;
 				selection.scan = ev.data.scan;
+
+				$('#host-info-box').empty();
 				$('#btn-pdf').attr('href', '/export/pdf?network=' + ev.data.network + '&scan=' + ev.data.scan);
 				$('#btn-csv').attr('href', '/export/csv?network=' + ev.data.network + '&scan=' + ev.data.scan);
 
@@ -844,34 +843,36 @@
 		// Create a list representation oof the graph
 		function createListGraph(id, data) {
 			$('#' + id).empty();
-			$('#' + id).append('<table class="table"><thead><tr><th>#</th><th></th><th>System</th><th>OS</th><th></th></tr></thead><tbody></tbody></table>');
-			var table = $('#' + id + ' table tbody');
-			appendListNode(table, data.root_node, data, 1, 0);
+			$('#' + id).append('<table class="table"><thead><tr><th>#</th><th>System</th><th>OS</th><th></th></tr></thead><tbody></tbody></table>');
+			let live_nodes = appendListNode($('#' + id + ' table tbody'), data.root_node, data, 0, 0);
+			$('#' + id + ' table').append('<tfoot><tr><th></th><th></th><th></th><th class="has-text-right">Total online: ' + live_nodes + '</th></tr></tfoot>');
 		}
 		function appendListNode(table, id, data, count, indent) {
 			let node = data.nodes.find((n) => n.id == id);
 			if (node == undefined) { return; }
 
+			let tr_class = '';
 			let tags = '';
 			if (node.cve) { tags += '<span class="tag is-small is-danger">CVEs</span><br/>'; }
 			if (node.extended) { tags += '<span class="tag is-small is-info">Extended Information</span><br/>'; }
 			if (node.first) { tags += '<span class="tag is-success is-small">first seen</span><br/>'; }
 			if (node.changed) { tags += '<span class="tag is-warning is-small">Changed</span><br/>'; }
-			if (node.removed) { tags += '<span class="tag is-danger is-light is-small">Removed</span><br/>'; }
+			if (node.removed && id != 'root') { tags += '<span class="tag is-danger is-light is-small">Removed</span><br/>'; tr_class += 'removed '; } else { count++; }
 
 			let icon = '<figure class="image is-24x24"><img src="' + getNodeIcon(node.os ? node.os : 'unknown') + '" /></figure>';
 			let label = node.label.split('\n').reduce((acc, val) => acc + '<br/><small class="has-text-grey">' + val + '</small>');
 			let os = node.os;
 
-			let row = $('<tr><th>' + count + '</th><td>' + icon + '</td><td>' + (label ? label : 'root') + '</td><td>' + os + '</td><td>' + tags + '</td></tr>');
+			let row = $('<tr class="' + tr_class + '"><td>' + icon + '</td><td>' + (label ? label : 'root') + '</td><td>' + os + '</td><td>' + tags + '</td></tr>');
 			row.on('click', (ev) => selectNode(id));
 			table.append(row);
 
 			data.edges.forEach((n) => {
 				if (n.target && n.source && n.target.id == id) {
-					appendListNode(table, n.source.id, data, ++count, indent+1);
+					count = appendListNode(table, n.source.id, data, count, indent+1);
 				}
 			});
+			return count;
 		}
 
 		// Load all scans based on a selected Network
@@ -951,22 +952,48 @@
 				load_scans({ data: { network: $('#selected-network').data("network") } });
 			});
 
-			// View-Modes (Graph or List)
-			$('.view-menu-item a').on('click', ev => {
-				switch (ev.target.id) {
-					case 'view-list':
-						$('#networklist').removeClass('is-hidden');
-						$('#networkarea').addClass('is-hidden');
-						$('#graph-legend').addClass('is-hidden');
-						$('#graph-search').addClass('is-hidden');
-						$('#graph-hint').addClass('is-hidden');
-						break;
-					default:
-						$('#networklist').addClass('is-hidden');
-						$('#networkarea').removeClass('is-hidden');
-						$('#graph-legend').removeClass('is-hidden');
-						$('#graph-search').removeClass('is-hidden');
-						$('#graph-hint').removeClass('is-hidden');
+			// View-Modes (Graph or List, toggle removed)
+			$('#view-list').on('click', ev => {
+				$('#networklist').removeClass('is-hidden');
+				$('#networkarea').addClass('is-hidden');
+				$('#graph-legend').addClass('is-hidden');
+				$('#graph-search').addClass('is-hidden');
+				$('#graph-hint').addClass('is-hidden');
+			});
+			$('#view-graph').on('click', ev => {
+				$('#networklist').addClass('is-hidden');
+				$('#networkarea').removeClass('is-hidden');
+				$('#graph-legend').removeClass('is-hidden');
+				$('#graph-search').removeClass('is-hidden');
+				$('#graph-hint').removeClass('is-hidden');
+			});
+			$('#hide-removed').on('click', ev => {
+				$('#networklist table tr.removed').toggleClass('is-hidden');
+
+				const svg = d3.select("#networkarea svg");
+				const nodes = svg.selectAll(".nodes circle");
+				const links = svg.selectAll(".links line");
+				const labels = svg.selectAll(".node-labels text");
+				const icons = svg.selectAll(".icons image");
+				let hide_nodes = svg.selectAll(".nodes circle.hidden").nodes().length == 0;
+
+				nodes.attr("class", "node");
+				links.attr("class", "link");
+				labels.attr("class", "node-label");
+				icons.attr("class", "");
+
+				if (hide_nodes) {
+					nodes.attr("class", "node")
+						.filter(node => node.removed)
+						.attr("class", "node hidden")
+						.each(node => {
+							links.filter(link => link.source.id == node.id || link.target.id == node.id)
+								.attr("class", "link hidden");
+							labels.filter(label => label.id == node.id)
+								.attr("class", "node-label hidden");
+							icons.filter(label => label.id == node.id)
+								.attr("class", "hidden");
+						});
 				}
 			});
 
