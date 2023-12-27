@@ -190,6 +190,8 @@ The Configuration is created automatically on first start and should be changed 
 ## Build
 ```
 $ sudo apt install build-essential
+$ sudo apt-get install git libpcap-dev
+$ sudo apt install net-tools
 ```
 
 Normally build with cargo:
