@@ -188,10 +188,14 @@ The Configuration is created automatically on first start and should be changed 
 
 
 ## Build
+```
+$ sudo apt install build-essential
+```
 
 Normally build with cargo:
 
 ```
+
 $ cargo build
 $ cargo build --release
 ```
