@@ -59,6 +59,12 @@ If DHCP Packages should be captured, NetworkDiscover needs the two capabilities 
 $ sudo setcap cap_net_raw,cap_net_admin+eip target/release/network_discover
 ```
 
+For Debug-Mode with Intellij RustRover
+
+```bash
+sudo setcap cap_net_raw,cap_net_admin+eip target/debug/network_discover
+```
+
 Alternatively, NetworkDiscover can be started as root, in that case no sudo and no capabilities have to be configured.
 But, as always, this may cause security issues.
 
