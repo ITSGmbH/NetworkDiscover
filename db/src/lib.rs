@@ -108,7 +108,7 @@ impl Scan {
 
 			// Check if there is a change between the scans
 			let mut first = true;
-			list.iter_mut().for_each(|mut scan| {
+			list.iter_mut().for_each(|scan| {
 				let mut changed = false;
 				let pool1 = con.unwrap();
 				let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? AND h.id NOT IN ( SELECT h1.id FROM hosts AS h1,hosts_history AS hist1 WHERE hist1.scan = ? AND hist1.host_id=h1.id AND h1.network = ? )")
