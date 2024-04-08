@@ -393,7 +393,7 @@ async fn index(config: web::Data<config::AppConfig>) -> Result<impl Responder> {
 	};
 	let tagline = match &config.whitelabel {
 		Some(wl) if wl.tagline.is_some() => String::from(wl.tagline.clone().unwrap()),
-		_ => String::from("NetworkDiscover"),
+		_ => String::from("ITScan"),
 	};
 	let base_color = match &config.whitelabel {
 		Some(wl) if wl.color.is_some() => String::from(wl.color.clone().unwrap()),

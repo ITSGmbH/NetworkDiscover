@@ -1,6 +1,6 @@
-# Network Discover
+# ITScan
 
-Network Discover is a lightweight server application which uses `ip`, `traceroute` and `nmap` with `vulners.nse` to discover all hosts in a given network and checks for vulnerabilities.
+ITScan is a lightweight server application which uses `ip`, `traceroute` and `nmap` with `vulners.nse` to discover all hosts in a given network and checks for vulnerabilities.
 If you want to scan windows systems as well, `enum4linux-ng` is used.
 This needs the additional packages `nmblookup`, `net`, `rpcclient` and `smbclient`.
 These should be available through the package manager and a package named like `smb` or `samba`, ...
@@ -53,7 +53,7 @@ Cmnd_Alias NMAP = /usr/bin/nmap
 %sudo ALL=(ALL) NOPASSWD: NMAP
 ```
 
-If DHCP Packages should be captured, NetworkDiscover needs the two capabilities `net_raw` and `net_admin`.
+If DHCP Packages should be captured, ITScan needs the two capabilities `net_raw` and `net_admin`.
 
 ```bash
 $ sudo setcap cap_net_raw,cap_net_admin+eip target/release/network_discover
@@ -65,7 +65,7 @@ For Debug-Mode with Intellij RustRover
 sudo setcap cap_net_raw,cap_net_admin+eip target/debug/network_discover
 ```
 
-Alternatively, NetworkDiscover can be started as root, in that case no sudo and no capabilities have to be configured.
+Alternatively, ITScan can be started as root, in that case no sudo and no capabilities have to be configured.
 But, as always, this may cause security issues.
 
 
@@ -183,12 +183,12 @@ rm network_discover.deb
 A simple Network configuration can be done over the Web-Interface.
 A Virtual Network-Interface will be added with a given IP.
 The main interface will still act as a normal DHCP-Client.
-With this, a NetworkDiscover can be preconfigured for a different network and placed there.
+With this, a ITScan can be preconfigured for a different network and placed there.
 
 As second, the WLAN can be configured with the SSID and a PSK.
 WLAN is only working as a DHCP-Client for now.
 
-### NetworkDiscover Configuration
+### ITScan Configuration
 
 The Configuration is created automatically on first start and should be changed through the Web-Interface.
 
