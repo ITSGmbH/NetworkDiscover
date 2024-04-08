@@ -39,7 +39,7 @@ These should be available through the package manager and a package named like `
 * Split it up into Server part and a library to be usable as WASM maybe
 * ...
 
-## Run NetworkDiscover
+## Run ITScan
 
 ### Preparation
 
