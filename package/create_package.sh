@@ -68,7 +68,7 @@ License: GPL-3+
 EOF
 
 cat << EOF > deb/changelog
-${PACKAGE} (0.3.4-1)
+${PACKAGE} (0.3.5-1)
 
  * Use the configured network as the main key and not the real network
  * Add a new field to the host to identify the real ip network
