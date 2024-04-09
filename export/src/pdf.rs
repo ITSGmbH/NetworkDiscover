@@ -338,7 +338,7 @@ impl Pdf<'_> {
 		layer.set_fill_color( Color::Rgb(Rgb::new(0.0, 0.0, 0.0, None)) );
 		layer.set_outline_thickness(0.2);
 
-		layer
+		return layer
 	}
 
 	/// Adds one or more pages for a Host to the PDF
