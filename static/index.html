@@ -331,7 +331,7 @@
 	<section>
 		<div class="columns">
 			<div class="column is-two-thirds">
-				<div class="legend" id="graph-legend">
+				<div class="legend is-hidden" id="graph-legend">
 					<div class="columns is-desktop">
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-normal"></div></div><div class="column legend-text">Normal</div>
 						<div class="column is-narrow"><div class="legend-entry" id="legend-color-first"></div></div><div class="column legend-text">First seen</div>
@@ -364,7 +364,7 @@
 					Drag a node to move;<br/>Double-click to reset it's position;
 				</div>
 				<div id="networkarea"></div>
-				<div id="networklist" class="is-hidden"></div>
+				<div id="networklist"></div>
 			</div>
 
 			<div class="column">
@@ -670,7 +670,7 @@
 		}
 
 		const width  = $("#networkarea").width(),
-		      height = $("#networkarea").width(),
+		      height = $("#networkarea").height(),
 		      radius = 20,
 		      labelsize = 12;
 
