@@ -1,0 +1,2 @@
+
+ALTER TABLE hosts ADD COLUMN hostname NVARCHAR(255) DEFAULT "";
