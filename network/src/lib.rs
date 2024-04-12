@@ -36,6 +36,7 @@ pub mod capture {
 	use pcap::{Device, Capture};
 	use std::{thread, thread::JoinHandle};
 	use std::net::IpAddr;
+	use log::Level::Debug;
 
 	pub fn start(config: &AppConfig) {
 		let _handle = listen(Services::DHCP, config);
@@ -84,6 +85,20 @@ pub mod capture {
 											info!("DHCP-Initiated Scan");
 											let mut host = Host::default();
 											host.ip = Some(IpAddr::from(*client_ip));
+
+											/*
+												let ip_addr = "8.8.8.8";
+												let addr: Ipv4Addr = ip_addr.parse().unwrap();
+												let hostname = net::lookup_addr(&IpAddr::V4(addr)).unwrap();
+
+												println!("{} --> {}", ip_addr, hostname);
+												// Output: 8.8.8.8 --> google-public-dns-a.google.com
+											 */
+
+
+											log::debug!("DNS: {}", lookup_addr(&client_ip));
+
+
 											host.extended_scan = true;
 											discover::scan_hosts(&mut db, &conf, vec![host], 1);
 										}

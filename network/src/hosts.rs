@@ -69,6 +69,7 @@ pub struct Host {
 	pub network: String,
 	pub ip: Option<IpAddr>,
 	pub ipnet: String,
+	pub hostname: String,
 	pub hops: Vec<IpAddr>,
 	pub services: Vec<Service>,
 	pub os: Option<String>,
@@ -171,6 +172,7 @@ impl Host {
 		host.ip = ip.to_string();
 		host.network = String::from(&self.network);
 		host.ipnet = String::from(&self.ipnet);
+		host.hostname = String::from(&self.hostname);
 		host.comment = format!("Last seen: {}", chrono::Utc::now());
 		let _ = host.save(db);
 		host.id
@@ -191,6 +193,7 @@ impl Host {
 		host.ip = self.ip.unwrap_or(IpAddr::from_str("127.0.0.1").unwrap()).to_string();
 		host.network = String::from(&self.network);
 		host.ipnet = String::from(&self.ipnet);
+		host.hostname = String::from(&self.hostname);
 		host.comment = format!("Last seen: {}", chrono::Utc::now());
 		let _ = host.save(db);
 		host.id
