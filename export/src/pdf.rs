@@ -3,12 +3,14 @@ use chrono::prelude::Local;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::prelude::*;
+use chrono::{DateTime, NaiveDateTime};
 use printpdf::{
 	pdf_document::PdfDocumentReference, Mm,
 	PdfDocument, IndirectFontRef, PdfPageIndex, PdfLayerIndex, PdfLayerReference,
 	svg::Svg, svg::SvgTransform,
 	Rgb, Color, line::Line, point::Point,
 };
+use serde_json::Value::String;
 
 pub struct Pdf<'a> {
 	db: &'a mut sqlite::Database,
@@ -123,11 +125,12 @@ impl Pdf<'_> {
 			},
 		}
 
-		layer.use_text("NetworkDiscover".to_string(), 48.0, Mm(40.0), Mm(180.0), &self.font_bold);
+		layer.use_text("ITScan".to_string(), 48.0, Mm(40.0), Mm(180.0), &self.font_bold);
 		layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 24.0, Mm(30.0), Mm(110.0), &self.font_bold);
 
 		let scan_date = match db::Scan::load(self.db, self.scan) {
-			Some(scan) => scan.start_time.and_local_timezone(Local::now().timezone()).unwrap().format("%Y-%m-%d %H:%M:%S %:z").to_string(),
+			Some(scan) => DateTime::parse_from_str("%d.%m.%Y %H:%M:%S", scan.start_time.to_string()),
+			// Some(scan) => scan.start_time.and_local_timezone(Local::now().timezone()).unwrap().format("%Y-%m-%d %H:%M:%S %:z").to_string(),
 			None => "Unknown".to_string()
 		};
 		layer.use_text("Date: ".to_string() + &scan_date, 24.0, Mm(30.0), Mm(95.0), &self.font_regular);

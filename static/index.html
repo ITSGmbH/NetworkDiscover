@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>Network</title>
+	<title>ITScan</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta charset="utf-8">
 	<script src="/static/js/jquery.min.js"></script>
@@ -345,7 +345,7 @@
 						<div class="column is-narrow"><div class="legend-entry legend-image" id="legend-color-windows"><img src="/static/assets/icon-os.svg" /></div></div><div class="column legend-text">NetBIOS</div>
 					</div>
 				</div>
-				<div class="search" id="graph-search">
+				<div class="search is-hidden" id="graph-search">
 					<div class="field">
 						<p class="control has-icons-left">
 							<input id="hosts-filter" type="text" placeholder="Search for hosts..." class="input" />
@@ -625,6 +625,8 @@
 			Object.entries(data).forEach(entry => {
 				const [k, v] = entry;
 				var color = colors.normal;
+				var label = "";
+				if (v.netbios_name != "")  { label = v.netbios_name + "\n"; }
 				if (v.first_scan > 1 && v.first_scan == scan) { color = colors.first; }
 				if (v.is_removed) { color = colors.removed; }
 				if (v.changed_scan > 1 && v.changed_scan == scan - 1) { color = colors.changed; }
@@ -632,7 +634,7 @@
 				graph.node_ids.push(v.id);
 				graph.nodes.push({
 					id: v.id,
-					label: v.ip + "\n" + v.os.replace('(', '\n('),
+					label: label + v.ip + "\n" + v.os.replace('(', '\n('),
 					os: v.os,
 					background: color,
 					highlight: color,
@@ -857,7 +859,6 @@
 			if (node.first) { tags += '<span class="tag is-success is-small">first seen</span><br/>'; }
 			if (node.changed) { tags += '<span class="tag is-warning is-small">Changed</span><br/>'; }
 			if (node.removed && id != 'root') { tags += '<span class="tag is-danger is-light is-small">Removed</span><br/>'; tr_class += 'removed '; } else { count++; }
-
 			let icon = '<figure class="image is-24x24"><img src="' + getNodeIcon(node.os ? node.os : 'unknown') + '" /></figure>';
 			let label = node.label.split('\n').reduce((acc, val) => acc + '<br/><small class="has-text-grey">' + val + '</small>');
 			let os = node.os;

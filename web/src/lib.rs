@@ -103,6 +103,7 @@ struct NetworkResponse {
 	id: i64,
 	network: String,
 	ip: String,
+	netbios_name: String,
 	os: String,
 	nodes: Vec<String>,
 	first_scan: i64,
@@ -183,6 +184,7 @@ struct WindowsInfoResponse {
 
 /// Windows Domain Information
 #[derive(Serialize)]
+#[derive(Debug)]
 struct WindowsDomainResponse {
 	domain: Option<String>,
 	dns_domain: Option<String>,
@@ -512,10 +514,94 @@ fn map_network_db_results(db: &mut sqlite::Database, host: &db::Host, scan: &i64
 	let route = db::Routing::from_host(db, &host.hist_id, scan);
 	let extended = db::Windows::load(db, &host.hist_id);
 	let cve = db::Cve::from_host_hist(db, &host.hist_id);
+	let window = db::Windows::load(db, &host.hist_id);
+	// let windows_domain;
+
+	let mut netbios_name:String = String::from("");
+	if window.is_some() {
+		let windows_domain = db::WindowsDomain::load(db, &window.unwrap().id);
+		netbios_name.push_str(&windows_domain.unwrap().netbios_name.to_string());
+		// log::info!("Test1: {:?}", windows_domain.unwrap().netbios_name);
+		// test = windows_domain.unwrap().netbios_name.as_str();
+	};
+	// log::info!("Test: {}", test);
+
+	// let domain = None;
+	// if window.is_some() {
+		// Funktioniert!!! --- 1 ---
+		//let domain = db::WindowsDomain::load(db, &window.unwrap().id);
+		//log::info!("Test: {:?}", domain.unwrap().netbios_name);
+		// Funktioniert End!!! --- 1 ---
+
+		// Funktioniert!!! --- 2 ---
+		/*
+		let dom1 = db::WindowsDomain::load(db, &window.unwrap().id).map(|dom| WindowsDomainResponse {
+			domain: if dom.domain.is_empty() { None } else { Some(String::from(&dom.domain)) },
+			dns_domain: if dom.dns_domain.is_empty() { None } else { Some(String::from(&dom.dns_domain)) },
+			derived_domain: if dom.derived_domain.is_empty() { None } else { Some(String::from(&dom.derived_domain)) },
+			derived_membership: if dom.derived_membership.is_empty() { None } else { Some(String::from(&dom.derived_membership)) },
+			fqdn: if dom.fqdn.is_empty() { None } else { Some(String::from(&dom.fqdn)) },
+			netbios_name: if dom.netbios_name.is_empty() { None } else { Some(String::from(&dom.netbios_name)) },
+			netbios_domain: if dom.netbios_domain.is_empty() { None } else { Some(String::from(&dom.netbios_domain)) },
+		});
+		println!("{:?}", dom1)
+		*/
+		// Funktioniert End!!! --- 2 ---
+
+		/*
+		let test: String = "";
+		windows_domain = db::WindowsDomain::load(db, &window.unwrap().id);
+		if let Some(domain) = domain {
+			let test: String = domain.unwrap().netbios_name;
+			println!("{}", test)
+		};
+		*/
+
+
+
+		// let domain = db::WindowsDomain::load(db, &window.unwrap().id);
+		// domain.map_or(0, |wd| wd.netbios_name)
+
+		// Funktioniert noch nicht!!! --- 3 ---
+		// let domain = db::WindowsDomain::load(db, &window.unwrap().id);
+		// let netbios_name = if domain.netbios_name.is_empty() { None } else { Some(domain.netbios_name) };
+		// Funktioniert noch nicht End!!! --- 3 ---
+
+
+
+
+
+		//log::info!("Test2: {}", dom1.map_or("", |wdr| String::from(&wdr.netbios_name)));
+
+
+
+		// let netbios_name: Option<String>;
+		/*
+		let netbios_name = if domain.unwrap().netbios_name.is_empty() {
+			None
+		} else {
+			Some(String::from(domain.unwrap().netbios_name))
+		};
+		*/
+
+		//let x = domain.map_or("", |d| String::from(&d.netbios_domain));
+		//log::info!("Test2: {:?}", x);
+	//}
+
+
+	// let x:String = windows_domain.map_or("", |domain| domain.netbios_domain);
+	// log::info!("WindowsDomain: {}", x);
+	/*
+	if windows_domain.is_some() {
+		log::info!("WindowsDomain: {:?}", windows_domain.unwrap().netbios_domain);
+	}
+	*/
+
 	NetworkResponse {
 		id: host.hist_id,
 		network: host.network.clone(),
 		ip: host.ip.clone(),
+		netbios_name: netbios_name,
 		os: host.os.clone(),
 		nodes: route.iter()
 			.map(|route| route.right.to_string() )
