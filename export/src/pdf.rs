@@ -1,16 +1,16 @@
+use std::string::String;
 use log::error;
 use chrono::prelude::Local;
 use std::collections::{BTreeMap, HashMap};
 use std::fs::File;
 use std::io::prelude::*;
-use chrono::{DateTime, NaiveDateTime};
+// use chrono::{DateTime};
 use printpdf::{
 	pdf_document::PdfDocumentReference, Mm,
 	PdfDocument, IndirectFontRef, PdfPageIndex, PdfLayerIndex, PdfLayerReference,
 	svg::Svg, svg::SvgTransform,
 	Rgb, Color, line::Line, point::Point,
 };
-use serde_json::Value::String;
 
 pub struct Pdf<'a> {
 	db: &'a mut sqlite::Database,
@@ -66,9 +66,9 @@ impl Pdf<'_> {
 	///
 	/// The PDF as a binary string which can be saved to a file or presented as a stream to a browser
 	pub fn export(db: &mut sqlite::Database, network: String, scan: i64) -> String {
-		let (doc, page, layer) = PdfDocument::new("Network-Scan ".to_string() + &scan.to_string(), Mm(210.0), Mm(297.0), "Page 1");
-		let font_regular_reader = File::open("static/assets/Roboto-Light.ttf");
-		let font_bold_reader = File::open("static/assets/Roboto-Black.ttf");
+		let (doc, page, layer) = PdfDocument::new("ITScan ".to_string() + &scan.to_string(), Mm(210.0), Mm(297.0), "Seite 1");
+		let font_regular_reader = File::open("static/assets/EuclidCircularB-Light.ttf");
+		let font_bold_reader = File::open("static/assets/EuclidCircularB-Black.ttf");
 
 		let mut pdf = Pdf {
 			db,
@@ -95,7 +95,7 @@ impl Pdf<'_> {
 		};
 
 		pdf.create_title_page(&doc, &page, &layer);
-		pdf.add_network(&doc);
+		// pdf.add_network(&doc);
 		pdf.add_hosts(&doc);
 
 		let bin_pdf = doc.save_to_bytes().unwrap();
@@ -125,15 +125,15 @@ impl Pdf<'_> {
 			},
 		}
 
-		layer.use_text("ITScan".to_string(), 48.0, Mm(40.0), Mm(180.0), &self.font_bold);
-		layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 24.0, Mm(30.0), Mm(110.0), &self.font_bold);
+		layer.use_text("ITScan".to_string(), 45.0, Mm(25.0), Mm(180.0), &self.font_bold);
+		layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 12.0, Mm(25.0), Mm(110.0), &self.font_regular);
 
 		let scan_date = match db::Scan::load(self.db, self.scan) {
-			Some(scan) => DateTime::parse_from_str("%d.%m.%Y %H:%M:%S", scan.start_time.to_string()),
-			// Some(scan) => scan.start_time.and_local_timezone(Local::now().timezone()).unwrap().format("%Y-%m-%d %H:%M:%S %:z").to_string(),
+			// Some(scan) => DateTime::parse_from_str("%d.%m.%Y %H:%M:%S", scan.start_time.to_string()),
+			Some(scan) => scan.start_time.and_local_timezone(Local::now().timezone()).unwrap().format("%d.%m.%Y %H:%M:%S").to_string(),
 			None => "Unknown".to_string()
 		};
-		layer.use_text("Date: ".to_string() + &scan_date, 24.0, Mm(30.0), Mm(95.0), &self.font_regular);
+		layer.use_text("Datum: ".to_string() + &scan_date, 12.0, Mm(25.0), Mm(95.0), &self.font_regular);
 	}
 
 	/// Loads a file as text and tries to parse it as SVG
@@ -605,8 +605,8 @@ impl Pdf<'_> {
 			},
 		}
 
-		layer.use_text("NetworkDiscover Scan: ".to_string() + &self.scan.to_string(), 16.0, Mm(35.0), Mm(281.5), &self.font_bold);
-		layer.use_text(Local::now().format("%Y-%m-%d %H:%M:%S %:z").to_string(), 10.0, Mm(154.5), Mm(6.0), &self.font_regular);
+		layer.use_text("ITScan: ".to_string() + &self.scan.to_string(), 16.0, Mm(35.0), Mm(281.5), &self.font_bold);
+		layer.use_text(Local::now().format("%d.%m.%Y %H:%M:%S").to_string(), 10.0, Mm(154.5), Mm(6.0), &self.font_regular);
 
 		let header_line = Line {
 			points: vec![ (Point::new(Mm(10.0), Mm(275.0)), false), (Point::new(Mm(200.0), Mm(275.0)), false) ],
@@ -653,8 +653,8 @@ impl Pdf<'_> {
 
 		// Text
 		start_top_fnc -= self.line_height;
-		layer.use_text("Host: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_regular);
-		layer.use_text(&host.ip, self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_bold);
+		layer.use_text("Host: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_bold);
+		layer.use_text(&host.ip, self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_regular);
 
 		start_top_fnc -= self.line_height;
 		layer.use_text("Operating System: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_bold);

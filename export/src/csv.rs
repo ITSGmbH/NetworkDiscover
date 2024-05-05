@@ -18,7 +18,7 @@ impl Csv {
 	///
 	/// The CSV as a string
 	pub fn export(db: &mut sqlite::Database, network: std::string::String, scan: i64) -> std::string::String {
-		let header = "id;ip;network;parent;os;ports".to_string();
+		let header = "ID;IP;Network;Parent;OS;Ports".to_string();
 		let hosts = db::Host::list_from_network(db, &network, &scan);
 		hosts.iter()
 			.map(|host| {
