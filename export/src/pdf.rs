@@ -1,7 +1,7 @@
 use std::string::String;
 use log::error;
 use chrono::prelude::Local;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap};
 use std::fs::File;
 use std::io::prelude::*;
 // use chrono::{DateTime};
@@ -9,7 +9,7 @@ use printpdf::{
 	pdf_document::PdfDocumentReference, Mm,
 	PdfDocument, IndirectFontRef, PdfPageIndex, PdfLayerIndex, PdfLayerReference,
 	svg::Svg, svg::SvgTransform,
-	Rgb, Color, line::Line, point::Point,
+	Rgb, Color, line::Line, point::Point
 };
 
 pub struct Pdf<'a> {
@@ -30,6 +30,7 @@ pub struct Pdf<'a> {
 	page_top: f64,
 }
 
+/*
 #[derive(Debug)]
 struct Node {
 	id: i64,
@@ -41,6 +42,9 @@ struct Node {
 	pos_x: f64,
 	pos_y: f64,
 }
+*/
+
+/*
 impl Default for Node {
 	fn default() -> Self {
 		Node {
@@ -51,6 +55,7 @@ impl Default for Node {
 		}
 	}
 }
+*/
 
 impl Pdf<'_> {
 
@@ -66,7 +71,7 @@ impl Pdf<'_> {
 	///
 	/// The PDF as a binary string which can be saved to a file or presented as a stream to a browser
 	pub fn export(db: &mut sqlite::Database, network: String, scan: i64) -> String {
-		let (doc, page, layer) = PdfDocument::new("ITScan ".to_string() + &scan.to_string(), Mm(210.0), Mm(297.0), "Seite 1");
+		let (doc, page, layer) = PdfDocument::new("ITScan", Mm(210.0), Mm(297.0), "Seite 1");
 		let font_regular_reader = File::open("static/assets/EuclidCircularB-Light.ttf");
 		let font_bold_reader = File::open("static/assets/EuclidCircularB-Black.ttf");
 
@@ -116,24 +121,58 @@ impl Pdf<'_> {
 			None => {}
 			Some(svg) => {
 				svg.add_to_layer(&layer, SvgTransform {
-					translate_x: Some(Mm(70.0).into()),
-					translate_y: Some(Mm(230.0).into()),
-					scale_x: Some(3.0),
-					scale_y: Some(3.0),
+					translate_x: Some(Mm(10.0).into()),
+					translate_y: Some(Mm(280.0).into()),
+					scale_x: Some(1.0),
+					scale_y: Some(1.0),
 					.. Default::default()
 				});
 			},
 		}
 
-		layer.use_text("ITScan".to_string(), 45.0, Mm(25.0), Mm(180.0), &self.font_bold);
-		layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 12.0, Mm(25.0), Mm(110.0), &self.font_regular);
+		/*
+		IT-S GmbH
+		Industriestrasse 17
+		9552 Bronschhofen
+		+41 71 966 63 63
+		info@it-s.ch
+		it-s.ch
+		Zürichbergstrasse 98
+		8044 Zürich
+		Birsmatt 6
+		4147 Aesch BL
+		*/
+
+		layer.use_text("IT-S GmbH".to_string(), 8.0, Mm(175.0), Mm(287.0), &self.font_bold);
+		layer.use_text("Industriestrasse 17".to_string(), 8.0, Mm(175.0), Mm(283.0), &self.font_regular);
+		layer.use_text("9552 Bronschhofen".to_string(), 8.0, Mm(175.0), Mm(279.5), &self.font_regular);
+		layer.use_text("+41 71 966 63 63".to_string(), 8.0, Mm(175.0), Mm(276.0), &self.font_regular);
+		layer.use_text("info@it-s.ch".to_string(), 8.0, Mm(175.0), Mm(272.5), &self.font_regular);
+		layer.use_text("it-s.ch".to_string(), 8.0, Mm(175.0), Mm(269.0), &self.font_regular);
+
+		layer.use_text("Zürichbergstrasse 98".to_string(), 8.0, Mm(175.0), Mm(263.0), &self.font_regular);
+		layer.use_text("8044 Zürich".to_string(), 8.0, Mm(175.0), Mm(259.5), &self.font_regular);
+
+		layer.use_text("Birsmatt 6".to_string(), 8.0, Mm(175.0), Mm(254.5), &self.font_regular);
+		layer.use_text("4147 Aesch BL".to_string(), 8.0, Mm(175.0), Mm(251.0), &self.font_regular);
+
+		// Set the text color
+		let text_color = Color::Rgb(Rgb::new(0.0627,0.0235,0.6235, None)); // RGB color: Green
+		layer.set_fill_color(text_color);
+
+		layer.use_text("ITScan".to_string(), 45.0, Mm(25.0), Mm(160.0), &self.font_bold);
+
+		let text_color = Color::Rgb(Rgb::new(0.0,0.0,0.0, None)); // RGB color: Green
+		layer.set_fill_color(text_color);
+
+		// layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 12.0, Mm(25.0), Mm(150.0), &self.font_regular);
 
 		let scan_date = match db::Scan::load(self.db, self.scan) {
 			// Some(scan) => DateTime::parse_from_str("%d.%m.%Y %H:%M:%S", scan.start_time.to_string()),
 			Some(scan) => scan.start_time.and_local_timezone(Local::now().timezone()).unwrap().format("%d.%m.%Y %H:%M:%S").to_string(),
 			None => "Unknown".to_string()
 		};
-		layer.use_text("Datum: ".to_string() + &scan_date, 12.0, Mm(25.0), Mm(95.0), &self.font_regular);
+		layer.use_text("Datum: ".to_string() + &scan_date, 12.0, Mm(25.0), Mm(150.0), &self.font_regular);
 	}
 
 	/// Loads a file as text and tries to parse it as SVG
@@ -168,6 +207,7 @@ impl Pdf<'_> {
 	/// # Arguments
 	///
 	/// * `doc` - Reference to the PDF Document to add all hosts
+	/*
 	fn add_network(&mut self, doc: &PdfDocumentReference) {
 		let mut nodes: HashMap<i64, Node> = HashMap::new();
 		db::Host::list_from_network(self.db, self.network, self.scan)
@@ -232,6 +272,7 @@ impl Pdf<'_> {
 			self.add_host_with_label(&layer, &node.pos_x, &node.pos_y, &node.label, &node.os);
 		}
 	}
+	*/
 
 	/// Calculates the starting position from bottom in contrast to the given center
 	///
@@ -244,6 +285,7 @@ impl Pdf<'_> {
 	/// # Result
 	///
 	/// A HashMap with the key corresponds to the level and the value as the starting position
+	/*
 	fn init_start_pos_per_level(nodes: &HashMap<i64, Node>, distance: f64, center: f64) -> HashMap<i64, f64> {
 		let mut start_pos: HashMap<i64, f64> = HashMap::new();
 		let nodes_per_level = Self::get_nodes_per_level(&nodes);
@@ -253,6 +295,7 @@ impl Pdf<'_> {
 		}
 		start_pos
 	}
+	*/
 
 	/// Returns the number of nodes per level.
 	///
@@ -263,6 +306,7 @@ impl Pdf<'_> {
 	/// # Result
 	///
 	/// A HashMap where the key is the level and the value is the number of nodes on that level
+	/*
 	fn get_nodes_per_level(nodes: &HashMap<i64, Node>) -> HashMap<i64, i64> {
 		let mut nums: HashMap<i64, i64> = HashMap::new();
 		for (_, node) in nodes {
@@ -272,6 +316,7 @@ impl Pdf<'_> {
 		}
 		nums
 	}
+	*/
 
 	/// Calculates the distances for each node compared to the first node.
 	/// The distance is changed on the node referece.
@@ -281,6 +326,7 @@ impl Pdf<'_> {
 	/// * `current` - The node key to process the edges
 	/// * `distance` - Distance for the given node
 	/// * `nodes` - HashMap of all nodes
+	/*
 	fn build_node_distances(current: i64, distance: i64, nodes: &mut HashMap<i64, Node>) {
 		let mut edges: Vec<i64> = vec![];
 		match nodes.get_mut(&current) {
@@ -295,6 +341,7 @@ impl Pdf<'_> {
 			Self::build_node_distances(next, distance + (k as i64 / max) + 1, nodes);
 		}
 	}
+	*/
 
 	/// Add a host icon with a label below it
 	///
@@ -305,11 +352,13 @@ impl Pdf<'_> {
 	/// * `bottom` - Position from the bottom
 	/// * `label` - Label to show below
 	/// * `os` - Operating System to find the correct icon
+	/*
 	fn add_host_with_label(&self, layer: &PdfLayerReference, left: &f64, bottom: &f64, label: &str, os: &str) {
 		self.add_host_icon(&layer, os, left, bottom, &3.0, &3.0);
 		let center = left + 1.7 - (7.0 * label.len() as f64 * 0.09); // Based on precise guessing
 		layer.use_text(label, 7.0, Mm(center), Mm(bottom - 2.6), &self.font_regular);
 	}
+	*/
 
 	/// Add all hosts from the given Scan to the PDF
 	///
@@ -381,7 +430,7 @@ impl Pdf<'_> {
 		let ports = db::Port::load(self.db, &host.hist_id);
 		if ports.len() > 0 {
 			(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
-			page.use_text("Services:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+			page.use_text("Services:".to_string(), self.header_font_size, Mm(25.0), Mm(start_top), &self.font_bold);
 			self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
 			start_top -= self.line_height / 2.0;
 
@@ -439,7 +488,7 @@ impl Pdf<'_> {
 			}
 			if win_data.len() > 0 {
 				(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
-				page.use_text("Windows Information:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+				page.use_text("Windows Information:".to_string(), self.header_font_size, Mm(25.0), Mm(start_top), &self.font_bold);
 				self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
 				start_top -= self.line_height / 2.0;
 
@@ -458,7 +507,7 @@ impl Pdf<'_> {
 			let shares = db::WindowsShare::load(self.db, &win.id);
 			if shares.len() > 0 {
 				(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
-				page.use_text("Windows Shares:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+				page.use_text("Windows Shares:".to_string(), self.header_font_size, Mm(25.0), Mm(start_top), &self.font_bold);
 				self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
 				start_top -= self.line_height / 2.0;
 
@@ -478,7 +527,7 @@ impl Pdf<'_> {
 			let printers = db::WindowsPrinter::load(self.db, &win.id);
 			if printers.len() > 0 {
 				(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
-				page.use_text("Shared Printers:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+				page.use_text("Shared Printers:".to_string(), self.header_font_size, Mm(25.0), Mm(start_top), &self.font_bold);
 				self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
 				start_top -= self.line_height / 2.0;
 
@@ -522,7 +571,7 @@ impl Pdf<'_> {
 		let cves = db::Cve::from_host_hist(self.db, &host.hist_id);
 		if cves.len() > 0 {
 			(start_top, page) = self.add_new_page_if_needed(doc, page.clone(), &page_title, start_top, true);
-			page.use_text("Possible Vulnerabilities:".to_string(), self.header_font_size, Mm(20.0), Mm(start_top), &self.font_bold);
+			page.use_text("Possible Vulnerabilities:".to_string(), self.header_font_size, Mm(25.0), Mm(start_top), &self.font_bold);
 			self.draw_line(&15.0, &(start_top - self.header_underline_offset), &200.0, &(start_top - self.header_underline_offset), &page);
 			start_top -= self.line_height * 1.8;
 
@@ -605,8 +654,8 @@ impl Pdf<'_> {
 			},
 		}
 
-		layer.use_text("ITScan: ".to_string() + &self.scan.to_string(), 16.0, Mm(35.0), Mm(281.5), &self.font_bold);
-		layer.use_text(Local::now().format("%d.%m.%Y %H:%M:%S").to_string(), 10.0, Mm(154.5), Mm(6.0), &self.font_regular);
+		// layer.use_text("ITScan: ".to_string() + &self.scan.to_string(), 16.0, Mm(35.0), Mm(281.5), &self.font_bold);
+		layer.use_text(Local::now().format("%d.%m.%Y %H:%M:%S").to_string(), 10.0, Mm(167.0), Mm(6.0), &self.font_regular);
 
 		let header_line = Line {
 			points: vec![ (Point::new(Mm(10.0), Mm(275.0)), false), (Point::new(Mm(200.0), Mm(275.0)), false) ],

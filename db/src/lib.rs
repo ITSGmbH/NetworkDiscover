@@ -94,7 +94,9 @@ impl Scan {
 			// naive::MIN_DATETIME, naive::MAX_DATETIME does not work :(
 			let param_start = if start.is_none() { NaiveDate::from_ymd_opt(1900, 1, 1).unwrap().and_hms_opt(0, 0, 0).unwrap() } else { start.unwrap() };
 			let param_end = if end.is_none() { NaiveDate::from_ymd_opt(9999, 12, 31).unwrap().and_hms_opt(23, 59, 59).unwrap() } else { end.unwrap() };
-			let query = query_as::<_, Scan>("SELECT DISTINCT s.*,true AS changed FROM scans AS s,hosts AS h,hosts_history AS hist WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ?")
+			// let query = query_as::<_, Scan>("SELECT DISTINCT s.*,true AS changed FROM scans AS s,hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ? ORDER BY c.cvss DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC")
+
+			let query = query_as::<_, Scan>("SELECT DISTINCT s.*,true AS changed FROM scans AS s,hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ? ORDER BY s.start_time DESC, c.cvss DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC LIMIT 21")
 				.bind(network)
 				.bind(&param_start)
 				.bind(&param_end)
@@ -445,7 +447,9 @@ impl Host {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ?")
+			// let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? ORDER BY c.cvss DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC")
+			let query = query_as::<_, Host>("SELECT DISTINCT h.*,hist.os AS os,hist.id AS hist_id, c.* FROM hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? GROUP BY h.ip ORDER BY c.cvss DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC")
+			//let query = query_as::<_, Host>("SELECT DISTINCT s.*,true AS changed FROM scans AS s,hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ? ORDER BY s.start_time DESC, c.cvss DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC")
 				.bind(scan)
 				.bind(network)
 				.fetch_all(pool);
