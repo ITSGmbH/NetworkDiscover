@@ -5,7 +5,7 @@ use serde::{Serialize, Deserialize};
 use minreq;
 use base64::Engine;
 use cron_parser;
-use chrono::Utc;
+use chrono::{Local, Utc};
 
 use std::{fs, path, io::{self, Write}, ffi::OsStr, thread, time};
 use std::sync::{Arc, Mutex};
@@ -20,7 +20,7 @@ use export::{pdf::Pdf, csv::Csv, unknown_export};
 struct ScanStatusResponse {
 	running: bool,
 	paused: bool,
-	triggered: bool,
+	triggered: bool
 }
 
 /// Structure to response for a version check
@@ -28,12 +28,13 @@ struct ScanStatusResponse {
 struct VersionResponse {
 	installed: String,
 	latest: String,
+	now: String
 }
 
 /// Representaiton of the current scan status
 enum ScanStatus {
 	Started,
-	Running,
+	Running
 }
 impl From<ScanStatus> for String {
 	fn from(val: ScanStatus) -> Self {
@@ -695,9 +696,14 @@ async fn get_version(config: web::Data<config::AppConfig>) -> Result<impl Respon
 			Err(e) => error!("{}", e),
 	}
 
+	// let curr_time = SystemTime::now();
+	// let dt: DateTime<Utc> = curr_time.clone().into();
+	// println!("Date/Time created using SystemTime: {}", dt.format("%d.%m.%Y %H:%M:%S").to_string());
+
 	let status = VersionResponse {
 		installed: config::NWD_VERSION.to_string(),
 		latest: latest.to_string(),
+		now: Local::now().format("%d.%m.%Y %H:%M:%S").to_string()
 	};
 	Ok(web::Json(status))
 }
