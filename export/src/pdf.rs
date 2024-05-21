@@ -18,16 +18,13 @@ pub struct Pdf<'a> {
 	scan: &'a i64,
 	font_regular: IndirectFontRef,
 	font_bold: IndirectFontRef,
-	max_bottom: f64,
-	min_bottom: f64,
-	_max_left: f64,
-	min_left: f64,
 	header_space: f64,
 	header_underline_offset: f64,
 	header_font_size: f64,
 	font_size: f64,
 	line_height: f64,
 	page_top: f64,
+	pages: Vec<(PdfPageIndex, PdfLayerIndex)>
 }
 
 /*
@@ -87,21 +84,28 @@ impl Pdf<'_> {
 				Ok(font) => doc.add_external_font(font).unwrap(),
 				Err(_why) => doc.add_builtin_font(printpdf::BuiltinFont::HelveticaBold).unwrap(),
 			},
-			max_bottom:  260.0,
-			min_bottom: 20.0,
-			_max_left: 190.0,
-			min_left: 20.0,
 			header_space: 16.0,
 			header_underline_offset: 2.0,
 			header_font_size: 15.0,
 			font_size: 10.5,
 			line_height: 6.0,
 			page_top: 266.0,
+			pages: vec![]
 		};
 
 		pdf.create_title_page(&doc, &page, &layer);
+
 		// pdf.add_network(&doc);
 		pdf.add_hosts(&doc);
+
+		// Nachdem alle Seiten hinzugefügt wurden, füge die Seitennummerierung hinzu
+		let total_pages = pdf.pages.len();
+
+		for (i, (page, layer)) in pdf.pages.iter().enumerate() {
+			let current_layer = doc.get_page(*page).get_layer(*layer);
+			let text = format!("Seite {} von {}", i + 1, total_pages);
+			current_layer.use_text(text,8.0, Mm(175.0), Mm(6.0), &pdf.font_regular);
+		}
 
 		let bin_pdf = doc.save_to_bytes().unwrap();
 		String::from_utf8_lossy(&bin_pdf).to_string()
@@ -121,7 +125,7 @@ impl Pdf<'_> {
 			None => {}
 			Some(svg) => {
 				svg.add_to_layer(&layer, SvgTransform {
-					translate_x: Some(Mm(10.0).into()),
+					translate_x: Some(Mm(17.25).into()),
 					translate_y: Some(Mm(280.0).into()),
 					scale_x: Some(1.0),
 					scale_y: Some(1.0),
@@ -148,7 +152,7 @@ impl Pdf<'_> {
 		layer.use_text("9552 Bronschhofen".to_string(), 8.0, Mm(175.0), Mm(279.5), &self.font_regular);
 		layer.use_text("+41 71 966 63 63".to_string(), 8.0, Mm(175.0), Mm(276.0), &self.font_regular);
 		layer.use_text("info@it-s.ch".to_string(), 8.0, Mm(175.0), Mm(272.5), &self.font_regular);
-		layer.use_text("it-s.ch".to_string(), 8.0, Mm(175.0), Mm(269.0), &self.font_regular);
+		layer.use_text("www.it-s.ch".to_string(), 8.0, Mm(175.0), Mm(269.0), &self.font_regular);
 
 		layer.use_text("Zürichbergstrasse 98".to_string(), 8.0, Mm(175.0), Mm(263.0), &self.font_regular);
 		layer.use_text("8044 Zürich".to_string(), 8.0, Mm(175.0), Mm(259.5), &self.font_regular);
@@ -166,13 +170,22 @@ impl Pdf<'_> {
 		layer.set_fill_color(text_color);
 
 		// layer.use_text("Scan: ".to_string() + &self.scan.to_string(), 12.0, Mm(25.0), Mm(150.0), &self.font_regular);
+		// doc.get_page(&self, page_index)
 
 		let scan_date = match db::Scan::load(self.db, self.scan) {
 			// Some(scan) => DateTime::parse_from_str("%d.%m.%Y %H:%M:%S", scan.start_time.to_string()),
 			Some(scan) => scan.start_time.and_local_timezone(Local::now().timezone()).unwrap().format("%d.%m.%Y %H:%M:%S").to_string(),
 			None => "Unknown".to_string()
 		};
-		layer.use_text("Datum: ".to_string() + &scan_date, 12.0, Mm(25.0), Mm(150.0), &self.font_regular);
+		layer.use_text("Datum: ".to_string() + &scan_date, 12.0, Mm(25.0), Mm(150.0), &self.font_bold);
+
+		// Footer
+		let text_color = Color::Rgb(Rgb::new(0.0627,0.0235,0.6235, None)); // RGB color: Green
+		layer.set_fill_color(text_color);
+		layer.use_text("IT ist".to_string(), 34.85, Mm(25.0), Mm(6.0), &self.font_bold);
+		let text_color = Color::Rgb(Rgb::new(0.0,0.0,0.0, None)); // RGB color: Green
+		layer.set_fill_color(text_color);
+		layer.use_text("sicher.".to_string(), 34.85, Mm(57.0), Mm(6.0), &self.font_regular);
 	}
 
 	/// Loads a file as text and tries to parse it as SVG
@@ -381,8 +394,9 @@ impl Pdf<'_> {
 	/// # Result
 	///
 	/// The Layer to add new elements onto
-	fn add_page(&self, doc: &PdfDocumentReference, title: &str) -> PdfLayerReference {
+	fn add_page(&mut self, doc: &PdfDocumentReference, title: &str) -> PdfLayerReference {
 		let (page_index, layer_index) = doc.add_page(Mm(210.0), Mm(297.0), String::from(title));
+		self.pages.push((page_index, layer_index));
 		self.add_header_and_footer(doc, &page_index, &layer_index);
 
 		let layer = doc.get_page(page_index).get_layer(layer_index);
@@ -645,7 +659,7 @@ impl Pdf<'_> {
 			None => {}
 			Some(svg) => {
 				svg.add_to_layer(&layer, SvgTransform {
-					translate_x: Some(Mm(10.0).into()),
+					translate_x: Some(Mm(17.25).into()),
 					translate_y: Some(Mm(280.0).into()),
 					scale_x: Some(1.0),
 					scale_y: Some(1.0),
@@ -654,9 +668,20 @@ impl Pdf<'_> {
 			},
 		}
 
-		// layer.use_text("ITScan: ".to_string() + &self.scan.to_string(), 16.0, Mm(35.0), Mm(281.5), &self.font_bold);
-		layer.use_text(Local::now().format("%d.%m.%Y %H:%M:%S").to_string(), 10.0, Mm(167.0), Mm(6.0), &self.font_regular);
+		// Header
+		layer.use_text("IT-S GmbH".to_string(), 8.0, Mm(175.0), Mm(287.0), &self.font_bold);
+		layer.use_text("www.it-s.ch".to_string(), 8.0, Mm(175.0), Mm(284.0), &self.font_regular);
 
+		// Footer
+		let text_color = Color::Rgb(Rgb::new(0.0627,0.0235,0.6235, None)); // RGB color: Green
+		layer.set_fill_color(text_color);
+		layer.use_text("IT ist".to_string(), 34.85, Mm(25.0), Mm(6.0), &self.font_bold);
+		let text_color = Color::Rgb(Rgb::new(0.0,0.0,0.0, None)); // RGB color: Green
+		layer.set_fill_color(text_color);
+		layer.use_text("sicher.".to_string(), 34.85, Mm(57.0), Mm(6.0), &self.font_regular);
+
+		// layer.use_text(Local::now().format("%d.%m.%Y %H:%M:%S").to_string(), 10.0, Mm(167.0), Mm(6.0), &self.font_regular);
+/*
 		let header_line = Line {
 			points: vec![ (Point::new(Mm(10.0), Mm(275.0)), false), (Point::new(Mm(200.0), Mm(275.0)), false) ],
 			is_closed: false,
@@ -677,6 +702,7 @@ impl Pdf<'_> {
 		layer.set_outline_thickness(0.5);
 		layer.add_shape(header_line);
 		layer.add_shape(footer_line);
+		*/
 	}
 
 	/// Prints a simple header on the given PDF-Layer with all needed information from the given host.
@@ -700,9 +726,20 @@ impl Pdf<'_> {
 		let pos_key = 50.0;
 		let pos_val = 86.0;
 
+		let mut netbios_name:String = "Unknown".to_string();
+		if let Some(win) = db::Windows::load(self.db, &host.hist_id) {
+			if let Some(domain) = db::WindowsDomain::load(self.db, &win.id) {
+				netbios_name = domain.netbios_name.to_string();
+			}
+		}
+
 		// Text
 		start_top_fnc -= self.line_height;
 		layer.use_text("Host: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_bold);
+		layer.use_text(netbios_name, self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_regular);
+
+		start_top_fnc -= self.line_height;
+		layer.use_text("IP: ".to_string(), self.font_size, Mm(pos_key), Mm(start_top_fnc), &self.font_bold);
 		layer.use_text(&host.ip, self.font_size, Mm(pos_val), Mm(start_top_fnc), &self.font_regular);
 
 		start_top_fnc -= self.line_height;
