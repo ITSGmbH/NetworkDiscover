@@ -447,9 +447,7 @@ impl Host {
 		let con = db.connection();
 		if con.is_some() {
 			let pool = con.unwrap();
-			// let query = query_as::<_, Host>("SELECT h.*,hist.os AS os,hist.id AS hist_id FROM hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? ORDER BY c.cvss DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC")
-			let query = query_as::<_, Host>("SELECT DISTINCT h.*,hist.os AS os,hist.id AS hist_id, c.* FROM hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? GROUP BY h.ip ORDER BY c.cvss DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC")
-			//let query = query_as::<_, Host>("SELECT DISTINCT s.*,true AS changed FROM scans AS s,hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE h.network = ? AND h.id=hist.host_id AND hist.scan=s.scan AND s.start_time >= ? AND s.end_time <= ? ORDER BY s.start_time DESC, c.cvss DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC")
+			let query = query_as::<_, Host>("SELECT DISTINCT h.*,hist.os AS os,hist.id AS hist_id, c.* FROM hosts AS h,hosts_history AS hist LEFT JOIN cves as c ON hist.id = c.host_history_id WHERE hist.scan = ? AND hist.host_id=h.id AND h.network = ? GROUP BY h.ip ORDER BY MAX(c.cvss) DESC, CAST(substr(h.ip, 13) AS NUMERIC) ASC")
 				.bind(scan)
 				.bind(network)
 				.fetch_all(pool);

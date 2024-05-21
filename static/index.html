@@ -183,7 +183,6 @@
 			padding: 0;
 		}
 	</style>
-	</style>
 </head>
 <body>
 	<section class="section pb-3">
@@ -197,6 +196,7 @@
 				<div class="navbar-start">
 					<div class="navbar-item"><span class="tag is-warning" id="running-status">waiting</span></div>
 					<div class="navbar-item"><span class="tag is-success" id="release-version">Up to date</span></div>
+					<div class="navbar-item"><span id="now"></span></div>
 				</div>
 
 				<div class="navbar-end">
@@ -364,7 +364,7 @@
 					Drag a node to move;<br/>Double-click to reset it's position;
 				</div>
 				<div id="networkarea"></div>
-				<div id="networklist"></div>
+				<div id="networklist" class="is-hidden"></div>
 			</div>
 
 			<div class="column">
@@ -585,7 +585,7 @@
 
 	<footer class="footer p-2">
 		<div class="content has-text-centered">
-			<a href="https://github.com/ITSGmbH/NetworkDiscover">ITScan</a> provided by <a href="https://www.it-s.ch/">IT-S GmbH</a>
+			ITScan provided by <a href="https://www.it-s.ch/">IT-S GmbH</a>
 		</div>
 	</footer>
 
@@ -845,11 +845,13 @@
 		function createListGraph(id, data) {
 			$('#' + id).empty();
 			$('#' + id).append('<table class="table"><thead><tr><th>#</th><th>System</th><th>OS</th><th></th></tr></thead><tbody></tbody></table>');
-			let live_nodes = appendListNode($('#' + id + ' table tbody'), data.root_node, data, 0, 0);
+			let live_nodes = 0;
+			data.nodes.forEach((n) => {
+				live_nodes = appendListNode($('#' + id + ' table tbody'), n.id, n, live_nodes);
+			});
 			$('#' + id + ' table').append('<tfoot><tr><th></th><th></th><th></th><th class="has-text-right">Total online: ' + live_nodes + '</th></tr></tfoot>');
 		}
-		function appendListNode(table, id, data, count, indent) {
-			let node = data.nodes.find((n) => n.id == id);
+		function appendListNode(table, id, node, count) {
 			if (node == undefined) { return; }
 
 			let tr_class = '';
@@ -858,7 +860,7 @@
 			if (node.extended) { tags += '<span class="tag is-small is-info">Extended Information</span><br/>'; }
 			if (node.first) { tags += '<span class="tag is-success is-small">first seen</span><br/>'; }
 			if (node.changed) { tags += '<span class="tag is-warning is-small">Changed</span><br/>'; }
-			if (node.removed && id != 'root') { tags += '<span class="tag is-danger is-light is-small">Removed</span><br/>'; tr_class += 'removed '; } else { count++; }
+			if (node.removed) { tags += '<span class="tag is-danger is-light is-small">Removed</span><br/>'; tr_class += 'removed '; } else { count++; }
 			let icon = '<figure class="image is-24x24"><img src="' + getNodeIcon(node.os ? node.os : 'unknown') + '" /></figure>';
 			let label = node.label.split('\n').reduce((acc, val) => acc + '<br/><small class="has-text-grey">' + val + '</small>');
 			let os = node.os;
@@ -867,11 +869,6 @@
 			row.on('click', (ev) => selectNode(id));
 			table.append(row);
 
-			data.edges.forEach((n) => {
-				if (n.target && n.source && n.target.id == id) {
-					count = appendListNode(table, n.source.id, data, count, indent+1);
-				}
-			});
 			return count;
 		}
 
@@ -892,7 +889,10 @@
 						});
 					}
 				});
-				$('#scan-' + (scans.length - 1)).trigger('click');
+				// Der erste Scan auswählen, beim ersten Aufruf der Website
+				$('#scan-0').trigger('click');
+				// Der letzte Scan (Momentan werden 21 absteigend vom Startdatum dargestellt) in der Liste auswählen
+				// $('#scan-' + (scans.length - 1)).trigger('click');
 			});
 		};
 
@@ -967,6 +967,8 @@
 				$('#graph-search').removeClass('is-hidden');
 				$('#graph-hint').removeClass('is-hidden');
 			});
+			$('#view-list').trigger('click');
+
 			$('#hide-removed').on('click', ev => {
 				$('#networklist table tr.removed').toggleClass('is-hidden');
 
@@ -1433,6 +1435,7 @@
 					$('#release-version').removeClass('is-danger');
 					$('#release-version').html("Up to date");
 				}
+				$('#now').html(data.now);
 			});
 		});
 
