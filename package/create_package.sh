@@ -7,6 +7,7 @@ cd $CWD &>/dev/null
 PACKAGE="network_discover"
 VERSION=$( grep "^version" ../Cargo.toml | cut -d'"' -f2 )
 ARCHLIST=( $( uname -m ) )
+# ARCHLIST=( $( dpkg --print-architecture ) )
 
 ### If cross is available, create als an AMRv7 Package
 cross version &>/dev/null
@@ -142,23 +143,18 @@ chmod +x deb/prerm
 chmod +x deb/preinst
 chmod +x deb/postinst
 
-
 ### Build all architectures
-
 for ARCH in ${ARCHLIST[*]}; do
   ARCHIVE="${PACKAGE}-${VERSION}_${ARCH}.tar.xz"
   DEBIAN="${PACKAGE}-${VERSION}_${ARCH}.deb"
   rm ${ARCHIVE} &>/dev/null
   rm ${DEBIAN} &>/dev/null
 
-  if [ "${ARCH}" == "armhf" ]; then
-    TARGET="armv7-unknown-linux-gnueabihf"
-    $( cd .. && rm -Rf target/release && cross build --target=${TARGET} --release )
-    cp ../target/${TARGET}/release/${PACKAGE} pkg/opt/${PACKAGE}/ &>/dev/null
-  else
-    $( cd .. && rm -Rf target/release && cargo build --release )
-    cp ../target/release/${PACKAGE} pkg/opt/${PACKAGE}/ &>/dev/null
-  fi
+  # Build auf x86_64- und arm-Architektur jeweils ausführen, dann funkioniert es auch ohne podman / docker
+  # Version im config/Cargo.toml (wird auf der Weboberfläche angezeigt, dass nicht die neuste Version installiert ist)
+  # und im Cargo.toml (dort wird die Version für die Paketierung ausgelesen)
+  $( cd .. && rm -Rf target/release && cargo build --release )
+  cp ../target/release/${PACKAGE} pkg/opt/${PACKAGE}/ &>/dev/null
 
   $( cd pkg; find . -type f | xargs md5sum | sed 's/.\///' > ../deb/md5sums )
 
